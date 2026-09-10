@@ -40,33 +40,33 @@
   through them rather than being blocked.
 - Verified by `tests/logic_test.tscn` (26 checks).
 
-## MILESTONE 2 — RTS CORE EXPERIENCE (in progress)
+## MILESTONE 2 — RTS CORE EXPERIENCE
 Phase 1 — visibility foundation
-- [ ] vision_range on UnitStats/BuildingStats + values per entity
-- [ ] FogOfWar grid autoload (2m cells, explored vs currently_visible, ~8Hz updates)
-- [ ] Entity hiding: enemies outside vision are invisible, unselectable, untargetable
-- [ ] Attack orders vs a target lost to fog fall back to last known position
+- [x] vision_range on UnitStats/BuildingStats + values per entity
+- [x] FogOfWar grid autoload (2m cells, explored vs currently_visible, ~8Hz updates)
+- [x] Entity hiding: enemies outside vision are invisible, unselectable, untargetable
+- [x] Attack orders vs a target lost to fog fall back to last known position
 Phase 2 — map
-- [ ] 220x220 battlefield, POIs the player must discover, terrain blockers/chokepoints
-- [ ] Start with only the base area explored
+- [x] 220x220 battlefield, POIs the player must discover, terrain blockers/chokepoints
+- [x] Start with only the base area explored
 Phase 3 — fog rendering
-- [ ] Ground shader sampling the fog texture, soft edges, three brightness states
+- [x] Ground shader sampling the fog texture, soft edges, three brightness states
 Phase 4 — selection
-- [ ] Screen-space marquee box, real-time rectangle, friendly units only
-- [ ] Touch: hold-then-drag = marquee, immediate drag = camera pan
-- [ ] Double-click/tap selects same type within 30m
-- [ ] Control groups 1/2/3 (assign + recall, auto-remove dead)
+- [x] Screen-space marquee box, real-time rectangle, friendly units only
+- [x] Touch: hold-then-drag = marquee, immediate drag = camera pan
+- [x] Double-click/tap selects same type within 30m
+- [x] Control groups 1/2/3 (assign + recall, auto-remove dead)
 Phase 5 — commands
-- [ ] CommandType architecture + contextual intent
-- [ ] Attack-move, Stop, defensive stance with leash
-- [ ] Command feedback markers
-- [ ] Formation offsets for multi-unit moves
+- [x] CommandType architecture + contextual intent
+- [x] Attack-move, Stop, defensive stance with leash
+- [x] Command feedback markers
+- [x] Formation offsets for multi-unit moves
 Phase 6 — UI
-- [ ] Minimap (explored/unexplored, friendly, visible enemies, click to pan)
-- [ ] Selection info panel (single + multi)
-- [ ] Health bars on damage/selection only
-- [ ] Camera zoom limits so the map is never fully visible
-- [ ] Debug overlays: vision circles, fog cells, paths, current command
+- [x] Minimap (explored/unexplored, friendly, visible enemies, click to pan)
+- [x] Selection info panel (single + multi)
+- [x] Health bars on damage/selection only
+- [x] Camera zoom limits so the map is never fully visible
+- [x] Debug overlays: vision circles, fog cells, paths, current command
 
 ## NEXT
 - Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.

@@ -19,6 +19,29 @@ var _timer: float = 0.0
 const ARRIVE_NODE_DISTANCE: float = 3.0
 const ARRIVE_REFINERY_DISTANCE: float = 4.5
 
+## The harvester answers the same command vocabulary as everything else;
+## HARVEST and RETURN simply mean something to it that they do not mean
+## to a tank, which is why the resolver can stay unit-agnostic.
+func _handle_command(type: int, position: Vector3, target: Node) -> void:
+	match type:
+		CommandTypes.Type.HARVEST:
+			assigned_node = target
+			state = State.IDLE
+			_tick_idle()
+		CommandTypes.Type.RETURN:
+			_refinery = target if target != null else GameState.get_nearest_refinery(global_position)
+			if _refinery:
+				move_to(_refinery.global_position)
+				state = State.TO_REFINERY
+		CommandTypes.Type.STOP:
+			state = State.IDLE
+			stop_moving()
+		_:
+			## A manual move order takes the harvester off its route until
+			## it is idle again, so the player can always pull it out.
+			state = State.IDLE
+			super._handle_command(type, position, target)
+
 func _process(delta: float) -> void:
 	match state:
 		State.IDLE:

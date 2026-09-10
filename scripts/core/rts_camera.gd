@@ -72,7 +72,12 @@ func _apply_transform() -> void:
 	global_position = _current_pan + CAMERA_DIR * _current_zoom
 	look_at(_current_pan, Vector3.UP)
 
+## The camera is the lowest-priority consumer of a drag: once the
+## selection layer has committed the gesture to a marquee, the
+## battlefield must hold still underneath it.
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenDrag and not SelectionManager.is_panning_allowed():
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:

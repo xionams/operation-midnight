@@ -9,3 +9,6 @@ signal building_placed(building: Node)
 signal unit_spawned(unit: Node)
 signal building_captured(building: Node, by_player: bool)
 signal building_infiltrated(building: Node, effect: String)
+## Fired for every accepted order so the HUD can show the player that
+## their command landed, without the command path knowing about the UI.
+signal command_issued(type: int, position: Vector3)

@@ -84,6 +84,7 @@ func _ready() -> void:
 	_build_hud(placer)
 
 	EventBus.building_placed.connect(func(_building): _nav_region.bake_navigation_mesh(true))
+	EventBus.command_issued.connect(func(type, position): CommandMarker.spawn(_level, position, type))
 
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 

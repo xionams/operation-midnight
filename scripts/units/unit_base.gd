@@ -17,6 +17,24 @@ var health: HealthComponent
 var nav_agent: NavigationAgent3D
 var selection_ring: MeshInstance3D
 
+## Current order, exposed so the HUD and debug overlay can report what a
+## unit believes it is doing.
+var current_command: int = CommandTypes.Type.STOP
+var command_target: Node = null
+var command_position: Vector3 = Vector3.ZERO
+
+const ACQUIRE_INTERVAL: float = 0.25
+const ACQUIRE_BONUS: float = 5.0
+const MAX_CHASE_DISTANCE: float = 12.0
+
+## Captured on the first physics tick, never in _ready: spawners add the
+## node to the tree and set its position afterwards, so at _ready time
+## every unit still reports the world origin. Reading it there made every
+## unit believe home was (0,0,0) and march to the middle of the map.
+var _guard_origin: Vector3 = Vector3.ZERO
+var _guard_origin_set: bool = false
+var _acquire_timer: float = 0.0
+
 const UNIT_COLLISION_LAYER: int = 1 << 1 # bit 2
 const GROUND_COLLISION_LAYER: int = 1 << 0 # bit 1
 const INFANTRY_COLLISION_LAYER: int = 1 << 4 # bit 5 (bit 4 is resource nodes)
@@ -163,11 +181,117 @@ func face_towards(target_position: Vector3) -> void:
 	rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * get_physics_process_delta_time(), 0.0, 1.0))
 
 func attack_target(target: Node) -> void:
+	issue_command(CommandTypes.Type.ATTACK, Vector3.ZERO, target)
+
+## Single entry point for every order. The player's input layer resolves
+## intent to a CommandType and calls this; units never read input, and
+## specialised units (Harvester) override _handle_command rather than
+## growing their own input handling.
+func issue_command(type: int, position: Vector3 = Vector3.ZERO, target: Node = null) -> void:
+	current_command = type
+	command_target = target
+	command_position = position
+	_guard_origin = global_position
+	_guard_origin_set = true
+	_acquire_timer = 0.0
+	_handle_command(type, position, target)
+
+func _handle_command(type: int, position: Vector3, target: Node) -> void:
 	var attacker: AttackerComponent = get_node_or_null("AttackerComponent")
-	if attacker:
-		attacker.set_target(target)
-	elif target is Node3D:
-		move_to((target as Node3D).global_position)
+	match type:
+		CommandTypes.Type.MOVE:
+			if attacker:
+				attacker.clear_target()
+			move_to(position)
+		CommandTypes.Type.ATTACK:
+			if attacker:
+				attacker.set_target(target)
+			elif target is Node3D:
+				move_to((target as Node3D).global_position)
+		CommandTypes.Type.ATTACK_MOVE:
+			if attacker:
+				attacker.clear_target()
+			move_to(position)
+		CommandTypes.Type.STOP:
+			if attacker:
+				attacker.clear_target()
+			stop_moving()
+		CommandTypes.Type.GUARD:
+			if attacker:
+				attacker.clear_target()
+			stop_moving()
+		_:
+			## Orders that mean something only to a specialist - HARVEST,
+			## RETURN, CAPTURE - still have to do something sensible for
+			## everyone else, or a mixed selection silently ignores the
+			## click. Walking there is the honest interpretation.
+			if attacker:
+				attacker.clear_target()
+			move_to(position)
+
+## Attack-move and idle defence share one scan. Runs on a timer rather
+## than every frame - target acquisition at 4Hz is indistinguishable in
+## play and keeps the cost flat as army sizes grow.
+func _tick_combat_behavior(delta: float) -> void:
+	if not _guard_origin_set:
+		_guard_origin = global_position
+		_guard_origin_set = true
+
+	var attacker: AttackerComponent = get_node_or_null("AttackerComponent")
+	if attacker == null or attacker.weapon == null or attacker.weapon.stats == null:
+		return
+
+	if attacker.has_target() or attacker.is_searching():
+		return
+
+	## An attack-mover with nothing to shoot resumes its advance.
+	if current_command == CommandTypes.Type.ATTACK_MOVE and nav_agent != null \
+		and nav_agent.is_navigation_finished() == false:
+		pass
+	elif current_command == CommandTypes.Type.ATTACK_MOVE:
+		move_to(command_position)
+
+	_acquire_timer -= delta
+	if _acquire_timer > 0.0:
+		return
+	_acquire_timer = ACQUIRE_INTERVAL
+
+	var acquisition: float = attacker.weapon.stats.attack_range + ACQUIRE_BONUS
+	var found := _nearest_hostile(acquisition, attacker)
+	if found == null:
+		## Wandered too far chasing something; go back where we were told
+		## to be rather than drifting across the map.
+		if current_command != CommandTypes.Type.ATTACK_MOVE \
+			and global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE:
+			move_to(_guard_origin)
+		return
+
+	attacker.set_target(found)
+	if current_command == CommandTypes.Type.ATTACK_MOVE:
+		stop_moving()
+
+func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
+	var group: String = "enemy_units" if is_player_faction else "player_units"
+	var best: Node = null
+	var best_dist: float = INF
+	for candidate in get_tree().get_nodes_in_group(group):
+		if not is_instance_valid(candidate):
+			continue
+		if is_player_faction and FogHideable.is_hidden(candidate):
+			continue
+		if not DisguiseAbility.visible_to(candidate, is_player_faction):
+			continue
+		if not attacker.weapon.can_damage(candidate):
+			continue
+		var dist: float = global_position.distance_to(candidate.global_position)
+		if dist > radius or dist >= best_dist:
+			continue
+		## Never chase further from home than the leash allows.
+		if candidate.global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE + radius:
+			continue
+		best_dist = dist
+		best = candidate
+	return best
 
 ## Units carrying an EnterBuildingAbility (Engineer, Spy) answer a click
 ## on a building with their ability instead of an attack. Returns true
@@ -189,6 +313,7 @@ func _physics_process(delta: float) -> void:
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()
+		_tick_combat_behavior(delta)
 		return
 
 	var next_position: Vector3 = nav_agent.get_next_path_position()
@@ -206,6 +331,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	_crush_what_we_drove_over()
+	_tick_combat_behavior(delta)
 
 ## Armour flattens enemy infantry it drives over. Vehicles pass through
 ## the infantry layer, so contact cannot be read from slide collisions -

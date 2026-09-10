@@ -21,8 +21,9 @@ class_name HUD
 @export var placer: BuildingPlacer
 
 const MARGIN: float = 28.0
-const BUTTON_SIZE: Vector2 = Vector2(140, 58)
+const BUTTON_SIZE: Vector2 = Vector2(118, 56)
 const BAR_HEIGHT: float = BUTTON_SIZE.y * 2.0 + 8.0
+const GROUP_ASSIGN_HOLD: float = 0.45
 
 var _credits_label: Label
 var _power_label: Label
@@ -42,6 +43,12 @@ var _build_dog_button: Button
 var _production_label: Label
 var _event_label: Label
 var _event_timer: float = 0.0
+var _minimap: Minimap
+var _info_panel: Label
+var _attack_move_button: Button
+var _group_buttons: Dictionary = {}
+var _group_hold_index: int = 0
+var _group_hold_time: float = 0.0
 var _victory_overlay: Control
 var _victory_label: Label
 var _debug_panel: Label
@@ -52,6 +59,9 @@ func _ready() -> void:
 	_build_top_bar()
 	_build_bottom_bar()
 	_build_production_label()
+	_build_minimap()
+	_build_command_bar()
+	_build_info_panel()
 	_build_victory_overlay()
 	_build_debug_overlay()
 
@@ -122,7 +132,9 @@ func _build_bottom_bar() -> void:
 	column.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	column.offset_left = MARGIN
 	column.offset_top = -(MARGIN + BAR_HEIGHT)
-	column.offset_right = -MARGIN
+	## Stop short of the minimap column on the right, or the last build
+	## button ends up underneath it.
+	column.offset_right = -(Minimap.SIZE + MARGIN * 2.0)
 	column.offset_bottom = -MARGIN
 	column.add_theme_constant_override("separation", 8)
 	add_child(column)
@@ -184,9 +196,129 @@ func _make_build_button(label: String) -> Button:
 func _unit_label(name: String, stats: UnitStats) -> String:
 	return "%s\n%d cr" % [name, stats.cost if stats else 0]
 
+## Minimap sits bottom-right, clear of the build rows on the left.
+func _build_minimap() -> void:
+	_minimap = Minimap.new()
+	_minimap.name = "Minimap"
+	_minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_minimap.offset_left = -(Minimap.SIZE + MARGIN)
+	_minimap.offset_top = -(Minimap.SIZE + MARGIN)
+	_minimap.offset_right = -MARGIN
+	_minimap.offset_bottom = -MARGIN
+	add_child(_minimap)
+
+## Order buttons and control groups, stacked above the minimap on the
+## right so command actions are never mixed in with production actions.
+func _build_command_bar() -> void:
+	var column := VBoxContainer.new()
+	column.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	column.offset_left = -(Minimap.SIZE + MARGIN)
+	column.offset_top = -(Minimap.SIZE + MARGIN + 104)
+	column.offset_right = -MARGIN
+	column.offset_bottom = -(Minimap.SIZE + MARGIN + 4)
+	column.add_theme_constant_override("separation", 6)
+	add_child(column)
+
+	var orders := HBoxContainer.new()
+	orders.add_theme_constant_override("separation", 6)
+	column.add_child(orders)
+
+	_attack_move_button = _make_command_button("Attack Move")
+	_attack_move_button.toggle_mode = true
+	_attack_move_button.toggled.connect(func(on): SelectionManager.arm_attack_move(on))
+	orders.add_child(_attack_move_button)
+
+	var stop_button := _make_command_button("Stop")
+	stop_button.pressed.connect(func(): SelectionManager.command_stop())
+	orders.add_child(stop_button)
+
+	var groups := HBoxContainer.new()
+	groups.add_theme_constant_override("separation", 6)
+	column.add_child(groups)
+	for index in [1, 2, 3]:
+		var button := _make_command_button(str(index))
+		button.custom_minimum_size = Vector2(58, 42)
+		## Tap recalls, press-and-hold assigns - the same two-verbs-on-one-
+		## button pattern the marquee uses, so touch never needs a modifier.
+		button.button_down.connect(func(): _begin_group_hold(index))
+		button.button_up.connect(func(): _end_group_hold(index))
+		groups.add_child(button)
+		_group_buttons[index] = button
+
+func _make_command_button(label: String) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.custom_minimum_size = Vector2(96, 42)
+	button.add_theme_font_size_override("font_size", 16)
+	return button
+
+func _begin_group_hold(index: int) -> void:
+	_group_hold_index = index
+	_group_hold_time = 0.0
+
+func _end_group_hold(index: int) -> void:
+	if _group_hold_index != index:
+		return
+	if _group_hold_time >= GROUP_ASSIGN_HOLD:
+		SelectionManager.assign_control_group(index)
+		_flash_event("Group %d assigned (%d units)" % [index, SelectionManager.control_group_size(index)], Color.GOLD)
+	else:
+		SelectionManager.recall_control_group(index)
+	_group_hold_index = 0
+
+## Left edge, above the build rows: what is selected and what it can do.
+func _build_info_panel() -> void:
+	_info_panel = Label.new()
+	_info_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_info_panel.offset_left = MARGIN
+	_info_panel.offset_top = -(MARGIN + BAR_HEIGHT + 190)
+	_info_panel.offset_right = MARGIN + 260
+	_info_panel.offset_bottom = -(MARGIN + BAR_HEIGHT + 46)
+	_info_panel.add_theme_font_size_override("font_size", 17)
+	_info_panel.visible = false
+	add_child(_info_panel)
+	GameState.selection_changed.connect(_on_selection_panel_update)
+
+## One unit gets its stat block; a group gets a tally by type, which is
+## what the player actually needs when 20 things are selected.
+func _on_selection_panel_update(selected: Array) -> void:
+	if selected.is_empty():
+		_info_panel.visible = false
+		return
+	_info_panel.visible = true
+
+	if selected.size() == 1:
+		var unit = selected[0]
+		if not is_instance_valid(unit) or unit.stats == null:
+			return
+		var hp: HealthComponent = unit.get_node_or_null("HealthComponent")
+		var weapon: WeaponStats = unit.stats.weapon_stats
+		_info_panel.text = "%s\n\nHealth  %d / %d\nArmor   %s\nDamage  %s\nVision  %dm\nOrder   %s" % [
+			unit.stats.display_name.to_upper(),
+			int(hp.current_health) if hp else 0,
+			int(hp.max_health) if hp else 0,
+			Armor.type_name(unit.stats.armor_type).capitalize(),
+			str(int(weapon.damage)) if weapon else "-",
+			int(unit.stats.vision_range),
+			CommandTypes.type_name(unit.current_command).capitalize(),
+		]
+		return
+
+	var counts: Dictionary = {}
+	for unit in selected:
+		if not is_instance_valid(unit) or unit.stats == null:
+			continue
+		var name: String = unit.stats.display_name
+		counts[name] = counts.get(name, 0) + 1
+	var lines: Array = ["SELECTED: %d\n" % selected.size()]
+	for name in counts:
+		lines.append("%s x %d" % [name, counts[name]])
+	_info_panel.text = "\n".join(lines)
+
 func _build_production_label() -> void:
 	_production_label = Label.new()
 	_production_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_production_label.offset_right = -(Minimap.SIZE + MARGIN * 2.0)
 	_production_label.offset_top = -(MARGIN + BAR_HEIGHT + 36)
 	_production_label.offset_bottom = -(MARGIN + BAR_HEIGHT + 6)
 	_production_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -198,6 +330,7 @@ func _build_production_label() -> void:
 	## both can decide a match, so they get an explicit callout.
 	_event_label = Label.new()
 	_event_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_event_label.offset_right = -(Minimap.SIZE + MARGIN * 2.0)
 	_event_label.offset_top = -(MARGIN + BAR_HEIGHT + 70)
 	_event_label.offset_bottom = -(MARGIN + BAR_HEIGHT + 40)
 	_event_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -323,6 +456,12 @@ func _build_debug_overlay() -> void:
 
 func _process(_delta: float) -> void:
 	_refresh_production_ui()
+	if _group_hold_index != 0:
+		_group_hold_time += _delta
+	## The button reflects the real armed state, which clears itself once
+	## the order is placed.
+	if _attack_move_button.button_pressed != SelectionManager.attack_move_armed:
+		_attack_move_button.set_pressed_no_signal(SelectionManager.attack_move_armed)
 	if _event_timer > 0.0:
 		_event_timer -= _delta
 		if _event_timer <= 0.0:
