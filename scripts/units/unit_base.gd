@@ -29,6 +29,7 @@ var stance: int = Stance.DEFENSIVE
 var patrol_from: Vector3 = Vector3.ZERO
 var patrol_to: Vector3 = Vector3.ZERO
 var guard_target: Node = null
+var garrison_target: Node = null
 
 ## How willingly a unit leaves its post to engage.
 ##   HOLD        never chases; fires only at what comes into range
@@ -280,6 +281,13 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 				attacker.clear_target()
 			guard_target = target
 			stop_moving()
+		CommandTypes.Type.GARRISON:
+			## Only infantry can occupy; everyone else just walks there.
+			if stats != null and stats.is_infantry and target != null:
+				garrison_target = target
+				move_to(position)
+			else:
+				move_to(position)
 		CommandTypes.Type.PATROL:
 			if attacker:
 				attacker.clear_target()
@@ -319,6 +327,7 @@ func _tick_combat_behavior(delta: float) -> void:
 
 	_tick_patrol()
 	_tick_guard()
+	_tick_garrison()
 
 	_acquire_timer -= delta
 	if _acquire_timer > 0.0:
@@ -352,6 +361,18 @@ func _should_return_home() -> bool:
 	if leash <= 0.0:
 		return global_position.distance_to(_guard_origin) > 1.0
 	return global_position.distance_to(_guard_origin) > leash
+
+## Walk in once close enough. Entering removes the unit from the world,
+## so this is the last thing it does.
+func _tick_garrison() -> void:
+	if current_command != CommandTypes.Type.GARRISON or not is_instance_valid(garrison_target):
+		return
+	if global_position.distance_to(garrison_target.global_position) > 6.0:
+		return
+	var garrison = garrison_target.get_node_or_null("GarrisonComponent")
+	garrison_target = null
+	if garrison != null:
+		garrison.enter(self)
 
 ## Patrol turns around at each end, so a unit sweeps a line indefinitely
 ## and re-engages anything that wanders into it.

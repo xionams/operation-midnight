@@ -53,7 +53,15 @@ func _ready() -> void:
 	_build_health()
 	_build_visual()
 	_build_health_bar()
+	_build_garrison()
 	_register_power()
+
+func _build_garrison() -> void:
+	if stats == null or not stats.garrisonable:
+		return
+	var garrison := GarrisonComponent.new()
+	garrison.name = "GarrisonComponent"
+	add_child(garrison)
 
 func _build_fog_visibility() -> void:
 	if is_player_faction and not is_neutral:

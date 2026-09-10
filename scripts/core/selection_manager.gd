@@ -410,6 +410,14 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 		EventBus.command_issued.emit(CommandTypes.Type.HARVEST, collider.global_position)
 		return
 
+	## Infantry tapped onto a garrisonable friendly structure move in.
+	if collider != null and collider is BuildingBase:
+		var garrison = collider.get_node_or_null("GarrisonComponent")
+		if garrison != null and (collider.is_player_faction or collider.is_neutral):
+			_issue_to_selection(CommandTypes.Type.GARRISON, collider.global_position, collider)
+			EventBus.command_issued.emit(CommandTypes.Type.GARRISON, collider.global_position)
+			return
+
 	## Guard mode armed at a friendly unit escorts it.
 	if collider != null and collider.is_in_group("player_units") and not selected_units.has(collider):
 		_issue_to_selection(CommandTypes.Type.GUARD, collider.global_position, collider)

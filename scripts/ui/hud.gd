@@ -282,6 +282,13 @@ func _build_selection_panel() -> void:
 	_order_button(orders, "Stop", func(): SelectionManager.command_stop())
 	_order_button(orders, "Guard", func(): SelectionManager.command_guard())
 
+	var stance_row := HBoxContainer.new()
+	stance_row.add_theme_constant_override("separation", 3)
+	column.add_child(stance_row)
+	_order_button(stance_row, "Patrol", func(): SelectionManager.arm_patrol())
+	_order_button(stance_row, "Hold", func(): SelectionManager.set_stance(UnitBase.Stance.HOLD))
+	_order_button(stance_row, "Aggro", func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE))
+
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 3)
 	column.add_child(groups)
@@ -386,12 +393,21 @@ func _describe_one(entity) -> String:
 			int(building.stats.vision_range), extra]
 
 	var weapon: WeaponStats = entity.stats.weapon_stats
-	return "[b]%s[/b]\n\n%s HP\nArmor: %s\nDamage: %s\nVision: %dm\n\n[color=#9fd0ff]Order: %s[/color]" % [
+	var vet: VeterancyComponent = entity.get_node_or_null("VeterancyComponent")
+	var rank: String = VeterancyComponent.rank_name(vet.rank) if vet else "—"
+	var rank_colour: String = "#ffd479" if vet != null and vet.rank != VeterancyComponent.Rank.REGULAR else "#c8ccbb"
+	var damage_line: String = "—"
+	if weapon != null:
+		damage_line = "%d %s" % [int(weapon.damage),
+			DamageTypes.type_name(weapon.damage_type).to_lower().replace("_", " ")]
+	return "[b]%s[/b]\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
 		entity.stats.display_name.to_upper(), hp,
+		rank_colour, rank,
 		Armor.type_name(entity.stats.armor_type).capitalize(),
-		str(int(weapon.damage)) if weapon else "—",
+		damage_line,
 		int(entity.stats.vision_range),
-		CommandTypes.type_name(entity.current_command).capitalize()]
+		CommandTypes.type_name(entity.current_command).capitalize(),
+		UnitBase.Stance.keys()[entity.stance].capitalize()]
 
 # ------------------------------------------------------ right column
 

@@ -27,6 +27,14 @@ const BARRACKS_SCENE: PackedScene = preload("res://scenes/buildings/barracks.tsc
 const COMMS_OUTPOST_STATS: BuildingStats = preload("res://config/buildings/comms_outpost.tres")
 const REPAIR_DEPOT_STATS: BuildingStats = preload("res://config/buildings/repair_depot.tres")
 const SUPPLY_DEPOT_STATS: BuildingStats = preload("res://config/buildings/supply_depot.tres")
+const CIVILIAN_STATS: BuildingStats = preload("res://config/buildings/civilian_structure.tres")
+
+## Empty buildings near the routes between bases. Infantry inside one is
+## far harder to shift than infantry in the open, so they turn a corridor
+## into a position worth holding.
+const CIVILIAN_POSITIONS: Array[Vector3] = [
+	Vector3(-14, 0, 18), Vector3(2, 0, -24), Vector3(38, 0, -6), Vector3(-46, 0, -30),
+]
 const RIFLE_SOLDIER_SCENE: PackedScene = preload("res://scenes/units/rifle_soldier.tscn")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
 
@@ -259,6 +267,12 @@ func _spawn_neutral_structure() -> void:
 	_spawn_strategic(COMMS_OUTPOST_STATS, COMMS_OUTPOST_POS, StrategicStructure.Benefit.VISION)
 	_spawn_strategic(REPAIR_DEPOT_STATS, REPAIR_DEPOT_POS, StrategicStructure.Benefit.REPAIR)
 	_spawn_strategic(SUPPLY_DEPOT_STATS, SUPPLY_DEPOT_POS, StrategicStructure.Benefit.SUPPLY)
+	for position in CIVILIAN_POSITIONS:
+		var civilian = CIVILIAN_STATS.scene.instantiate()
+		civilian.stats = CIVILIAN_STATS
+		civilian.is_neutral = true
+		_nav_region.add_child(civilian)
+		civilian.global_position = position
 
 func _spawn_strategic(stats: BuildingStats, pos: Vector3, benefit: int) -> void:
 	var structure = stats.scene.instantiate()

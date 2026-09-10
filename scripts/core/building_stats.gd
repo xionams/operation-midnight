@@ -27,6 +27,9 @@ class_name BuildingStats
 ## Defensive structures mount a weapon and are disabled by low power.
 @export var weapon_stats: WeaponStats = null
 @export var is_defensive: bool = false
+
+## Infantry can occupy this structure and fire from inside it.
+@export var garrisonable: bool = false
 @export var max_health: float = 500.0
 @export var build_time: float = 0.0 ## Instant in Milestone 1; wired for later.
 @export var power_generation: int = 0

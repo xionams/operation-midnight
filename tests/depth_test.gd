@@ -173,6 +173,47 @@ func _run() -> void:
 			GameState.credits > credits_before,
 			"(+%d in %.1fs)" % [GameState.credits - credits_before, waited])
 
+	# --- garrison ---
+	var civilian: Node = null
+	for b in get_tree().get_nodes_in_group("neutral_buildings"):
+		if b.stats != null and b.stats.display_name == "Civilian Structure":
+			civilian = b
+			break
+	_check("Map has garrisonable civilian structures", civilian != null)
+	if civilian != null:
+		var garrison = civilian.get_node_or_null("GarrisonComponent")
+		_check("Civilian structure has a garrison", garrison != null)
+		if garrison != null:
+			var squad = _spawn_unit("res://config/units/rifle_soldier.tres", true,
+				civilian.global_position + Vector3(3, 0, 0))
+			await get_tree().process_frame
+			var units_before: int = get_tree().get_nodes_in_group("player_units").size()
+			var entered: bool = garrison.enter(squad)
+			await get_tree().process_frame
+			_check("Infantry can enter a garrison", entered)
+			_check("Garrison records the occupant", garrison.occupancy() == 1,
+				"(%d)" % garrison.occupancy())
+			_check("Occupant leaves the world while inside",
+				get_tree().get_nodes_in_group("player_units").size() < units_before)
+			_check("Occupying a neutral building claims it",
+				civilian.is_player_faction and not civilian.is_neutral)
+			_check("Garrison mounts the occupant's weapon",
+				civilian.get_node_or_null("GarrisonWeapon") != null)
+
+			var vehicle = _spawn_unit("res://config/units/assault_vehicle.tres", true,
+				civilian.global_position + Vector3(4, 0, 0))
+			await get_tree().process_frame
+			_check("Vehicles cannot garrison", not garrison.enter(vehicle))
+
+			## Losing the building should spill survivors, hurt.
+			var before_units: int = get_tree().get_nodes_in_group("player_units").size()
+			civilian.get_node("HealthComponent").take_damage(999999.0)
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_check("Destroying a garrison evacuates survivors",
+				get_tree().get_nodes_in_group("player_units").size() > before_units,
+				"(%d -> %d)" % [before_units, get_tree().get_nodes_in_group("player_units").size()])
+
 	# --- multiple producers speed production ---
 	var barracks_stats: BuildingStats = load("res://config/buildings/barracks.tres")
 	var b1 = barracks_stats.scene.instantiate()
