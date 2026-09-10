@@ -24,16 +24,31 @@ const ENGINEER_STATS: UnitStats = preload("res://config/units/engineer.tres")
 const SPY_STATS: UnitStats = preload("res://config/units/spy.tres")
 const DOG_STATS: UnitStats = preload("res://config/units/attack_dog.tres")
 const BARRACKS_SCENE: PackedScene = preload("res://scenes/buildings/barracks.tscn")
+const COMMS_RELAY_STATS: BuildingStats = preload("res://config/buildings/comms_relay.tres")
 const RIFLE_SOLDIER_SCENE: PackedScene = preload("res://scenes/units/rifle_soldier.tscn")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
 
-@export var map_size: float = 120.0
+@export var map_size: float = 220.0
 @export var bounds_margin: float = 6.0
 
-const PLAYER_BASE_POS: Vector3 = Vector3(-42, 0, -42)
-const ENEMY_BASE_POS: Vector3 = Vector3(42, 0, 42)
-const RESOURCE_NODE_A_POS: Vector3 = Vector3(-15, 0, 8)
-const RESOURCE_NODE_B_POS: Vector3 = Vector3(16, 0, -6)
+## Layout is deliberately spread across the full battlefield: nothing but
+## the player's own corner is within opening vision, so every resource
+## field, the neutral structure and the enemy base have to be found.
+const PLAYER_BASE_POS: Vector3 = Vector3(-78, 0, 62)
+const ENEMY_BASE_POS: Vector3 = Vector3(76, 0, -70)
+
+## Close enough to the player's base to be found almost immediately - the
+## opening economy should not require a scouting run.
+const RESOURCE_NODE_A_POS: Vector3 = Vector3(-56, 0, 34)
+## Rewards a short scouting trip.
+const RESOURCE_NODE_B_POS: Vector3 = Vector3(-18, 0, -44)
+## The contested prize in the middle of the map.
+const RESOURCE_NODE_CENTRAL_POS: Vector3 = Vector3(6, 0, 6)
+## Sits between the two bases, worth taking with an Engineer.
+const NEUTRAL_STRUCTURE_POS: Vector3 = Vector3(-30, 0, -6)
+
+## How much of their own ground the player starts knowing.
+const START_REVEAL_RADIUS: float = 34.0
 
 var _level: Node3D
 var _nav_region: NavigationRegion3D
@@ -45,21 +60,43 @@ func _ready() -> void:
 	_bounds_min = Vector2(-half_size, -half_size)
 	_bounds_max = Vector2(half_size, half_size)
 
+	FogOfWar.configure(map_size)
+
 	_build_environment()
 	_build_level_and_ground()
 	_spawn_player_base()
 	_spawn_enemy_base()
 	_spawn_resource_fields()
+	_spawn_neutral_structure()
+	_spawn_terrain_blockers()
 	_nav_region.bake_navigation_mesh(false)
+
+	## Seed the player's own ground as explored, then run one vision pass
+	## so the opening frame is correct before the first fog tick.
+	FogOfWar.reveal_area(PLAYER_BASE_POS, START_REVEAL_RADIUS)
+	FogOfWar.update_now()
 
 	var camera := _build_camera()
 	camera.zoom_distance = 38.0
-	camera.focus_on(PLAYER_BASE_POS.lerp(Vector3.ZERO, 0.35))
+	camera.focus_on(PLAYER_BASE_POS)
 
 	var placer := _build_placer()
 	_build_hud(placer)
 
 	EventBus.building_placed.connect(func(_building): _nav_region.bake_navigation_mesh(true))
+
+const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
+
+## Terrain materials all share the one fog texture the visibility grid
+## publishes, so the picture the player reads and the rules the game
+## enforces come from the same source.
+func _make_fog_material(color: Color) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = FOG_SHADER
+	material.set_shader_parameter("fog_tex", FogOfWar.get_texture())
+	material.set_shader_parameter("map_size", map_size)
+	material.set_shader_parameter("base_color", color)
+	return material
 
 func _build_environment() -> void:
 	var light := DirectionalLight3D.new()
@@ -120,9 +157,7 @@ func _build_level_and_ground() -> void:
 	# the void beyond it out of frame at the camera's shallowest angle.
 	plane.size = Vector2(map_size * 2.4, map_size * 2.4)
 	mesh_instance.mesh = plane
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.24, 0.34, 0.2)
-	mesh_instance.material_override = material
+	mesh_instance.material_override = _make_fog_material(Color(0.24, 0.34, 0.2))
 	ground.add_child(mesh_instance)
 
 	_nav_region.add_child(ground)
@@ -169,9 +204,64 @@ func _attach_enemy_ai(unit: Node) -> void:
 	unit.add_child(ai)
 
 func _spawn_resource_fields() -> void:
-	var per_node_amount: float = float(ECONOMY_CONFIG.resource_node_amount) / 2.0
-	_spawn_resource_node(RESOURCE_NODE_A_POS, per_node_amount)
-	_spawn_resource_node(RESOURCE_NODE_B_POS, per_node_amount)
+	var base_amount: float = float(ECONOMY_CONFIG.resource_node_amount) / 2.0
+	_spawn_resource_node(RESOURCE_NODE_A_POS, base_amount)
+	_spawn_resource_node(RESOURCE_NODE_B_POS, base_amount)
+	## Richer than either home field, and in the open middle, so holding
+	## it is a decision rather than a freebie.
+	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, base_amount * 2.0)
+
+## A capturable structure between the bases. Worth an Engineer run once
+## the player discovers it exists.
+func _spawn_neutral_structure() -> void:
+	## Held by the enemy so an Engineer has something to take. Its wide
+	## vision is the actual prize: capturing it lights up the middle.
+	var relay = _spawn_building(COMMS_RELAY_STATS.scene, COMMS_RELAY_STATS, false, NEUTRAL_STRUCTURE_POS)
+	relay.name = "CommsRelay"
+
+## Rock formations and barriers, so the battlefield has routes and choke
+## points rather than being one open rectangle. Placeholder boxes: they
+## exist to shape navigation, not to look like anything yet.
+func _spawn_terrain_blockers() -> void:
+	var blockers: Array = [
+		[Vector3(-34, 0, 30), Vector3(30, 7, 10)],
+		[Vector3(-4, 0, 40), Vector3(10, 7, 34)],
+		[Vector3(34, 0, 26), Vector3(36, 7, 10)],
+		[Vector3(-58, 0, -18), Vector3(10, 7, 40)],
+		[Vector3(24, 0, -26), Vector3(10, 7, 44)],
+		[Vector3(58, 0, 6), Vector3(34, 7, 10)],
+		[Vector3(-10, 0, -74), Vector3(46, 7, 10)],
+		[Vector3(66, 0, -34), Vector3(10, 7, 26)],
+	]
+	for entry in blockers:
+		_spawn_blocker(entry[0], entry[1])
+
+func _spawn_blocker(pos: Vector3, size: Vector3) -> void:
+	var rock := StaticBody3D.new()
+	rock.name = "Blocker"
+	rock.collision_layer = 1
+	rock.collision_mask = 0
+	rock.add_to_group("terrain_blockers")
+
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	shape.position = Vector3(0, size.y / 2.0, 0)
+	rock.add_child(shape)
+
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh_instance.mesh = mesh
+	mesh_instance.position = Vector3(0, size.y / 2.0, 0)
+	## Blockers fog exactly like the ground, so terrain shape is part of
+	## what the player has to discover rather than a free map outline.
+	mesh_instance.material_override = _make_fog_material(Color(0.28, 0.26, 0.24))
+	rock.add_child(mesh_instance)
+
+	_nav_region.add_child(rock)
+	rock.global_position = pos
 
 func _spawn_resource_node(pos: Vector3, amount: float) -> void:
 	var node = RESOURCE_NODE_SCENE.instantiate()

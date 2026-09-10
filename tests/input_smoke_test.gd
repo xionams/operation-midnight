@@ -76,6 +76,22 @@ func _screen_of(node: Node3D) -> Vector2:
 	var cam := get_tree().get_first_node_in_group("rts_camera") as Camera3D
 	return cam.unproject_position(node.global_position)
 
+## Screen point for a world position, so placement tests aim at ground
+## that is actually free rather than a hardcoded pixel that drifts
+## whenever the camera or map layout changes.
+func _screen_of_world(pos: Vector3) -> Vector2:
+	var cam := get_tree().get_first_node_in_group("rts_camera") as Camera3D
+	return cam.unproject_position(pos)
+
+## Open ground near the player base, clear of the HQ footprint and
+## chosen to project ABOVE screen centre - points below it land on the
+## HUD bar, where the click is eaten by a button instead of the ground.
+func _free_ground() -> Vector3:
+	return Vector3(-78, 0, 62) + Vector3(20, 0, -6)
+
+func _free_ground_b() -> Vector3:
+	return Vector3(-78, 0, 62) + Vector3(-16, 0, -10)
+
 func _run() -> void:
 	var power_btn := _find_button("Power Plant")
 	_check("HUD build button exists", power_btn != null)
@@ -106,7 +122,7 @@ func _run() -> void:
 	await _click(power_btn.get_global_rect().get_center())
 	var before_n: int = get_tree().get_nodes_in_group("buildings").size()
 	var before_cr: int = GameState.credits
-	await _click(Vector2(640, 300))
+	await _click(_screen_of_world(_free_ground()))
 	var after_n: int = get_tree().get_nodes_in_group("buildings").size()
 	_check("Click on ground places a building", after_n == before_n + 1,
 		"(%d -> %d)" % [before_n, after_n])
@@ -142,7 +158,7 @@ func _run() -> void:
 	if factory_btn != null:
 		GameState.add_credits(10000)
 		await _click(factory_btn.get_global_rect().get_center())
-		await _click(Vector2(760, 300))
+		await _click(_screen_of_world(_free_ground_b()))
 		var factory := get_tree().get_first_node_in_group("war_factories")
 		_check("War Factory placed and registered", factory != null)
 		if factory != null:
@@ -177,7 +193,7 @@ func _run() -> void:
 		var start: Vector3 = u.global_position
 		var rc := InputEventMouseButton.new()
 		rc.button_index = MOUSE_BUTTON_RIGHT; rc.pressed = true
-		rc.position = Vector2(640, 380); rc.global_position = rc.position
+		rc.position = _screen_of_world(_free_ground()); rc.global_position = rc.position
 		Input.parse_input_event(rc)
 		for i in 90:
 			await get_tree().process_frame

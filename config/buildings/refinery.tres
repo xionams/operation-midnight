@@ -11,6 +11,7 @@ max_health = 600.0
 build_time = 0.0
 power_generation = 0
 power_consumption = 20
+vision_range = 14.0
 footprint = Vector2(8, 8)
 body_color = Color(0.45, 0.3, 0.15, 1)
 body_size = Vector3(7, 3.6, 7)

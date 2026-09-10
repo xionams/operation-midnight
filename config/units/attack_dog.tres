@@ -12,6 +12,7 @@ max_health = 90.0
 move_speed = 8.5
 turn_speed = 10.0
 nav_radius = 0.5
+vision_range = 18.0
 body_color = Color(0.4, 0.32, 0.25, 1)
 body_size = Vector3(0.7, 0.8, 1.4)
 weapon_stats = ExtResource("2")

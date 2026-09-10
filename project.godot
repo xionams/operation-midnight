@@ -15,6 +15,7 @@ config/icon="res://icon.svg"
 
 GameState="*res://scripts/core/game_state.gd"
 EventBus="*res://scripts/core/event_bus.gd"
+FogOfWar="*res://scripts/core/fog_of_war.gd"
 SelectionManager="*res://scripts/core/selection_manager.gd"
 
 [display]

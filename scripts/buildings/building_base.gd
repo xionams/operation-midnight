@@ -28,10 +28,18 @@ func _ready() -> void:
 	collision_layer = BUILDING_COLLISION_LAYER
 	collision_mask = 0
 
+	_build_fog_visibility()
 	_build_collision()
 	_build_health()
 	_build_visual()
 	_register_power()
+
+func _build_fog_visibility() -> void:
+	if is_player_faction:
+		return
+	var hideable := FogHideable.new()
+	hideable.name = "FogHideable"
+	add_child(hideable)
 
 func _build_collision() -> void:
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -104,6 +112,17 @@ func set_faction(player: bool) -> void:
 			material.albedo_color = _faction_color()
 	if health != null:
 		health.heal_to_full()
+
+	## A structure you now own is never hidden from you, and one you just
+	## lost stops being permanently visible.
+	var hideable := get_node_or_null("FogHideable")
+	if is_player_faction and hideable != null:
+		hideable.queue_free()
+		visible = true
+		collision_layer = BUILDING_COLLISION_LAYER
+	elif not is_player_faction and hideable == null:
+		_build_fog_visibility()
+
 	_on_faction_changed()
 	EventBus.building_captured.emit(self, is_player_faction)
 
@@ -119,8 +138,12 @@ func _on_faction_changed() -> void:
 func _contributes_power() -> bool:
 	return true
 
+## GameState holds the *player's* economy, so only player-owned
+## structures touch the grid. Without this an enemy power plant would
+## show up as generation on the player's HUD - and capturing one would
+## do nothing, because its output was already counted.
 func _register_power() -> void:
-	if stats == null:
+	if stats == null or not is_player_faction:
 		return
 	if stats.power_generation > 0 and _contributes_power():
 		GameState.register_power_generation(stats.power_generation)
@@ -128,7 +151,7 @@ func _register_power() -> void:
 		GameState.register_power_consumption(stats.power_consumption)
 
 func _unregister_power() -> void:
-	if stats == null:
+	if stats == null or not is_player_faction:
 		return
 	if stats.power_generation > 0 and _contributes_power():
 		GameState.unregister_power_generation(stats.power_generation)

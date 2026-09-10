@@ -11,8 +11,11 @@ class_name RTSCamera
 
 @export var bounds_min: Vector2 = Vector2(-50, -50)
 @export var bounds_max: Vector2 = Vector2(50, 50)
-@export var min_zoom: float = 15.0
-@export var max_zoom: float = 65.0
+## Zoom is deliberately capped well short of showing the whole map: at
+## max_zoom roughly 65-70m of battlefield is visible on a 220m map, so
+## exploration cannot be shortcut by pulling the camera back.
+@export var min_zoom: float = 14.0
+@export var max_zoom: float = 45.0
 @export var pan_speed: float = 35.0
 @export var wheel_zoom_step: float = 5.0
 @export var follow_speed: float = 8.0

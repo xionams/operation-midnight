@@ -12,6 +12,10 @@ class_name UnitStats
 @export var turn_speed: float = 6.0
 @export var nav_radius: float = 1.0
 
+## How far this unit reveals fog. The Scout exists because this number
+## is much larger on it than on anything else.
+@export var vision_range: float = 14.0
+
 ## Placeholder visual (ignored once a real visual_scene is assigned).
 @export var body_color: Color = Color.WHITE
 @export var body_size: Vector3 = Vector3(1.5, 1.0, 2.2)

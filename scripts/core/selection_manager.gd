@@ -12,7 +12,7 @@ extends Node
 
 const DRAG_THRESHOLD_PX: float = 14.0
 const RAY_LENGTH: float = 500.0
-const TARGET_MASK: int = 0b1111 # ground(1) + units(2) + buildings(4) + resources(8)
+const TARGET_MASK: int = 0b11111 # ground(1) + units(2) + buildings(4) + resources(8) + infantry(16)
 
 var selected_units: Array = []
 

@@ -10,6 +10,9 @@ class_name BuildingStats
 @export var power_generation: int = 0
 @export var power_consumption: int = 0
 
+## How far this structure reveals fog.
+@export var vision_range: float = 12.0
+
 ## Footprint used for overlap checks and the ghost preview, in meters.
 @export var footprint: Vector2 = Vector2(6, 6)
 

@@ -22,6 +22,14 @@ func _ready() -> void:
 	_build_collision()
 	_build_visual()
 
+	## A resource field does not move, so once the player has found it, it
+	## stays on their map even when nothing is watching it. That is what
+	## makes scouting pay economically.
+	var hideable := FogHideable.new()
+	hideable.name = "FogHideable"
+	hideable.persists_once_explored = true
+	add_child(hideable)
+
 func harvest(amount: float) -> float:
 	var taken: float = min(amount, remaining)
 	remaining -= taken

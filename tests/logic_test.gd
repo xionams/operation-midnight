@@ -31,6 +31,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_nav = _main.get_node("Level/NavRegion")
+	## These checks are about combat and ability rules. Fog would hide the
+	## test subjects and is covered by its own suite, so switch it off here.
+	FogOfWar.enabled = false
 	await _run()
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
 	for f in _fails:
@@ -156,7 +159,9 @@ func _run() -> void:
 	_check("Sabotage clears the queue", cleared == 2 and enemy_barracks.queue.queue_length() == 0)
 
 	# --- 8. Spy blacks out a power plant ---
-	var plant = _spawn_building(POWER, POWER_STATS, false, Vector3(-24, 0, -24))
+	## Player-owned: a blackout is felt by whoever owns the plant, and only
+	## the player's grid is tracked.
+	var plant = _spawn_building(POWER, POWER_STATS, true, Vector3(-24, 0, -24))
 	await get_tree().process_frame
 	var gen_before: int = GameState.power_generated
 	plant.blackout(5.0)

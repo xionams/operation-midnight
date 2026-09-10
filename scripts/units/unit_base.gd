@@ -19,7 +19,7 @@ var selection_ring: MeshInstance3D
 
 const UNIT_COLLISION_LAYER: int = 1 << 1 # bit 2
 const GROUND_COLLISION_LAYER: int = 1 << 0 # bit 1
-const INFANTRY_COLLISION_LAYER: int = 1 << 3 # bit 4
+const INFANTRY_COLLISION_LAYER: int = 1 << 4 # bit 5 (bit 4 is resource nodes)
 
 ## Infantry sit on their own layer that vehicles do not collide with, so
 ## armour drives straight through them instead of being walled off by a
@@ -38,12 +38,22 @@ func _ready() -> void:
 	collision_layer = INFANTRY_COLLISION_LAYER if infantry else UNIT_COLLISION_LAYER
 	collision_mask = GROUND_COLLISION_LAYER if infantry else (GROUND_COLLISION_LAYER | UNIT_COLLISION_LAYER)
 
+	_build_fog_visibility()
 	_build_collision()
 	_build_nav_agent()
 	_build_health()
 	_build_weapon()
 	_build_visual()
 	_build_selection_ring()
+
+## Enemy-owned entities can be hidden by fog. Player-owned ones never are:
+## you always see your own army.
+func _build_fog_visibility() -> void:
+	if is_player_faction:
+		return
+	var hideable := FogHideable.new()
+	hideable.name = "FogHideable"
+	add_child(hideable)
 
 ## Any unit whose stats carry a weapon gets the standard targeting/firing
 ## pair. Unarmed units (Harvester, Engineer, Spy) simply leave

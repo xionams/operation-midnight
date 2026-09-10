@@ -21,7 +21,7 @@ func blackout(seconds: float) -> void:
 	if _offline:
 		return
 	_offline = true
-	if stats != null and stats.power_generation > 0:
+	if is_player_faction and stats != null and stats.power_generation > 0:
 		GameState.unregister_power_generation(stats.power_generation)
 
 func _process(delta: float) -> void:
@@ -32,7 +32,7 @@ func _process(delta: float) -> void:
 		return
 	_offline = false
 	_blackout_remaining = 0.0
-	if stats != null and stats.power_generation > 0:
+	if is_player_faction and stats != null and stats.power_generation > 0:
 		GameState.register_power_generation(stats.power_generation)
 
 ## A plant that is dark must not double-unregister when it dies or is
