@@ -14,10 +14,20 @@ signal died(building: BuildingBase)
 
 var health: HealthComponent
 
+## Production structures send new units here. Vector3.ZERO means unset.
+var rally_point: Vector3 = Vector3.ZERO
+var repairing: bool = false
+
 var health_bar: HealthBar
 var _indicator: MeshInstance3D
 
 const BUILDING_COLLISION_LAYER: int = 1 << 2 # bit 3
+const SELL_REFUND: float = 0.5
+const REPAIR_HP_PER_SECOND: float = 0.05
+const REPAIR_CREDITS_PER_HP: float = 0.5
+
+var _body: MeshInstance3D
+var _damage_stage: int = -1
 
 func get_faction() -> int:
 	return GameState.Faction.PLAYER if is_player_faction else GameState.Faction.ENEMY
@@ -67,16 +77,16 @@ func _build_visual() -> void:
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
-	var body := MeshInstance3D.new()
+	_body = MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = size
-	body.mesh = mesh
-	body.position = Vector3(0, size.y / 2.0, 0)
+	_body.mesh = mesh
+	_body.position = Vector3(0, size.y / 2.0, 0)
 
 	var material := StandardMaterial3D.new()
 	material.albedo_color = stats.body_color if stats else Color.GRAY
-	body.material_override = material
-	add_child(body)
+	_body.material_override = material
+	add_child(_body)
 
 	_indicator = MeshInstance3D.new()
 	var indicator_mesh := BoxMesh.new()
@@ -163,6 +173,61 @@ func _unregister_power() -> void:
 		GameState.unregister_power_generation(stats.power_generation)
 	if stats.power_consumption > 0:
 		GameState.unregister_power_consumption(stats.power_consumption)
+
+## Refund half the build cost and remove the structure. Selling is how a
+## player recovers from a misplaced building or trades a doomed outpost
+## for tanks, so it returns real money rather than being a delete key.
+func sell() -> void:
+	if not is_player_faction:
+		return
+	GameState.add_credits_for(true, int(round(stats.cost * SELL_REFUND)))
+	_unregister_power()
+	EventBus.building_sold.emit(self)
+	queue_free()
+
+func can_repair() -> bool:
+	return health != null and health.current_health < health.max_health
+
+func toggle_repair() -> void:
+	repairing = not repairing and can_repair()
+
+## Repairs drain credits continuously while active, so holding a damaged
+## base together competes with building a new one.
+func _tick_repair(delta: float) -> void:
+	if not repairing:
+		return
+	if not can_repair():
+		repairing = false
+		return
+	var heal: float = health.max_health * REPAIR_HP_PER_SECOND * delta
+	var price: int = int(ceil(heal * REPAIR_CREDITS_PER_HP))
+	if price > 0 and not GameState.try_spend_for(is_player_faction, price):
+		repairing = false
+		return
+	health.heal(heal)
+
+func _process(delta: float) -> void:
+	_tick_repair(delta)
+	_refresh_damage_visual()
+
+## Buildings show wear so a fight can be read at a glance without
+## selecting anything: a scorch tint at 60% health, heavier at 30%.
+func _refresh_damage_visual() -> void:
+	if health == null or _body == null:
+		return
+	var fraction: float = health.health_fraction()
+	var stage: int = 0 if fraction > 0.6 else (1 if fraction > 0.3 else 2)
+	if stage == _damage_stage:
+		return
+	_damage_stage = stage
+	var material := _body.material_override as StandardMaterial3D
+	if material == null:
+		return
+	var base: Color = stats.body_color if stats else Color.GRAY
+	match stage:
+		0: material.albedo_color = base
+		1: material.albedo_color = base.darkened(0.28)
+		2: material.albedo_color = base.darkened(0.55).lerp(Color(0.15, 0.08, 0.05), 0.35)
 
 func _on_died() -> void:
 	_unregister_power()

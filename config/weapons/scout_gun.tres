@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Scout Gun"
+damage = 10.0
+attack_range = 8.0
+attack_cooldown = 0.8
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(0.9, 1, 0.7, 1)
+vs_infantry = 0.8
+vs_light = 0.4
+vs_heavy = 0.1
+vs_building = 0.15
+can_target_air = false

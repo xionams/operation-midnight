@@ -267,16 +267,26 @@ func _tick_combat_behavior(delta: float) -> void:
 	var acquisition: float = attacker.weapon.stats.attack_range + ACQUIRE_BONUS
 	var found := _nearest_hostile(acquisition, attacker)
 	if found == null:
-		## Wandered too far chasing something; go back where we were told
-		## to be rather than drifting across the map.
-		if current_command != CommandTypes.Type.ATTACK_MOVE \
-			and global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE:
+		if _should_return_home():
 			move_to(_guard_origin)
 		return
 
 	attacker.set_target(found)
 	if current_command == CommandTypes.Type.ATTACK_MOVE:
 		stop_moving()
+
+## The leash exists to stop a unit chasing a target across the map, not
+## to override travel. A unit that is still navigating is going somewhere
+## on purpose - including via a direct move_to() from the harvest loop or
+## the AI - and must be left alone, or every ordered move gets cancelled
+## the moment it passes the leash radius.
+func _should_return_home() -> bool:
+	if current_command == CommandTypes.Type.ATTACK_MOVE \
+		or current_command == CommandTypes.Type.MOVE:
+		return false
+	if nav_agent != null and not nav_agent.is_navigation_finished():
+		return false
+	return global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE
 
 func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
 	var group: String = "enemy_units" if is_player_faction else "player_units"

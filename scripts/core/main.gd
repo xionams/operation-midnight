@@ -57,6 +57,7 @@ const START_REVEAL_RADIUS: float = 34.0
 
 var _level: Node3D
 var _nav_region: NavigationRegion3D
+var _construction: ConstructionQueue
 var _bounds_min: Vector2
 var _bounds_max: Vector2
 
@@ -84,6 +85,15 @@ func _ready() -> void:
 	var camera := _build_camera()
 	camera.zoom_distance = 38.0
 	camera.focus_on(PLAYER_BASE_POS)
+
+	_construction = ConstructionQueue.new()
+	_construction.name = "ConstructionQueue"
+	_construction.is_player = true
+	add_child(_construction)
+
+	var objectives := Objectives.new()
+	objectives.name = "Objectives"
+	add_child(objectives)
 
 	_build_ai_director()
 
@@ -235,13 +245,12 @@ func _attach_enemy_ai(unit: Node) -> void:
 	unit.add_child(ai)
 
 func _spawn_resource_fields() -> void:
-	var base_amount: float = float(ECONOMY_CONFIG.resource_node_amount) / 2.0
-	_spawn_resource_node(RESOURCE_NODE_A_POS, base_amount)
-	_spawn_resource_node(RESOURCE_NODE_B_POS, base_amount)
-	_spawn_resource_node(RESOURCE_NODE_ENEMY_POS, base_amount)
-	## Richer than either home field, and in the open middle, so holding
-	## it is a decision rather than a freebie.
-	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, base_amount * 2.0)
+	## Home fields sustain an opening; the central field is worth twice as
+	## much and sits in the open, so expanding is a real decision.
+	_spawn_resource_node(RESOURCE_NODE_A_POS, 16000.0)
+	_spawn_resource_node(RESOURCE_NODE_B_POS, 20000.0)
+	_spawn_resource_node(RESOURCE_NODE_ENEMY_POS, 16000.0)
+	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, 28000.0)
 
 ## A capturable structure between the bases. Worth an Engineer run once
 ## the player discovers it exists.
@@ -321,17 +330,7 @@ func _build_placer() -> BuildingPlacer:
 func _build_hud(placer: BuildingPlacer, overlay: DebugOverlay) -> void:
 	var hud := HUD.new()
 	hud.name = "HUD"
-	hud.power_plant_stats = POWER_PLANT_STATS
-	hud.refinery_stats = REFINERY_STATS
-	hud.war_factory_stats = WAR_FACTORY_STATS
-	hud.barracks_stats = BARRACKS_STATS
-	hud.harvester_stats = HARVESTER_STATS
-	hud.assault_stats = ASSAULT_VEHICLE_STATS
-	hud.scout_stats = SCOUT_VEHICLE_STATS
-	hud.soldier_stats = SOLDIER_STATS
-	hud.engineer_stats = ENGINEER_STATS
-	hud.spy_stats = SPY_STATS
-	hud.dog_stats = DOG_STATS
 	hud.placer = placer
 	hud.debug_overlay = overlay
+	hud.construction = _construction
 	add_child(hud)

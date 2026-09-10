@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Tank Cannon"
+damage = 95.0
+attack_range = 14.0
+attack_cooldown = 1.7
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(1, 0.75, 0.25, 1)
+vs_infantry = 0.3
+vs_light = 1.0
+vs_heavy = 1.0
+vs_building = 1.2
+can_target_air = false

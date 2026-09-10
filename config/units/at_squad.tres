@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/at_launcher.tres" id="2"]
+
+[ext_resource type="PackedScene" path="res://scenes/units/at_squad.tscn" id="9"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Anti-Armor Squad"
+cost = 500
+prerequisites = PackedStringArray("Barracks")
+population = 1
+category = "INFANTRY"
+produced_by = "Barracks"
+build_time = 7.0
+max_health = 140.0
+move_speed = 4.0
+turn_speed = 8.0
+nav_radius = 0.6
+vision_range = 13.0
+body_color = Color(0.5, 0.4, 0.3, 1)
+body_size = Vector3(0.9, 1.8, 0.9)
+weapon_stats = ExtResource("2")
+armor_type = 0
+is_infantry = true
+can_be_crushed = true
+can_crush = false
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+unit_scene = ExtResource("9")
+visual_scene = null

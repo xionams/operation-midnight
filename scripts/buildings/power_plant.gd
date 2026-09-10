@@ -25,6 +25,7 @@ func blackout(seconds: float) -> void:
 		GameState.unregister_power_generation(stats.power_generation)
 
 func _process(delta: float) -> void:
+	super._process(delta)
 	if not _offline:
 		return
 	_blackout_remaining -= delta

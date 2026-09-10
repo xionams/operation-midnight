@@ -1,13 +1,18 @@
-[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 
+[ext_resource type="PackedScene" path="res://scenes/units/engineer.tscn" id="9"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Engineer"
-build_time = 8.0
 cost = 500
+prerequisites = PackedStringArray("Barracks")
+population = 1
+category = "INFANTRY"
+produced_by = "Barracks"
+build_time = 8.0
 max_health = 100.0
 move_speed = 4.0
 turn_speed = 8.0
@@ -24,4 +29,5 @@ is_harvester = false
 cargo_capacity = 0.0
 load_time = 0.0
 unload_time = 0.0
+unit_scene = ExtResource("9")
 visual_scene = null

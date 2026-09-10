@@ -17,6 +17,11 @@ class_name AIDirector
 ## needs a second fog grid, and a passive opponent teaches the player
 ## nothing. It is honest about resources and production instead.
 
+const HARVESTER: UnitStats = preload("res://config/units/harvester.tres")
+const RIFLE: UnitStats = preload("res://config/units/rifle_soldier.tres")
+const SCOUT: UnitStats = preload("res://config/units/scout_vehicle.tres")
+const ASSAULT: UnitStats = preload("res://config/units/assault_vehicle.tres")
+
 const THINK_INTERVAL: float = 1.5
 const ATTACK_WAVE_SIZE: int = 4
 const MAX_HARVESTERS: int = 3
@@ -70,7 +75,7 @@ func _run_economy() -> void:
 		return
 	if refinery.queue.queue_length() > 0:
 		return
-	refinery.produce_harvester()
+	refinery.produce(HARVESTER)
 
 func _count_harvesters() -> int:
 	var count: int = 0
@@ -92,7 +97,7 @@ func _run_construction() -> void:
 		wanted = power_plant_stats
 	elif not _has_building("Barracks"):
 		wanted = barracks_stats
-	elif not _has_building("War Factory"):
+	elif not _has_building("Vehicle Factory"):
 		wanted = war_factory_stats
 	if wanted == null:
 		return
@@ -124,18 +129,15 @@ func _place(stats: BuildingStats) -> void:
 # ---------------------------------------------------------- production
 
 func _run_production() -> void:
-	var factory := _find_enemy_building("War Factory")
+	var factory := _find_enemy_building("Vehicle Factory")
 	if factory != null and factory.queue.queue_length() == 0:
 		## Scouts are cheap and fast; a couple of tanks matter more.
-		if randf() < 0.75:
-			factory.produce_assault()
-		else:
-			factory.produce_scout()
+		factory.produce(ASSAULT if randf() < 0.75 else SCOUT)
 		return
 
 	var barracks := _find_enemy_building("Barracks")
 	if barracks != null and barracks.queue.queue_length() == 0:
-		barracks.produce_soldier()
+		barracks.produce(RIFLE)
 
 func _find_enemy_building(display_name: String) -> Node:
 	for building in get_tree().get_nodes_in_group("enemy_buildings"):

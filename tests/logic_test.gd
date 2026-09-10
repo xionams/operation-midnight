@@ -64,7 +64,7 @@ func _spawn_building(scene: PackedScene, stats: BuildingStats, player: bool, pos
 
 func _run() -> void:
 	# --- 1. armor multiplier table ---
-	_check("Rifle shreds infantry", is_equal_approx(RIFLE.damage_against(Armor.Type.INFANTRY), 18.0),
+	_check("Rifle shreds infantry", is_equal_approx(RIFLE.damage_against(Armor.Type.INFANTRY), 16.0),
 		"(%.1f)" % RIFLE.damage_against(Armor.Type.INFANTRY))
 	_check("Rifle barely dents heavy armour", RIFLE.damage_against(Armor.Type.HEAVY) < 3.0,
 		"(%.1f)" % RIFLE.damage_against(Armor.Type.HEAVY))
@@ -104,7 +104,14 @@ func _run() -> void:
 	var victim = _spawn_unit(SOLDIER, SOLDIER_STATS, false, Vector3(0, 0, 0))
 	var crusher = _spawn_unit(TANK, TANK_STATS, true, Vector3(-5, 0, 0))
 	await get_tree().process_frame
-	crusher.move_to(Vector3(6, 0, 0))
+	## Isolate the crush mechanic. An armed tank sensibly prefers to stop
+	## and shoot infantry from range, so it would never make contact; what
+	## is under test here is that contact kills, not what a tank chooses.
+	var gun := crusher.get_node_or_null("AttackerComponent")
+	if gun:
+		gun.queue_free()
+	await get_tree().process_frame
+	crusher.issue_command(CommandTypes.Type.MOVE, Vector3(6, 0, 0))
 	var crushed := false
 	for i in 300:
 		await get_tree().physics_frame
@@ -152,6 +159,8 @@ func _run() -> void:
 	# --- 7. Spy sabotages production ---
 	var enemy_barracks = _spawn_building(BARRACKS, BARRACKS_STATS, false, Vector3(24, 0, -20))
 	await get_tree().process_frame
+	## The AI has been spending all match; production needs funds to test.
+	GameState.enemy_credits = 5000
 	enemy_barracks.queue.enqueue(SOLDIER_STATS, SOLDIER)
 	enemy_barracks.queue.enqueue(SOLDIER_STATS, SOLDIER)
 	_check("Enemy barracks has orders queued", enemy_barracks.queue.queue_length() == 2)

@@ -43,6 +43,9 @@ enum Gesture { IDLE, PENDING, PANNING, MARQUEE }
 
 var selected_units: Array = []
 var attack_move_armed: bool = false
+## While armed, the next ground tap sets the rally point of every
+## selected production building instead of issuing a move order.
+var rally_armed: bool = false
 
 var _camera: Camera3D = null
 var _gesture: int = Gesture.IDLE
@@ -214,6 +217,14 @@ func _handle_tap(pos: Vector2, additive: bool) -> void:
 			_select_unit(collider)
 		return
 
+	## Structures are selectable too - that is how sell, repair and rally
+	## points are reached - but only one at a time, and never mixed into
+	## an army selection by the marquee.
+	if collider != null and collider.is_in_group("player_buildings"):
+		clear_selection()
+		_select_unit(collider)
+		return
+
 	## Tapping anything else with units selected is a command; with
 	## nothing selected it clears.
 	if selected_units.is_empty():
@@ -322,6 +333,16 @@ func control_group_size(index: int) -> int:
 func arm_attack_move(armed: bool) -> void:
 	attack_move_armed = armed and not selected_units.is_empty()
 
+## Hold position and engage what comes close, without chasing.
+func command_guard() -> void:
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.has_method("issue_command"):
+			unit.issue_command(CommandTypes.Type.GUARD, unit.global_position)
+	attack_move_armed = false
+
+func arm_rally_point() -> void:
+	rally_armed = true
+
 func command_stop() -> void:
 	for unit in selected_units:
 		if is_instance_valid(unit) and unit.has_method("issue_command"):
@@ -339,6 +360,18 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 		return
 	var collider: Node = hit.get("collider")
 	var point: Vector3 = hit.get("position")
+
+	## Rally placement takes priority: the player explicitly armed it.
+	if rally_armed:
+		rally_armed = false
+		var any: bool = false
+		for entity in selected_units:
+			if is_instance_valid(entity) and entity is BuildingBase:
+				entity.rally_point = point
+				any = true
+		if any:
+			EventBus.command_issued.emit(CommandTypes.Type.MOVE, point)
+		return
 
 	if attack_move_armed:
 		attack_move_armed = false

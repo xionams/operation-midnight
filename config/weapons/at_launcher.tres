@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Anti-Armor Launcher"
+damage = 80.0
+attack_range = 13.0
+attack_cooldown = 2.0
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(1, 0.5, 0.2, 1)
+vs_infantry = 0.35
+vs_light = 1.0
+vs_heavy = 1.0
+vs_building = 0.7
+can_target_air = false

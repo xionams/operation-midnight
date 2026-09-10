@@ -1,14 +1,6 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/buildings/war_factory.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/units/assault_vehicle.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/units/scout_vehicle.tscn" id="3"]
-[ext_resource type="Resource" path="res://config/units/assault_vehicle.tres" id="4"]
-[ext_resource type="Resource" path="res://config/units/scout_vehicle.tres" id="5"]
 
 [node name="WarFactory" type="StaticBody3D"]
 script = ExtResource("1")
-assault_scene = ExtResource("2")
-scout_scene = ExtResource("3")
-assault_stats = ExtResource("4")
-scout_stats = ExtResource("5")

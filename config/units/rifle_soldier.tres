@@ -1,14 +1,20 @@
-[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 [ext_resource type="Resource" path="res://config/weapons/rifle.tres" id="2"]
 
+[ext_resource type="PackedScene" path="res://scenes/units/rifle_soldier.tscn" id="9"]
+
 [resource]
 script = ExtResource("1")
-display_name = "Rifle Soldier"
-build_time = 4.0
-cost = 200
-max_health = 120.0
+display_name = "Rifle Squad"
+cost = 300
+prerequisites = PackedStringArray("Barracks")
+population = 1
+category = "INFANTRY"
+produced_by = "Barracks"
+build_time = 5.0
+max_health = 160.0
 move_speed = 4.5
 turn_speed = 8.0
 nav_radius = 0.6
@@ -24,4 +30,5 @@ is_harvester = false
 cargo_capacity = 0.0
 load_time = 0.0
 unload_time = 0.0
+unit_scene = ExtResource("9")
 visual_scene = null

@@ -6,6 +6,20 @@ class_name UnitStats
 
 @export var display_name: String = "Unit"
 @export var cost: int = 0
+
+## Structures required before this unit can be produced.
+@export var prerequisites: PackedStringArray = PackedStringArray()
+
+## How much of the unit cap this consumes.
+@export var population: int = 1
+
+## Which production panel tab lists it, and which building trains it.
+@export var category: String = "INFANTRY"
+@export var produced_by: String = ""
+
+## The scene to instance. Mirrors BuildingStats.scene, so production is
+## one generic call rather than a hardcoded method per unit type.
+@export var unit_scene: PackedScene = null 
 @export var build_time: float = 0.0 ## Seconds in a ProductionQueue; 0 spawns instantly.
 @export var max_health: float = 100.0
 @export var move_speed: float = 5.0

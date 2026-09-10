@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/gate.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Security Gate"
+cost = 200
+prerequisites = PackedStringArray()
+population_provided = 0
+category = "DEFENSE"
+is_wall = true
+build_radius_bonus = 2.0
+weapon_stats = null
+is_defensive = false
+max_health = 600.0
+build_time = 2.0
+power_generation = 0
+power_consumption = 0
+vision_range = 6.0
+footprint = Vector2(2, 2)
+body_color = Color(0.62, 0.58, 0.35, 1)
+body_size = Vector3(2, 3.2, 2)
+visual_scene = null
+scene = ExtResource("2")

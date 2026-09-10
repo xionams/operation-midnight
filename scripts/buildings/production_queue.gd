@@ -11,6 +11,8 @@ signal order_completed(unit: Node)
 signal queue_changed()
 
 const MAX_QUEUED: int = 5
+const CANCEL_REFUND: float = 0.75
+const LOW_POWER_SPEED: float = 0.5
 
 @export var spawn_offset: Vector3 = Vector3(6, 0, 0)
 
@@ -20,6 +22,14 @@ var _remaining: float = 0.0
 
 func queue_length() -> int:
 	return _orders.size()
+
+## Orders already paid for still occupy population, or a player could
+## queue an unlimited army and watch it all arrive past the cap at once.
+func queued_population() -> int:
+	var total: int = 0
+	for stats in _orders:
+		total += stats.population
+	return total
 
 func is_full() -> bool:
 	return _orders.size() >= MAX_QUEUED
@@ -40,6 +50,10 @@ func enqueue(stats: UnitStats, scene: PackedScene) -> bool:
 		return false
 	## Charge whoever owns this building, not always the player.
 	var owner_is_player: bool = get_parent().is_player_faction
+	if not TechTree.is_available(stats, owner_is_player):
+		return false
+	if not TechTree.has_population_for(stats, owner_is_player):
+		return false
 	if not GameState.try_spend_for(owner_is_player, stats.cost):
 		return false
 	_orders.append(stats)
@@ -54,7 +68,9 @@ func cancel_last() -> bool:
 	if _orders.is_empty():
 		return false
 	var index: int = _orders.size() - 1
-	GameState.add_credits_for(get_parent().is_player_faction, _orders[index].cost)
+	## Fixed partial refund; tracking how far along an order was is
+	## complexity the slice does not need.
+	GameState.add_credits_for(get_parent().is_player_faction, int(round(_orders[index].cost * CANCEL_REFUND)))
 	_orders.remove_at(index)
 	_scenes.remove_at(index)
 	if _orders.is_empty():
@@ -78,7 +94,8 @@ func clear_without_refund() -> int:
 func _process(delta: float) -> void:
 	if _orders.is_empty():
 		return
-	_remaining -= delta
+	var rate: float = LOW_POWER_SPEED if GameState.is_low_power(get_parent().is_player_faction) else 1.0
+	_remaining -= delta * rate
 	if _remaining > 0.0:
 		return
 	_complete_front()
@@ -97,6 +114,12 @@ func _complete_front() -> void:
 	unit.is_player_faction = building.is_player_faction
 	building.get_parent().add_child(unit)
 	unit.global_position = building.global_position + spawn_offset
+
+	## Newly produced units walk to the building's rally point if one is
+	## set, so a factory can feed a staging area without micromanagement.
+	var rally = building.get("rally_point")
+	if rally != null and rally != Vector3.ZERO and unit.has_method("issue_command"):
+		unit.issue_command(CommandTypes.Type.MOVE, rally)
 
 	EventBus.unit_spawned.emit(unit)
 	order_completed.emit(unit)

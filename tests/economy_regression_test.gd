@@ -50,7 +50,7 @@ func _run() -> void:
 
 	## Measure income, not net balance: the harvester's own purchase price
 	## would otherwise mask the first delivery entirely.
-	player_refinery.produce_harvester()
+	player_refinery.produce(load("res://config/units/harvester.tres"))
 	await get_tree().process_frame
 	var player_income: int = 0
 	var player_last: int = GameState.credits

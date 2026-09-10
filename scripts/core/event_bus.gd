@@ -12,3 +12,7 @@ signal building_infiltrated(building: Node, effect: String)
 ## Fired for every accepted order so the HUD can show the player that
 ## their command landed, without the command path knowing about the UI.
 signal command_issued(type: int, position: Vector3)
+signal building_sold(building: Node)
+signal construction_ready(stats: BuildingStats)
+signal objective_changed(title: String, lines: PackedStringArray)
+signal low_power_changed(low: bool)

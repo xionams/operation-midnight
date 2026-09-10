@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/radar_center.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Radar Center"
+cost = 1600
+prerequisites = PackedStringArray("Power Plant", "Resource Refinery")
+population_provided = 0
+category = "BUILDINGS"
+is_wall = false
+build_radius_bonus = 8.0
+weapon_stats = null
+is_defensive = false
+max_health = 800.0
+build_time = 16.0
+power_generation = 0
+power_consumption = 40
+vision_range = 26.0
+footprint = Vector2(8, 8)
+body_color = Color(0.3, 0.4, 0.5, 1)
+body_size = Vector3(6, 6.5, 6)
+visual_scene = null
+scene = ExtResource("2")

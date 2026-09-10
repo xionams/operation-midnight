@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/tech_center.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Technology Center"
+cost = 3000
+prerequisites = PackedStringArray("Radar Center", "Vehicle Factory")
+population_provided = 15
+category = "BUILDINGS"
+is_wall = false
+build_radius_bonus = 8.0
+weapon_stats = null
+is_defensive = false
+max_health = 1000.0
+build_time = 25.0
+power_generation = 0
+power_consumption = 60
+vision_range = 18.0
+footprint = Vector2(9, 9)
+body_color = Color(0.42, 0.36, 0.5, 1)
+body_size = Vector3(7.5, 5, 7.5)
+visual_scene = null
+scene = ExtResource("2")

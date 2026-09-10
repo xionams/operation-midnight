@@ -64,7 +64,7 @@ func _run() -> void:
 
 	var p_before: int = GameState.credits
 	var e_before: int = GameState.enemy_credits
-	enemy_barracks.produce_soldier()
+	enemy_barracks.produce(load("res://config/units/rifle_soldier.tres"))
 	_check("Enemy production spends enemy credits, not the player's",
 		GameState.credits == p_before and GameState.enemy_credits < e_before,
 		"(player %d unchanged, enemy %d -> %d)" % [GameState.credits, e_before, GameState.enemy_credits])

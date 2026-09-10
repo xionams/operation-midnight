@@ -1,20 +1,27 @@
-[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/scout_gun.tres" id="2"]
+
+[ext_resource type="PackedScene" path="res://scenes/units/scout_vehicle.tscn" id="9"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Scout Vehicle"
-build_time = 6.0
 cost = 600
-max_health = 150.0
-move_speed = 9.0
-turn_speed = 8.0
-nav_radius = 0.9
+prerequisites = PackedStringArray("Vehicle Factory")
+population = 1
+category = "VEHICLES"
+produced_by = "Vehicle Factory"
+build_time = 6.0
+max_health = 280.0
+move_speed = 8.0
+turn_speed = 7.0
+nav_radius = 1.2
 vision_range = 28.0
 body_color = Color(0.3, 0.55, 0.3, 1)
-body_size = Vector3(1.6, 0.9, 2.4)
-weapon_stats = null
+body_size = Vector3(2.0, 1.2, 3.0)
+weapon_stats = ExtResource("2")
 armor_type = 1
 is_infantry = false
 can_be_crushed = false
@@ -23,4 +30,5 @@ is_harvester = false
 cargo_capacity = 0.0
 load_time = 0.0
 unload_time = 0.0
+unit_scene = ExtResource("9")
 visual_scene = null

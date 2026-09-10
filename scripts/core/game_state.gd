@@ -75,6 +75,15 @@ func try_spend(amount: int) -> bool:
 func has_power_shortage() -> bool:
 	return power_consumed > power_generated
 
+## LOW POWER is the consequence layer: defences go offline, radar
+## degrades and production halves. Only the player's grid is simulated;
+## the AI is assumed to keep its own house in order, so its structures
+## are never browned out by the player's spending.
+func is_low_power(is_player: bool = true) -> bool:
+	if not is_player:
+		return false
+	return power_consumed > power_generated
+
 func register_power_generation(amount: int) -> void:
 	power_generated += amount
 	power_changed.emit(power_generated, power_consumed)

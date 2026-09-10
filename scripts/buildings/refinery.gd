@@ -1,22 +1,13 @@
-extends BuildingBase
+extends ProducerBuilding
 class_name Refinery
 
 ## Converts harvested cargo into credits and acts as the harvester
-## drop-off point. Also produces Supply Harvesters (the closest
-## equivalent to a "vehicle factory" in this milestone) so the HUD's
-## Build Harvester button has somewhere to spawn from.
-
-@export var harvester_scene: PackedScene
-@export var harvester_stats: UnitStats
-
-var queue: ProductionQueue
+## drop-off point. It also trains Harvesters, so a player who loses their
+## whole harvest fleet can rebuild it from the refinery itself rather
+## than being economically dead.
 
 func _ready() -> void:
 	super._ready()
-	queue = ProductionQueue.new()
-	queue.name = "ProductionQueue"
-	queue.spawn_offset = Vector3(stats.body_size.x / 2.0 + 3.0, 0, 0) if stats else Vector3(6, 0, 0)
-	add_child(queue)
 	GameState.register_refinery(self, is_player_faction)
 
 func _on_died() -> void:
@@ -30,16 +21,7 @@ func _on_faction_changing() -> void:
 func _on_faction_changed() -> void:
 	GameState.register_refinery(self, is_player_faction)
 
-## Spy target: wipe whatever is being built, without refunding it.
-func sabotage_production() -> int:
-	var cleared: int = queue.queue_length()
-	queue.clear_without_refund()
-	return cleared
-
 func receive_resources(amount: float) -> void:
 	if amount <= 0.0:
 		return
 	GameState.add_credits_for(is_player_faction, int(round(amount)))
-
-func produce_harvester() -> bool:
-	return queue.enqueue(harvester_stats, harvester_scene)
