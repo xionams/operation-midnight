@@ -18,6 +18,7 @@ enum Type {
 	HARVEST,     ## Work that resource field.
 	RETURN,      ## Take cargo to a refinery.
 	CAPTURE,     ## Engineer/Spy: enter that structure.
+	PATROL,      ## Sweep between two points, engaging on the way.
 	GARRISON,    ## Reserved: occupy a building.
 }
 

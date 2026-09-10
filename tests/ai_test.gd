@@ -10,6 +10,11 @@ var _fails: Array = []
 func _ready() -> void:
 	_main = get_parent()
 	await get_tree().process_frame
+	## The skirmish setup screen pauses the tree until START is pressed;
+	## harnesses start the match themselves.
+	var hud = get_parent().get_node_or_null("HUD")
+	if hud and hud.has_method("_begin_match"):
+		hud._begin_match()
 	await get_tree().process_frame
 	_director = _main.get_node("AIDirector")
 	await _run()
@@ -131,20 +136,19 @@ func _run() -> void:
 		"(%d -> %d)" % [units_before, _count_enemy_units()])
 
 	# --- offense: a wave eventually marches on the player ---
-	## The AI deliberately stays home until its first scheduled probe, so
-	## the player gets an opening. Skip that grace period rather than
-	## waiting it out in a test.
-	_director._match_time = AIDirector.WAVE_SCHEDULE[0].x + 1.0
+	## Group size scales with match time; jump the clock forward rather
+	## than waiting out the opening in a test.
+	_director._match_time = 200.0
 	var attacking: int = 0
 	waited = 0.0
-	while waited < 60.0 and attacking < _director.current_wave_size():
+	while waited < 60.0 and attacking < _director.desired_group_size():
 		waited += get_process_delta_time()
 		await get_tree().process_frame
 		attacking = 0
 		for u in get_tree().get_nodes_in_group("enemy_units"):
 			if is_instance_valid(u) and u.current_command == CommandTypes.Type.ATTACK_MOVE:
 				attacking += 1
-	_check("AI forms an attack wave and sends it", attacking >= _director.current_wave_size(),
+	_check("AI forms an attack wave and sends it", attacking >= _director.desired_group_size(),
 		"(%d attacking after %.0fs)" % [attacking, waited])
 
 	_check("The player's balance was never touched by the AI",

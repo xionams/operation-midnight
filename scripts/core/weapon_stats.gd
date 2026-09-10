@@ -1,41 +1,42 @@
 extends Resource
 class_name WeaponStats
 
-## Data-driven stat block for a weapon. Shared by any unit/building
-## that mounts an AttackerComponent + Weapon pair.
+## Data-driven stat block for a weapon. Shared by any unit, turret or
+## building that mounts an AttackerComponent + Weapon pair.
+##
+## Effectiveness against a target comes from damage_type via the shared
+## DamageTypes table, so counters are consistent everywhere and tuned in
+## one file rather than per weapon.
 
 @export var display_name: String = "Weapon"
 @export var damage: float = 10.0
+@export var damage_type: DamageTypes.Type = DamageTypes.Type.SMALL_ARMS
 @export var attack_range: float = 10.0
+
+## Artillery cannot fire at things standing on top of it, which is what
+## makes it vulnerable to anything that closes the distance.
+@export var minimum_range: float = 0.0
+
 @export var attack_cooldown: float = 1.0
 @export var is_hitscan: bool = true
-@export var projectile_speed: float = 40.0 ## Used only when is_hitscan == false.
+@export var projectile_speed: float = 40.0
 @export var tracer_color: Color = Color.ORANGE
 
-## Damage multipliers per armor class. 1.0 is full damage, 0.0 means this
-## weapon cannot hurt that target at all. Tune counters here, never in
-## unit scripts: a rifle mauls infantry and barely scratches armour, a
-## tank shell does the reverse.
-@export var vs_infantry: float = 1.0
-@export var vs_light: float = 1.0
-@export var vs_heavy: float = 1.0
-@export var vs_building: float = 1.0
+## Weapons that must halt to shoot. Artillery sets this; nothing else
+## should, or the army stops every time it acquires a target.
+@export var requires_setup: bool = false
 
-## Set for anti-infantry weapons that should never be able to target
-## something they cannot meaningfully hurt.
+## Damage is dealt in a radius around the impact point rather than to one
+## target. 0 means single target.
+@export var splash_radius: float = 0.0
+
 @export var can_target_air: bool = false
 
 func multiplier_for(armor: int) -> float:
-	match armor:
-		Armor.Type.INFANTRY:
-			return vs_infantry
-		Armor.Type.LIGHT:
-			return vs_light
-		Armor.Type.HEAVY:
-			return vs_heavy
-		Armor.Type.BUILDING:
-			return vs_building
-	return 1.0
+	return DamageTypes.multiplier(damage_type, armor)
 
 func damage_against(armor: int) -> float:
 	return damage * multiplier_for(armor)
+
+func in_range(distance: float) -> bool:
+	return distance <= attack_range and distance >= minimum_range

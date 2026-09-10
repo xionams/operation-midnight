@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/artillery_gun.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/units/artillery_vehicle.tscn" id="9"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Artillery Vehicle"
+cost = 1600
+prerequisites = PackedStringArray("Vehicle Factory", "Radar Center")
+population = 3
+category = "VEHICLES"
+produced_by = "Vehicle Factory"
+build_time = 16.0
+max_health = 420.0
+move_speed = 3.5
+turn_speed = 3.5
+nav_radius = 1.4
+vision_range = 15.0
+body_color = Color(0.4, 0.38, 0.3, 1)
+body_size = Vector3(2.6, 1.5, 4.0)
+weapon_stats = ExtResource("2")
+armor_type = 2
+is_infantry = false
+can_be_crushed = false
+can_crush = true
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+unit_scene = ExtResource("9")
+visual_scene = null

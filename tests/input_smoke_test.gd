@@ -13,6 +13,11 @@ var _fails: Array = []
 func _ready() -> void:
 	_main = get_parent()
 	await get_tree().process_frame
+	## The skirmish setup screen pauses the tree until START is pressed;
+	## harnesses start the match themselves.
+	var hud = get_parent().get_node_or_null("HUD")
+	if hud and hud.has_method("_begin_match"):
+		hud._begin_match()
 	await get_tree().process_frame
 	_placer = _main.get_node("BuildingPlacer")
 	_hud = _main.get_node("HUD")

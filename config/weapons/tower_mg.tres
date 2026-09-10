@@ -6,13 +6,13 @@
 script = ExtResource("1")
 display_name = "Tower Machine Gun"
 damage = 22.0
+damage_type = 0
 attack_range = 14.0
+minimum_range = 0.0
 attack_cooldown = 0.4
 is_hitscan = true
 projectile_speed = 40.0
 tracer_color = Color(1, 0.9, 0.5, 1)
-vs_infantry = 1.4
-vs_light = 0.4
-vs_heavy = 0.1
-vs_building = 0.1
+requires_setup = false
+splash_radius = 0.0
 can_target_air = false

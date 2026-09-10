@@ -6,13 +6,13 @@
 script = ExtResource("1")
 display_name = "Assault Cannon"
 damage = 40.0
+damage_type = 2
 attack_range = 12.0
+minimum_range = 0.0
 attack_cooldown = 1.2
 is_hitscan = true
 projectile_speed = 40.0
 tracer_color = Color(1, 0.6, 0.1, 1)
-vs_infantry = 0.35
-vs_light = 1.0
-vs_heavy = 1.0
-vs_building = 0.8
+requires_setup = false
+splash_radius = 0.0
 can_target_air = false

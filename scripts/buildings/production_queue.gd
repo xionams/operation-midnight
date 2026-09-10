@@ -95,10 +95,26 @@ func _process(delta: float) -> void:
 	if _orders.is_empty():
 		return
 	var rate: float = LOW_POWER_SPEED if GameState.is_low_power(get_parent().is_player_faction) else 1.0
+	rate *= _throughput()
 	_remaining -= delta * rate
 	if _remaining > 0.0:
 		return
 	_complete_front()
+
+## Extra production buildings of the same kind speed each other up, so a
+## second Barracks is a real economic choice against spending the same
+## money on units now.
+func _throughput() -> float:
+	var owner_building := get_parent()
+	if owner_building.stats == null:
+		return 1.0
+	var group: String = "player_buildings" if owner_building.is_player_faction else "enemy_buildings"
+	var same: int = 0
+	for building in get_tree().get_nodes_in_group(group):
+		if is_instance_valid(building) and building.stats != null \
+			and building.stats.display_name == owner_building.stats.display_name:
+			same += 1
+	return 1.0 + 0.35 * float(maxi(0, same - 1))
 
 func _complete_front() -> void:
 	var stats: UnitStats = _orders.pop_front()
@@ -119,7 +135,10 @@ func _complete_front() -> void:
 	## set, so a factory can feed a staging area without micromanagement.
 	var rally = building.get("rally_point")
 	if rally != null and rally != Vector3.ZERO and unit.has_method("issue_command"):
-		unit.issue_command(CommandTypes.Type.MOVE, rally)
+		## Scatter arrivals slightly, or every unit walks to one coordinate
+		## and forms a pile at the rally point.
+		var spread := Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-3.0, 3.0))
+		unit.issue_command(CommandTypes.Type.MOVE, rally + spread)
 
 	EventBus.unit_spawned.emit(unit)
 	order_completed.emit(unit)

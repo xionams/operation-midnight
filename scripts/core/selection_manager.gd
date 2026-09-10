@@ -46,6 +46,8 @@ var attack_move_armed: bool = false
 ## While armed, the next ground tap sets the rally point of every
 ## selected production building instead of issuing a move order.
 var rally_armed: bool = false
+## While armed, the next ground tap becomes a patrol destination.
+var patrol_armed: bool = false
 
 var _camera: Camera3D = null
 var _gesture: int = Gesture.IDLE
@@ -128,6 +130,8 @@ func _handle_key(key: InputEventKey) -> void:
 			arm_attack_move(true)
 		KEY_S:
 			command_stop()
+		KEY_P:
+			arm_patrol()
 		KEY_1, KEY_2, KEY_3:
 			var index: int = key.physical_keycode - KEY_0
 			if key.ctrl_pressed:
@@ -343,6 +347,14 @@ func command_guard() -> void:
 func arm_rally_point() -> void:
 	rally_armed = true
 
+func arm_patrol() -> void:
+	patrol_armed = not selected_units.is_empty()
+
+func set_stance(stance: int) -> void:
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.has_method("issue_command"):
+			unit.stance = stance
+
 func command_stop() -> void:
 	for unit in selected_units:
 		if is_instance_valid(unit) and unit.has_method("issue_command"):
@@ -373,6 +385,12 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 			EventBus.command_issued.emit(CommandTypes.Type.MOVE, point)
 		return
 
+	if patrol_armed:
+		patrol_armed = false
+		_issue_to_selection(CommandTypes.Type.PATROL, point, null)
+		EventBus.command_issued.emit(CommandTypes.Type.PATROL, point)
+		return
+
 	if attack_move_armed:
 		attack_move_armed = false
 		_issue_to_selection(CommandTypes.Type.ATTACK_MOVE, point, null)
@@ -390,6 +408,12 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 	if collider != null and collider.is_in_group("resource_nodes"):
 		_issue_to_selection(CommandTypes.Type.HARVEST, collider.global_position, collider)
 		EventBus.command_issued.emit(CommandTypes.Type.HARVEST, collider.global_position)
+		return
+
+	## Guard mode armed at a friendly unit escorts it.
+	if collider != null and collider.is_in_group("player_units") and not selected_units.has(collider):
+		_issue_to_selection(CommandTypes.Type.GUARD, collider.global_position, collider)
+		EventBus.command_issued.emit(CommandTypes.Type.GUARD, collider.global_position)
 		return
 
 	if collider != null and collider.is_in_group("player_buildings"):

@@ -6,13 +6,13 @@
 script = ExtResource("1")
 display_name = "Rifle"
 damage = 16.0
+damage_type = 0
 attack_range = 10.0
+minimum_range = 0.0
 attack_cooldown = 0.55
 is_hitscan = true
 projectile_speed = 40.0
 tracer_color = Color(1, 0.95, 0.6, 1)
-vs_infantry = 1.0
-vs_light = 0.5
-vs_heavy = 0.15
-vs_building = 0.25
+requires_setup = false
+splash_radius = 0.0
 can_target_air = false

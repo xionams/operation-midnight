@@ -101,6 +101,13 @@ func _physics_process(delta: float) -> void:
 	## that walks out of range instead of trying to chase it.
 	var mobile: bool = _owner_unit.has_method("move_to")
 
+	## Artillery has a blind spot up close: back off rather than sitting
+	## there unable to fire.
+	if weapon.stats.minimum_range > 0.0 and distance < weapon.stats.minimum_range and mobile:
+		var away: Vector3 = (_owner_unit.global_position - target.global_position).normalized()
+		_owner_unit.call("move_to", _owner_unit.global_position + away * weapon.stats.minimum_range)
+		return
+
 	if distance > weapon.stats.attack_range:
 		if not mobile:
 			target = null

@@ -15,6 +15,8 @@ var assigned_node = null
 
 var _refinery = null
 var _timer: float = 0.0
+## Set when no known field has anything left, cleared when one is found.
+var no_resources: bool = false
 
 const ARRIVE_NODE_DISTANCE: float = 4.5
 const ARRIVE_REFINERY_DISTANCE: float = 4.5

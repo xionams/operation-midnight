@@ -20,26 +20,66 @@ func can_fire() -> bool:
 ## True when this weapon can meaningfully hurt the target at all. Used so
 ## a unit does not walk across the map to plink uselessly at armour its
 ## weapon cannot scratch.
+## A weapon must be able to hurt a target *usefully* before a unit will
+## walk across the map to shoot it. The damage table gives small arms a
+## small but non-zero multiplier against armour, which is right for a
+## rifleman who is already in a fight - but without this floor an Attack
+## Dog would happily chase a Main Battle Tank and die achieving nothing.
+const MIN_USEFUL_MULTIPLIER: float = 0.25
+
 func can_damage(target: Node) -> bool:
 	if stats == null or not is_instance_valid(target):
 		return false
 	var health: HealthComponent = target.get_node_or_null("HealthComponent")
 	if health == null:
 		return false
-	return stats.multiplier_for(health.armor_type) > 0.0
+	return stats.multiplier_for(health.armor_type) >= MIN_USEFUL_MULTIPLIER
 
 func fire_at(target: Node3D, from_position: Vector3) -> void:
 	if not can_fire() or not is_instance_valid(target):
 		return
 	_cooldown_remaining = stats.attack_cooldown
 
-	var target_health: HealthComponent = target.get_node_or_null("HealthComponent")
-	if target_health != null:
-		var attacker := get_parent()
-		target_health.take_damage(stats.damage_against(target_health.armor_type), attacker)
+	var attacker := get_parent()
+	## Veteran crews hit harder. The multiplier is applied once, here, so
+	## every weapon benefits without each unit script knowing about rank.
+	var veterancy: VeterancyComponent = attacker.get_node_or_null("VeterancyComponent")
+	var bonus: float = veterancy.damage_multiplier() if veterancy else 1.0
+
+	if stats.splash_radius > 0.0:
+		_apply_splash(target.global_position, bonus, attacker, veterancy)
+	else:
+		var target_health: HealthComponent = target.get_node_or_null("HealthComponent")
+		if target_health != null:
+			var dealt: float = stats.damage_against(target_health.armor_type) * bonus
+			target_health.take_damage(dealt, attacker)
+			if veterancy:
+				veterancy.award_damage(dealt)
 
 	AudioDirector.play("attack")
 	_spawn_tracer(from_position, target.global_position)
+
+## Explosive ordnance damages everything near the impact, friend or foe -
+## which is exactly why artillery is dangerous to use inside your own
+## lines and excellent against a packed formation.
+func _apply_splash(centre: Vector3, bonus: float, attacker: Node, veterancy: VeterancyComponent) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var radius_sq: float = stats.splash_radius * stats.splash_radius
+	for group in ["units", "buildings"]:
+		for entity in tree.get_nodes_in_group(group):
+			if not is_instance_valid(entity):
+				continue
+			if entity.global_position.distance_squared_to(centre) > radius_sq:
+				continue
+			var health: HealthComponent = entity.get_node_or_null("HealthComponent")
+			if health == null or health.is_dead():
+				continue
+			var dealt: float = stats.damage_against(health.armor_type) * bonus
+			health.take_damage(dealt, attacker)
+			if veterancy and entity.get("is_player_faction") != attacker.get("is_player_faction"):
+				veterancy.award_damage(dealt)
 
 func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> void:
 	var tree := Engine.get_main_loop() as SceneTree

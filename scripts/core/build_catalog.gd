@@ -36,6 +36,7 @@ const VEHICLES: Array[String] = [
 	"res://config/units/scout_vehicle.tres",
 	"res://config/units/assault_vehicle.tres",
 	"res://config/units/main_battle_tank.tres",
+	"res://config/units/artillery_vehicle.tres",
 ]
 
 var _cache: Dictionary = {}

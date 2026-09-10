@@ -51,7 +51,11 @@ var _group_hold_time: float = 0.0
 
 var _victory_overlay: Control
 var _victory_label: Label
+var _report_label: RichTextLabel
 var _intro_overlay: Control
+var _setup_overlay: Control
+var _difficulty_buttons: Dictionary = {}
+var _chosen_difficulty: int = AIDirector.Difficulty.NORMAL
 var _debug_panel: Label
 var _debug_visible: bool = false
 
@@ -62,6 +66,7 @@ func _ready() -> void:
 	_build_selection_panel()
 	_build_right_column()
 	_build_victory_overlay()
+	_build_setup_screen()
 	_build_intro()
 	_build_debug_overlay()
 
@@ -493,11 +498,89 @@ func _build_victory_overlay() -> void:
 	_victory_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_victory_label)
 
+	## After-action report: what the match actually cost, which is what
+	## makes an ending feel like a conclusion rather than a stop.
+	_report_label = RichTextLabel.new()
+	_report_label.bbcode_enabled = true
+	_report_label.fit_content = true
+	_report_label.custom_minimum_size = Vector2(420, 210)
+	_report_label.add_theme_font_size_override("normal_font_size", 17)
+	column.add_child(_report_label)
+
 	var restart := Button.new()
 	restart.text = "Restart"
 	restart.custom_minimum_size = Vector2(200, 60)
 	restart.pressed.connect(func(): get_tree().reload_current_scene())
 	column.add_child(restart)
+
+## Difficulty is chosen before anything happens. The tree is paused
+## meanwhile, so the AI does not get a free head start while the player
+## reads the screen.
+func _build_setup_screen() -> void:
+	_setup_overlay = Control.new()
+	_setup_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_setup_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_setup_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_setup_overlay)
+
+	var background := ColorRect.new()
+	background.color = Color(0.03, 0.05, 0.04, 1.0)
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_setup_overlay.add_child(background)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_setup_overlay.add_child(center)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 18)
+	center.add_child(column)
+
+	var title := _label("OPERATION MIDNIGHT", 44)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(title)
+	var subtitle := _label("Skirmish", 18)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_color_override("font_color", Color(0.7, 0.74, 0.62))
+	column.add_child(subtitle)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	column.add_child(row)
+	for entry in [["Easy", AIDirector.Difficulty.EASY],
+				  ["Normal", AIDirector.Difficulty.NORMAL],
+				  ["Hard", AIDirector.Difficulty.HARD]]:
+		var button := Button.new()
+		button.text = entry[0]
+		button.toggle_mode = true
+		button.custom_minimum_size = Vector2(130, 46)
+		button.button_pressed = entry[1] == AIDirector.Difficulty.NORMAL
+		button.pressed.connect(func(): _choose_difficulty(entry[1]))
+		row.add_child(button)
+		_difficulty_buttons[entry[1]] = button
+
+	var start := Button.new()
+	start.text = "START OPERATION"
+	start.custom_minimum_size = Vector2(280, 56)
+	start.add_theme_font_size_override("font_size", 20)
+	start.pressed.connect(_begin_match)
+	column.add_child(start)
+
+	get_tree().paused = true
+
+func _choose_difficulty(value: int) -> void:
+	_chosen_difficulty = value
+	for key in _difficulty_buttons:
+		_difficulty_buttons[key].set_pressed_no_signal(key == value)
+
+func _begin_match() -> void:
+	var director = get_tree().current_scene.get_node_or_null("AIDirector")
+	if director:
+		director.difficulty = _chosen_difficulty
+	MatchStats.reset()
+	_setup_overlay.visible = false
+	get_tree().paused = false
 
 ## A short opening so the match does not begin in a silent sandbox.
 func _build_intro() -> void:
@@ -573,6 +656,10 @@ func _on_building_infiltrated(building: Node, effect: String) -> void:
 	_flash_event("Spy in %s — %s" % [display, effect], Color.GOLD)
 
 func _on_match_ended(victory: bool) -> void:
+	var lines: Array = []
+	for entry in MatchStats.summary_lines():
+		lines.append("[color=#9aa48a]%-24s[/color]%s" % [entry[0], entry[1]])
+	_report_label.text = "\n".join(lines)
 	_victory_label.text = "VICTORY" if victory else "DEFEAT"
 	_victory_label.add_theme_color_override("font_color", Color.GOLD if victory else Color.CRIMSON)
 	_victory_overlay.visible = true

@@ -17,12 +17,31 @@ var health: HealthComponent
 var nav_agent: NavigationAgent3D
 var selection_ring: MeshInstance3D
 var health_bar: HealthBar
+var veterancy: VeterancyComponent
 
 ## Current order, exposed so the HUD and debug overlay can report what a
 ## unit believes it is doing.
 var current_command: int = CommandTypes.Type.STOP
 var command_target: Node = null
 var command_position: Vector3 = Vector3.ZERO
+var stance: int = Stance.DEFENSIVE
+## Patrol bounces between the point the order was given and the target.
+var patrol_from: Vector3 = Vector3.ZERO
+var patrol_to: Vector3 = Vector3.ZERO
+var guard_target: Node = null
+
+## How willingly a unit leaves its post to engage.
+##   HOLD        never chases; fires only at what comes into range
+##   DEFENSIVE   short leash around where it was told to stand
+##   AGGRESSIVE  wide acquisition and a long leash
+enum Stance { HOLD, DEFENSIVE, AGGRESSIVE }
+
+const STANCE_ACQUIRE_BONUS: Dictionary = {
+	Stance.HOLD: 0.0, Stance.DEFENSIVE: 5.0, Stance.AGGRESSIVE: 12.0,
+}
+const STANCE_LEASH: Dictionary = {
+	Stance.HOLD: 0.0, Stance.DEFENSIVE: 12.0, Stance.AGGRESSIVE: 26.0,
+}
 
 const ACQUIRE_INTERVAL: float = 0.25
 const ACQUIRE_BONUS: float = 5.0
@@ -69,6 +88,7 @@ func _ready() -> void:
 	_build_visual()
 	_build_selection_ring()
 	_build_health_bar()
+	_build_veterancy()
 
 ## Enemy-owned entities can be hidden by fog. Player-owned ones never are:
 ## you always see your own army.
@@ -164,6 +184,15 @@ func _build_selection_ring() -> void:
 	selection_ring.visible = false
 	add_child(selection_ring)
 
+## Only things that fight can earn rank; a harvester promoting itself for
+## being shot at would be noise.
+func _build_veterancy() -> void:
+	if stats == null or stats.weapon_stats == null:
+		return
+	veterancy = VeterancyComponent.new()
+	veterancy.name = "VeterancyComponent"
+	add_child(veterancy)
+
 func _build_health_bar() -> void:
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)
 	health_bar = HealthBar.attach(self, health, size.y, maxf(size.x, 1.4))
@@ -231,7 +260,14 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 		CommandTypes.Type.GUARD:
 			if attacker:
 				attacker.clear_target()
+			guard_target = target
 			stop_moving()
+		CommandTypes.Type.PATROL:
+			if attacker:
+				attacker.clear_target()
+			patrol_from = global_position
+			patrol_to = position
+			move_to(patrol_to)
 		_:
 			## Orders that mean something only to a specialist - HARVEST,
 			## RETURN, CAPTURE - still have to do something sensible for
@@ -263,12 +299,16 @@ func _tick_combat_behavior(delta: float) -> void:
 	elif current_command == CommandTypes.Type.ATTACK_MOVE:
 		move_to(command_position)
 
+	_tick_patrol()
+	_tick_guard()
+
 	_acquire_timer -= delta
 	if _acquire_timer > 0.0:
 		return
 	_acquire_timer = ACQUIRE_INTERVAL
 
-	var acquisition: float = attacker.weapon.stats.attack_range + ACQUIRE_BONUS
+	var acquisition: float = attacker.weapon.stats.attack_range \
+		+ STANCE_ACQUIRE_BONUS.get(stance, ACQUIRE_BONUS)
 	var found := _nearest_hostile(acquisition, attacker)
 	if found == null:
 		if _should_return_home():
@@ -290,7 +330,35 @@ func _should_return_home() -> bool:
 		return false
 	if nav_agent != null and not nav_agent.is_navigation_finished():
 		return false
-	return global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE
+	var leash: float = STANCE_LEASH.get(stance, MAX_CHASE_DISTANCE)
+	if leash <= 0.0:
+		return global_position.distance_to(_guard_origin) > 1.0
+	return global_position.distance_to(_guard_origin) > leash
+
+## Patrol turns around at each end, so a unit sweeps a line indefinitely
+## and re-engages anything that wanders into it.
+func _tick_patrol() -> void:
+	if current_command != CommandTypes.Type.PATROL:
+		return
+	if nav_agent == null or not nav_agent.is_navigation_finished():
+		return
+	var swap := patrol_from
+	patrol_from = patrol_to
+	patrol_to = swap
+	_guard_origin = global_position
+	move_to(patrol_to)
+
+## Guarding follows whatever it was told to protect, so an escort keeps
+## up with the harvester it is covering instead of standing where the
+## order was given.
+func _tick_guard() -> void:
+	if current_command != CommandTypes.Type.GUARD or not is_instance_valid(guard_target):
+		return
+	var post: Vector3 = guard_target.global_position
+	_guard_origin = post
+	if global_position.distance_to(post) > 8.0 \
+		and (nav_agent == null or nav_agent.is_navigation_finished()):
+		move_to(post)
 
 func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
 	var group: String = "enemy_units" if is_player_faction else "player_units"
@@ -309,7 +377,8 @@ func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
 		if dist > radius or dist >= best_dist:
 			continue
 		## Never chase further from home than the leash allows.
-		if candidate.global_position.distance_to(_guard_origin) > MAX_CHASE_DISTANCE + radius:
+		var leash: float = STANCE_LEASH.get(stance, MAX_CHASE_DISTANCE)
+		if leash > 0.0 and candidate.global_position.distance_to(_guard_origin) > leash + radius:
 			continue
 		best_dist = dist
 		best = candidate
@@ -405,6 +474,7 @@ func _crush_what_we_drove_over() -> void:
 			victim_health.take_damage(victim_health.max_health * 10.0, self)
 
 func _on_died() -> void:
+	MatchStats.record_unit_death(is_player_faction)
 	died.emit(self)
 	SelectionManager.notify_unit_removed(self)
 	queue_free()

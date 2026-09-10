@@ -11,8 +11,12 @@ signal failed(reason: String)
 
 @export var enter_distance: float = 5.0
 @export var consumes_unit: bool = true
+## Capture is not instantaneous: the engineer stands there for a few
+## seconds, which gives a defender a window to shoot it off the door.
+@export var channel_time: float = 3.0
 
 var target: Node3D = null
+var _channel_remaining: float = 0.0
 
 var _unit: UnitBase
 
@@ -25,10 +29,16 @@ func _ready() -> void:
 func accepts(candidate: Node) -> bool:
 	if not (candidate is BuildingBase) or _unit == null:
 		return false
-	return (candidate as BuildingBase).is_player_faction != _unit.is_player_faction
+	var building := candidate as BuildingBase
+	## Neutral structures are fair game for anyone; owned ones only for
+	## the other side.
+	if building.is_neutral:
+		return true
+	return building.is_player_faction != _unit.is_player_faction
 
 func order(building: Node3D) -> void:
 	target = building
+	_channel_remaining = channel_time
 	if _unit != null:
 		_unit.move_to(building.global_position)
 
@@ -42,6 +52,12 @@ func _process(_delta: float) -> void:
 		target = null
 		return
 	if _unit.global_position.distance_to(target.global_position) > enter_distance:
+		_channel_remaining = channel_time
+		return
+
+	## Standing at the door: run the channel down before it takes effect.
+	_channel_remaining -= _delta
+	if _channel_remaining > 0.0:
 		return
 
 	var building := target

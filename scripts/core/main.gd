@@ -24,7 +24,9 @@ const ENGINEER_STATS: UnitStats = preload("res://config/units/engineer.tres")
 const SPY_STATS: UnitStats = preload("res://config/units/spy.tres")
 const DOG_STATS: UnitStats = preload("res://config/units/attack_dog.tres")
 const BARRACKS_SCENE: PackedScene = preload("res://scenes/buildings/barracks.tscn")
-const COMMS_RELAY_STATS: BuildingStats = preload("res://config/buildings/comms_relay.tres")
+const COMMS_OUTPOST_STATS: BuildingStats = preload("res://config/buildings/comms_outpost.tres")
+const REPAIR_DEPOT_STATS: BuildingStats = preload("res://config/buildings/repair_depot.tres")
+const SUPPLY_DEPOT_STATS: BuildingStats = preload("res://config/buildings/supply_depot.tres")
 const RIFLE_SOLDIER_SCENE: PackedScene = preload("res://scenes/units/rifle_soldier.tscn")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
 
@@ -49,8 +51,10 @@ const RESOURCE_NODE_CENTRAL_POS: Vector3 = Vector3(6, 0, 6)
 ## economy would never start, which reads as a broken opponent rather
 ## than an easy one.
 const RESOURCE_NODE_ENEMY_POS: Vector3 = Vector3(54, 0, -42)
-## Sits between the two bases, worth taking with an Engineer.
-const NEUTRAL_STRUCTURE_POS: Vector3 = Vector3(-30, 0, -6)
+## Contested map control, spread so no one side starts near all of them.
+const COMMS_OUTPOST_POS: Vector3 = Vector3(-30, 0, -6)
+const REPAIR_DEPOT_POS: Vector3 = Vector3(30, 0, 34)
+const SUPPLY_DEPOT_POS: Vector3 = Vector3(-8, 0, 48)
 
 ## How much of their own ground the player starts knowing.
 const START_REVEAL_RADIUS: float = 34.0
@@ -232,10 +236,6 @@ func _spawn_enemy_base() -> void:
 func _build_ai_director() -> void:
 	var director := AIDirector.new()
 	director.name = "AIDirector"
-	director.refinery_stats = REFINERY_STATS
-	director.power_plant_stats = POWER_PLANT_STATS
-	director.barracks_stats = BARRACKS_STATS
-	director.war_factory_stats = WAR_FACTORY_STATS
 	add_child(director)
 	director.setup(_nav_region, _level, ENEMY_BASE_POS, PLAYER_BASE_POS)
 
@@ -252,13 +252,21 @@ func _spawn_resource_fields() -> void:
 	_spawn_resource_node(RESOURCE_NODE_ENEMY_POS, 16000.0)
 	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, 28000.0)
 
-## A capturable structure between the bases. Worth an Engineer run once
-## the player discovers it exists.
+## Genuinely neutral map control: nobody owns these until an Engineer
+## walks in. Each pays a different benefit, so which one is worth the
+## detour depends on how the match is going.
 func _spawn_neutral_structure() -> void:
-	## Held by the enemy so an Engineer has something to take. Its wide
-	## vision is the actual prize: capturing it lights up the middle.
-	var relay = _spawn_building(COMMS_RELAY_STATS.scene, COMMS_RELAY_STATS, false, NEUTRAL_STRUCTURE_POS)
-	relay.name = "CommsRelay"
+	_spawn_strategic(COMMS_OUTPOST_STATS, COMMS_OUTPOST_POS, StrategicStructure.Benefit.VISION)
+	_spawn_strategic(REPAIR_DEPOT_STATS, REPAIR_DEPOT_POS, StrategicStructure.Benefit.REPAIR)
+	_spawn_strategic(SUPPLY_DEPOT_STATS, SUPPLY_DEPOT_POS, StrategicStructure.Benefit.SUPPLY)
+
+func _spawn_strategic(stats: BuildingStats, pos: Vector3, benefit: int) -> void:
+	var structure = stats.scene.instantiate()
+	structure.stats = stats
+	structure.is_neutral = true
+	structure.benefit = benefit
+	_nav_region.add_child(structure)
+	structure.global_position = pos
 
 ## Rock formations and barriers, so the battlefield has routes and choke
 ## points rather than being one open rectangle. Placeholder boxes: they

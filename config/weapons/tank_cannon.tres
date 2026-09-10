@@ -6,13 +6,13 @@
 script = ExtResource("1")
 display_name = "Tank Cannon"
 damage = 95.0
+damage_type = 2
 attack_range = 14.0
+minimum_range = 0.0
 attack_cooldown = 1.7
 is_hitscan = true
 projectile_speed = 40.0
 tracer_color = Color(1, 0.75, 0.25, 1)
-vs_infantry = 0.3
-vs_light = 1.0
-vs_heavy = 1.0
-vs_building = 1.2
+requires_setup = false
+splash_radius = 0.0
 can_target_air = false

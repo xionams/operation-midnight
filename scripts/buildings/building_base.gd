@@ -12,6 +12,12 @@ signal died(building: BuildingBase)
 @export var stats: BuildingStats
 @export var is_player_faction: bool = true
 
+## Neutral structures belong to nobody: they never shoot, never feed
+## either side's tech tree or power grid, and exist to be captured. This
+## replaces the previous hack of giving map structures to the enemy,
+## which made them count as enemy prerequisites and enemy power.
+@export var is_neutral: bool = false
+
 var health: HealthComponent
 
 ## Production structures send new units here. Vector3.ZERO means unset.
@@ -34,7 +40,10 @@ func get_faction() -> int:
 
 func _ready() -> void:
 	add_to_group("buildings")
-	add_to_group("player_buildings" if is_player_faction else "enemy_buildings")
+	if is_neutral:
+		add_to_group("neutral_buildings")
+	else:
+		add_to_group("player_buildings" if is_player_faction else "enemy_buildings")
 
 	collision_layer = BUILDING_COLLISION_LAYER
 	collision_mask = 0
@@ -47,10 +56,13 @@ func _ready() -> void:
 	_register_power()
 
 func _build_fog_visibility() -> void:
-	if is_player_faction:
+	if is_player_faction and not is_neutral:
 		return
 	var hideable := FogHideable.new()
 	hideable.name = "FogHideable"
+	## A neutral structure does not move, so once discovered it stays on
+	## the player's map - it is a landmark, not a patrol.
+	hideable.persists_once_explored = is_neutral
 	add_child(hideable)
 
 func _build_collision() -> void:
@@ -66,7 +78,7 @@ func _build_health() -> void:
 	health = HealthComponent.new()
 	health.name = "HealthComponent"
 	health.max_health = stats.max_health if stats else 500.0
-	health.armor_type = Armor.Type.BUILDING
+	health.armor_type = Armor.Type.STRUCTURE
 	add_child(health)
 	health.died.connect(_on_died)
 
@@ -104,6 +116,8 @@ func _build_health_bar() -> void:
 	health_bar = HealthBar.attach(self, health, size.y, maxf(size.x * 0.8, 2.0))
 
 func _faction_color() -> Color:
+	if is_neutral:
+		return Color(0.85, 0.85, 0.6)
 	return Color(0.2, 0.45, 1.0) if is_player_faction else Color(0.9, 0.15, 0.15)
 
 ## Hand the structure to the other side, intact and at full health. Power
@@ -111,13 +125,20 @@ func _faction_color() -> Color:
 ## whatever they own (refinery lists, factory groups), so a captured
 ## building genuinely works for its new owner.
 func set_faction(player: bool) -> void:
-	if is_player_faction == player:
+	## A neutral structure is always capturable: its is_player_faction
+	## flag is meaningless until someone owns it, so comparing against it
+	## here would silently no-op every capture by the player.
+	if not is_neutral and is_player_faction == player:
 		return
 
 	_on_faction_changing()
 	_unregister_power()
-	remove_from_group("player_buildings" if is_player_faction else "enemy_buildings")
+	if is_neutral:
+		remove_from_group("neutral_buildings")
+	else:
+		remove_from_group("player_buildings" if is_player_faction else "enemy_buildings")
 
+	is_neutral = false
 	is_player_faction = player
 
 	add_to_group("player_buildings" if is_player_faction else "enemy_buildings")
@@ -159,7 +180,7 @@ func _contributes_power() -> bool:
 ## show up as generation on the player's HUD - and capturing one would
 ## do nothing, because its output was already counted.
 func _register_power() -> void:
-	if stats == null or not is_player_faction:
+	if stats == null or is_neutral or not is_player_faction:
 		return
 	if stats.power_generation > 0 and _contributes_power():
 		GameState.register_power_generation(stats.power_generation)
@@ -167,7 +188,7 @@ func _register_power() -> void:
 		GameState.register_power_consumption(stats.power_consumption)
 
 func _unregister_power() -> void:
-	if stats == null or not is_player_faction:
+	if stats == null or is_neutral or not is_player_faction:
 		return
 	if stats.power_generation > 0 and _contributes_power():
 		GameState.unregister_power_generation(stats.power_generation)
@@ -230,6 +251,7 @@ func _refresh_damage_visual() -> void:
 		2: material.albedo_color = base.darkened(0.55).lerp(Color(0.15, 0.08, 0.05), 0.35)
 
 func _on_died() -> void:
+	MatchStats.record_building_death(is_player_faction and not is_neutral)
 	AudioDirector.play("explosion")
 	_unregister_power()
 	died.emit(self)

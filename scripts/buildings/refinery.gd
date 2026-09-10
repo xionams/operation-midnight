@@ -42,4 +42,7 @@ func _on_faction_changed() -> void:
 func receive_resources(amount: float) -> void:
 	if amount <= 0.0:
 		return
-	GameState.add_credits_for(is_player_faction, int(round(amount)))
+	var payout: int = int(round(amount))
+	GameState.add_credits_for(is_player_faction, payout)
+	if is_player_faction:
+		MatchStats.record_harvest(payout)

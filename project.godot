@@ -27,6 +27,7 @@ FogOfWar="*res://scripts/core/fog_of_war.gd"
 TechTree="*res://scripts/core/tech_tree.gd"
 BuildCatalog="*res://scripts/core/build_catalog.gd"
 AudioDirector="*res://scripts/core/audio_director.gd"
+MatchStats="*res://scripts/core/match_stats.gd"
 SelectionManager="*res://scripts/core/selection_manager.gd"
 
 [display]
