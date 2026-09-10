@@ -77,6 +77,33 @@ Phase 6 — UI
 - [ ] AI uses fog itself (needs a second visibility grid)
 - [ ] AI uses Engineers/Spies
 
+## MILESTONE 4 — VERTICAL SLICE
+Done
+- [x] Data-driven tech tree (prerequisites, population, category, producer on the .tres)
+- [x] Construction queue: structures are paid for and timed, then placed (C&C model)
+- [x] Separate parallel unit queues per production building
+- [x] Construction influence radius; ghost validity vs overlap, blockers, bounds, radius
+- [x] Walls + gate, drag-placed in a line
+- [x] Machine Gun Tower, Anti-Armor Turret (reuse unit weapons + armour table)
+- [x] Radar Center, Technology Center; Main Battle Tank behind Tech
+- [x] Rifle Squad, Anti-Armor Squad; all values moved to the brief's numbers
+- [x] LOW POWER: defences offline, construction and production at half rate
+- [x] Unit cap from structures; queued orders count against it
+- [x] Sell (50%), continuous repair, rally points, damage tinting at 60%/30%
+- [x] Full HUD: categories, locked items with reasons, selection panel, progress, objectives
+- [x] Match intro + staged objectives
+- [x] Enemy escalation schedule; waves come only from real production
+- [x] Infrastructure consequences (verified by tests/infrastructure_test.tscn)
+- [x] Placeholder audio, synthesised in code
+- [x] tests/vertical_slice_test.tscn covers the brief's acceptance sequence
+
+Known gaps
+- [ ] Gate does not physically open/close; it is passable to its owner via collision layers
+- [ ] Engineer capture works on enemy buildings; no separate neutral-ownership state
+- [ ] AI does not use fog, Engineers or Spies, and does not rebuild what it loses
+- [ ] Veterancy/rank shown in the brief's mock-up is not implemented
+- [ ] No garrison mechanic
+
 ## NEXT
 - Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.
 - Building construction time + visual progress (field already exists on BuildingStats).
