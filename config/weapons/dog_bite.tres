@@ -4,15 +4,15 @@
 
 [resource]
 script = ExtResource("1")
-display_name = "Assault Cannon"
-damage = 40.0
-attack_range = 12.0
-attack_cooldown = 1.2
+display_name = "Attack Dog"
+damage = 35.0
+attack_range = 2.5
+attack_cooldown = 0.7
 is_hitscan = true
 projectile_speed = 40.0
-tracer_color = Color(1, 0.6, 0.1, 1)
-vs_infantry = 0.35
-vs_light = 1.0
-vs_heavy = 1.0
-vs_building = 0.8
+tracer_color = Color(0.9, 0.3, 0.3, 1)
+vs_infantry = 1.5
+vs_light = 0.0
+vs_heavy = 0.0
+vs_building = 0.0
 can_target_air = false

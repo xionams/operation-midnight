@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/dog_bite.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Attack Dog"
+build_time = 5.0
+cost = 300
+max_health = 90.0
+move_speed = 8.5
+turn_speed = 10.0
+nav_radius = 0.5
+body_color = Color(0.4, 0.32, 0.25, 1)
+body_size = Vector3(0.7, 0.8, 1.4)
+weapon_stats = ExtResource("2")
+armor_type = 0
+is_infantry = true
+can_be_crushed = true
+can_crush = false
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+visual_scene = null

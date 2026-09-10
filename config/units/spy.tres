@@ -2,22 +2,23 @@
 
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 
+
 [resource]
 script = ExtResource("1")
-display_name = "Scout Vehicle"
-build_time = 6.0
-cost = 600
-max_health = 150.0
-move_speed = 9.0
+display_name = "Spy"
+build_time = 10.0
+cost = 700
+max_health = 90.0
+move_speed = 5.0
 turn_speed = 8.0
-nav_radius = 0.9
-body_color = Color(0.3, 0.55, 0.3, 1)
-body_size = Vector3(1.6, 0.9, 2.4)
+nav_radius = 0.6
+body_color = Color(0.55, 0.55, 0.6, 1)
+body_size = Vector3(0.9, 1.8, 0.9)
 weapon_stats = null
-armor_type = 1
-is_infantry = false
-can_be_crushed = false
-can_crush = true
+armor_type = 0
+is_infantry = true
+can_be_crushed = true
+can_crush = false
 is_harvester = false
 cargo_capacity = 0.0
 load_time = 0.0

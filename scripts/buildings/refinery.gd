@@ -25,6 +25,20 @@ func _on_died() -> void:
 		GameState.unregister_refinery(self)
 	super._on_died()
 
+func _on_faction_changing() -> void:
+	if is_player_faction:
+		GameState.unregister_refinery(self)
+
+func _on_faction_changed() -> void:
+	if is_player_faction:
+		GameState.register_refinery(self)
+
+## Spy target: wipe whatever is being built, without refunding it.
+func sabotage_production() -> int:
+	var cleared: int = queue.queue_length()
+	queue.clear_without_refund()
+	return cleared
+
 func receive_resources(amount: float) -> void:
 	if amount <= 0.0:
 		return

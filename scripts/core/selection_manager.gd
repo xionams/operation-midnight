@@ -143,9 +143,16 @@ func _command_move(target_pos: Vector3) -> void:
 		unit.move_to(target_pos + offset)
 		i += 1
 
+## Engineers and Spies answer a click on an enemy structure with their
+## ability; everything else in the selection attacks it as usual, so a
+## mixed group does the sensible thing per unit rather than all-or-nothing.
 func _command_attack(target: Node) -> void:
 	for unit in selected_units:
-		if is_instance_valid(unit) and unit.has_method("attack_target"):
+		if not is_instance_valid(unit):
+			continue
+		if unit.has_method("special_order") and unit.special_order(target):
+			continue
+		if unit.has_method("attack_target"):
 			unit.attack_target(target)
 
 func _select_unit(unit) -> void:

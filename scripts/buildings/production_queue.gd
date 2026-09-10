@@ -62,6 +62,17 @@ func cancel_last() -> bool:
 	queue_changed.emit()
 	return true
 
+## Sabotage: everything queued is lost and nothing is refunded. Distinct
+## from cancel_last(), which is the owner changing their mind.
+func clear_without_refund() -> int:
+	var lost: int = _orders.size()
+	_orders.clear()
+	_scenes.clear()
+	_remaining = 0.0
+	if lost > 0:
+		queue_changed.emit()
+	return lost
+
 func _process(delta: float) -> void:
 	if _orders.is_empty():
 		return

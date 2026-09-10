@@ -47,6 +47,12 @@ func _scan() -> void:
 	for unit in candidates:
 		if not is_instance_valid(unit):
 			continue
+		## A disguised Spy reads as friendly, so defenders walk straight
+		## past it. Killing it requires revealing it first.
+		if not DisguiseAbility.visible_to(unit, not _owner_unit.is_player_faction):
+			continue
+		if attacker.weapon != null and not attacker.weapon.can_damage(unit):
+			continue
 		if _home_position.distance_to(unit.global_position) > detection_radius:
 			continue
 		var dist_sq: float = _owner_unit.global_position.distance_squared_to(unit.global_position)

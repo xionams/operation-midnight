@@ -23,6 +23,20 @@ func _ready() -> void:
 	if is_player_faction:
 		add_to_group(GROUP)
 
+func _on_faction_changing() -> void:
+	if is_in_group(GROUP):
+		remove_from_group(GROUP)
+
+func _on_faction_changed() -> void:
+	if is_player_faction:
+		add_to_group(GROUP)
+
+## Spy target: wipe whatever is being built, without refunding it.
+func sabotage_production() -> int:
+	var cleared: int = queue.queue_length()
+	queue.clear_without_refund()
+	return cleared
+
 func produce_assault() -> bool:
 	return queue.enqueue(assault_stats, assault_scene)
 

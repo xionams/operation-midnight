@@ -10,13 +10,19 @@ class_name HUD
 @export var power_plant_stats: BuildingStats
 @export var refinery_stats: BuildingStats
 @export var war_factory_stats: BuildingStats
+@export var barracks_stats: BuildingStats
 @export var harvester_stats: UnitStats
 @export var assault_stats: UnitStats
 @export var scout_stats: UnitStats
+@export var soldier_stats: UnitStats
+@export var engineer_stats: UnitStats
+@export var spy_stats: UnitStats
+@export var dog_stats: UnitStats
 @export var placer: BuildingPlacer
 
 const MARGIN: float = 28.0
-const BUTTON_SIZE: Vector2 = Vector2(150, 70)
+const BUTTON_SIZE: Vector2 = Vector2(140, 58)
+const BAR_HEIGHT: float = BUTTON_SIZE.y * 2.0 + 8.0
 
 var _credits_label: Label
 var _power_label: Label
@@ -25,10 +31,17 @@ var _cancel_button: Button
 var _build_power_button: Button
 var _build_refinery_button: Button
 var _build_factory_button: Button
+var _build_barracks_button: Button
 var _build_harvester_button: Button
 var _build_assault_button: Button
 var _build_scout_button: Button
+var _build_soldier_button: Button
+var _build_engineer_button: Button
+var _build_spy_button: Button
+var _build_dog_button: Button
 var _production_label: Label
+var _event_label: Label
+var _event_timer: float = 0.0
 var _victory_overlay: Control
 var _victory_label: Label
 var _debug_panel: Label
@@ -101,45 +114,65 @@ func _build_top_bar() -> void:
 	debug_toggle.pressed.connect(_toggle_debug)
 	row.add_child(debug_toggle)
 
+## Two rows: structures on top, units below. One row cannot hold twelve
+## actions at phone width, and splitting them by "what you place" versus
+## "what you train" matches how the player thinks about them.
 func _build_bottom_bar() -> void:
-	var row := HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	row.offset_left = MARGIN
-	row.offset_top = -(MARGIN + BUTTON_SIZE.y)
-	row.offset_right = -MARGIN
-	row.offset_bottom = -MARGIN
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 16)
-	add_child(row)
+	var column := VBoxContainer.new()
+	column.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	column.offset_left = MARGIN
+	column.offset_top = -(MARGIN + BAR_HEIGHT)
+	column.offset_right = -MARGIN
+	column.offset_bottom = -MARGIN
+	column.add_theme_constant_override("separation", 8)
+	add_child(column)
 
-	_build_power_button = _make_build_button("Power Plant\n%d cr" % (power_plant_stats.cost if power_plant_stats else 800))
-	_build_power_button.pressed.connect(func(): _start_building_placement(power_plant_stats))
-	row.add_child(_build_power_button)
+	var structures := _make_row()
+	column.add_child(structures)
+	var units := _make_row()
+	column.add_child(units)
 
-	_build_refinery_button = _make_build_button("Refinery\n%d cr" % (refinery_stats.cost if refinery_stats else 2000))
-	_build_refinery_button.pressed.connect(func(): _start_building_placement(refinery_stats))
-	row.add_child(_build_refinery_button)
-
-	_build_factory_button = _make_build_button("War Factory\n%d cr" % (war_factory_stats.cost if war_factory_stats else 2500))
-	_build_factory_button.pressed.connect(func(): _start_building_placement(war_factory_stats))
-	row.add_child(_build_factory_button)
-
-	_build_harvester_button = _make_build_button(_unit_label("Harvester", harvester_stats))
-	_build_harvester_button.pressed.connect(_on_build_harvester_pressed)
-	row.add_child(_build_harvester_button)
-
-	_build_assault_button = _make_build_button(_unit_label("Assault", assault_stats))
-	_build_assault_button.pressed.connect(func(): _produce_from_factory("produce_assault"))
-	row.add_child(_build_assault_button)
-
-	_build_scout_button = _make_build_button(_unit_label("Scout", scout_stats))
-	_build_scout_button.pressed.connect(func(): _produce_from_factory("produce_scout"))
-	row.add_child(_build_scout_button)
+	_build_power_button = _add_build_button(structures, "Power Plant", power_plant_stats)
+	_build_refinery_button = _add_build_button(structures, "Refinery", refinery_stats)
+	_build_factory_button = _add_build_button(structures, "War Factory", war_factory_stats)
+	_build_barracks_button = _add_build_button(structures, "Barracks", barracks_stats)
 
 	_cancel_button = _make_build_button("Cancel")
 	_cancel_button.visible = false
 	_cancel_button.pressed.connect(_on_cancel_pressed)
-	row.add_child(_cancel_button)
+	structures.add_child(_cancel_button)
+
+	_build_harvester_button = _add_unit_button(units, "Harvester", harvester_stats, _on_build_harvester_pressed)
+	_build_assault_button = _add_unit_button(units, "Assault", assault_stats,
+		func(): _produce_from("war_factories", "produce_assault"))
+	_build_scout_button = _add_unit_button(units, "Scout", scout_stats,
+		func(): _produce_from("war_factories", "produce_scout"))
+	_build_soldier_button = _add_unit_button(units, "Soldier", soldier_stats,
+		func(): _produce_from("barracks", "produce_soldier"))
+	_build_engineer_button = _add_unit_button(units, "Engineer", engineer_stats,
+		func(): _produce_from("barracks", "produce_engineer"))
+	_build_spy_button = _add_unit_button(units, "Spy", spy_stats,
+		func(): _produce_from("barracks", "produce_spy"))
+	_build_dog_button = _add_unit_button(units, "Dog", dog_stats,
+		func(): _produce_from("barracks", "produce_dog"))
+
+func _make_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	return row
+
+func _add_build_button(row: HBoxContainer, label: String, stats: BuildingStats) -> Button:
+	var button := _make_build_button("%s\n%d cr" % [label, stats.cost if stats else 0])
+	button.pressed.connect(func(): _start_building_placement(stats))
+	row.add_child(button)
+	return button
+
+func _add_unit_button(row: HBoxContainer, label: String, stats: UnitStats, handler: Callable) -> Button:
+	var button := _make_build_button(_unit_label(label, stats))
+	button.pressed.connect(handler)
+	row.add_child(button)
+	return button
 
 func _make_build_button(label: String) -> Button:
 	var button := Button.new()
@@ -154,20 +187,47 @@ func _unit_label(name: String, stats: UnitStats) -> String:
 func _build_production_label() -> void:
 	_production_label = Label.new()
 	_production_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_production_label.offset_top = -(MARGIN + BUTTON_SIZE.y + 40)
-	_production_label.offset_bottom = -(MARGIN + BUTTON_SIZE.y + 8)
+	_production_label.offset_top = -(MARGIN + BAR_HEIGHT + 36)
+	_production_label.offset_bottom = -(MARGIN + BAR_HEIGHT + 6)
 	_production_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_production_label.add_theme_font_size_override("font_size", 20)
 	_production_label.visible = false
 	add_child(_production_label)
 
-func _first_factory() -> Node:
-	return get_tree().get_first_node_in_group(WarFactory.GROUP)
+	## Captures and infiltrations are easy to miss on a busy screen, and
+	## both can decide a match, so they get an explicit callout.
+	_event_label = Label.new()
+	_event_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_event_label.offset_top = -(MARGIN + BAR_HEIGHT + 70)
+	_event_label.offset_bottom = -(MARGIN + BAR_HEIGHT + 40)
+	_event_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_event_label.add_theme_font_size_override("font_size", 22)
+	_event_label.add_theme_color_override("font_color", Color.GOLD)
+	_event_label.visible = false
+	add_child(_event_label)
 
-func _produce_from_factory(method: String) -> void:
-	var factory := _first_factory()
-	if factory != null:
-		factory.call(method)
+	EventBus.building_captured.connect(_on_building_captured)
+	EventBus.building_infiltrated.connect(_on_building_infiltrated)
+
+func _on_building_captured(building: Node, by_player: bool) -> void:
+	var name: String = building.stats.display_name if building.stats else "Structure"
+	_flash_event(("Captured %s" % name) if by_player else ("Lost %s to capture" % name),
+		Color.GOLD if by_player else Color.ORANGE_RED)
+
+func _on_building_infiltrated(building: Node, effect: String) -> void:
+	var name: String = building.stats.display_name if building.stats else "Structure"
+	_flash_event("Spy in %s — %s" % [name, effect], Color.GOLD)
+
+func _flash_event(text: String, color: Color) -> void:
+	_event_label.text = text
+	_event_label.add_theme_color_override("font_color", color)
+	_event_label.visible = true
+	_event_timer = 4.0
+
+func _produce_from(group: String, method: String) -> void:
+	var producer := get_tree().get_first_node_in_group(group)
+	if producer != null:
+		producer.call(method)
 
 ## Two producers can be building at once (refinery and factory), so the
 ## readout shows whichever is furthest along rather than inventing a
@@ -175,6 +235,7 @@ func _produce_from_factory(method: String) -> void:
 func _active_queue() -> ProductionQueue:
 	var best: ProductionQueue = null
 	var producers: Array = get_tree().get_nodes_in_group(WarFactory.GROUP)
+	producers.append_array(get_tree().get_nodes_in_group(Barracks.GROUP))
 	var refinery := GameState.get_first_refinery()
 	if refinery != null:
 		producers.append(refinery)
@@ -189,11 +250,15 @@ func _active_queue() -> ProductionQueue:
 	return best
 
 func _refresh_production_ui() -> void:
-	var has_refinery: bool = GameState.has_refinery()
-	var has_factory: bool = _first_factory() != null
-	_build_harvester_button.disabled = not has_refinery
+	var has_factory: bool = get_tree().get_first_node_in_group(WarFactory.GROUP) != null
+	var has_barracks: bool = get_tree().get_first_node_in_group(Barracks.GROUP) != null
+	_build_harvester_button.disabled = not GameState.has_refinery()
 	_build_assault_button.disabled = not has_factory
 	_build_scout_button.disabled = not has_factory
+	_build_soldier_button.disabled = not has_barracks
+	_build_engineer_button.disabled = not has_barracks
+	_build_spy_button.disabled = not has_barracks
+	_build_dog_button.disabled = not has_barracks
 
 	var queue := _active_queue()
 	if queue == null:
@@ -258,6 +323,10 @@ func _build_debug_overlay() -> void:
 
 func _process(_delta: float) -> void:
 	_refresh_production_ui()
+	if _event_timer > 0.0:
+		_event_timer -= _delta
+		if _event_timer <= 0.0:
+			_event_label.visible = false
 	if not _debug_visible:
 		return
 	var units := get_tree().get_nodes_in_group("units").size()

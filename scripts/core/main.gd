@@ -17,7 +17,14 @@ const COMMAND_HQ_STATS: BuildingStats = preload("res://config/buildings/command_
 const POWER_PLANT_STATS: BuildingStats = preload("res://config/buildings/power_plant.tres")
 const REFINERY_STATS: BuildingStats = preload("res://config/buildings/refinery.tres")
 const WAR_FACTORY_STATS: BuildingStats = preload("res://config/buildings/war_factory.tres")
+const BARRACKS_STATS: BuildingStats = preload("res://config/buildings/barracks.tres")
 const HARVESTER_STATS: UnitStats = preload("res://config/units/harvester.tres")
+const SOLDIER_STATS: UnitStats = preload("res://config/units/rifle_soldier.tres")
+const ENGINEER_STATS: UnitStats = preload("res://config/units/engineer.tres")
+const SPY_STATS: UnitStats = preload("res://config/units/spy.tres")
+const DOG_STATS: UnitStats = preload("res://config/units/attack_dog.tres")
+const BARRACKS_SCENE: PackedScene = preload("res://scenes/buildings/barracks.tscn")
+const RIFLE_SOLDIER_SCENE: PackedScene = preload("res://scenes/units/rifle_soldier.tscn")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
 
 @export var map_size: float = 120.0
@@ -143,10 +150,18 @@ func _spawn_player_base() -> void:
 
 func _spawn_enemy_base() -> void:
 	_spawn_building(COMMAND_HQ_SCENE, COMMAND_HQ_STATS, false, ENEMY_BASE_POS)
+	## A second enemy structure gives Engineers something worth capturing
+	## and Spies something worth infiltrating, rather than a base whose
+	## only building is the one that ends the match.
+	_spawn_building(BARRACKS_SCENE, BARRACKS_STATS, false, ENEMY_BASE_POS + Vector3(-14, 0, 6))
 	var enemy_a := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, ENEMY_BASE_POS + Vector3(-9, 0, 0))
 	_attach_enemy_ai(enemy_a)
 	var enemy_b := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, ENEMY_BASE_POS + Vector3(0, 0, -9))
 	_attach_enemy_ai(enemy_b)
+	## Infantry on defence, so an unescorted Engineer or Spy is a real
+	## risk rather than a guaranteed win.
+	var guard := _spawn_unit(RIFLE_SOLDIER_SCENE, SOLDIER_STATS, false, ENEMY_BASE_POS + Vector3(-12, 0, 3))
+	_attach_enemy_ai(guard)
 
 func _attach_enemy_ai(unit: Node) -> void:
 	var ai := EnemyAIController.new()
@@ -187,8 +202,13 @@ func _build_hud(placer: BuildingPlacer) -> void:
 	hud.power_plant_stats = POWER_PLANT_STATS
 	hud.refinery_stats = REFINERY_STATS
 	hud.war_factory_stats = WAR_FACTORY_STATS
+	hud.barracks_stats = BARRACKS_STATS
 	hud.harvester_stats = HARVESTER_STATS
 	hud.assault_stats = ASSAULT_VEHICLE_STATS
 	hud.scout_stats = SCOUT_VEHICLE_STATS
+	hud.soldier_stats = SOLDIER_STATS
+	hud.engineer_stats = ENGINEER_STATS
+	hud.spy_stats = SPY_STATS
+	hud.dog_stats = DOG_STATS
 	hud.placer = placer
 	add_child(hud)

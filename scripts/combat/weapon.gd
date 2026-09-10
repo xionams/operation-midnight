@@ -17,6 +17,17 @@ func _process(delta: float) -> void:
 func can_fire() -> bool:
 	return stats != null and _cooldown_remaining <= 0.0
 
+## True when this weapon can meaningfully hurt the target at all. Used so
+## a unit does not walk across the map to plink uselessly at armour its
+## weapon cannot scratch.
+func can_damage(target: Node) -> bool:
+	if stats == null or not is_instance_valid(target):
+		return false
+	var health: HealthComponent = target.get_node_or_null("HealthComponent")
+	if health == null:
+		return false
+	return stats.multiplier_for(health.armor_type) > 0.0
+
 func fire_at(target: Node3D, from_position: Vector3) -> void:
 	if not can_fire() or not is_instance_valid(target):
 		return
@@ -24,7 +35,8 @@ func fire_at(target: Node3D, from_position: Vector3) -> void:
 
 	var target_health: HealthComponent = target.get_node_or_null("HealthComponent")
 	if target_health != null:
-		target_health.take_damage(stats.damage)
+		var attacker := get_parent()
+		target_health.take_damage(stats.damage_against(target_health.armor_type), attacker)
 
 	_spawn_tracer(from_position, target.global_position)
 

@@ -19,6 +19,16 @@ class_name UnitStats
 ## Optional weapon. Leave null for unarmed units (scout, harvester).
 @export var weapon_stats: WeaponStats = null
 
+## What this unit counts as when something shoots it.
+@export var armor_type: Armor.Type = Armor.Type.HEAVY
+
+## Infantry are cheap, squishy and can be run over. Vehicles that set
+## can_crush flatten any crushable unit they drive into — the classic
+## reason you never send infantry alone against armour.
+@export var is_infantry: bool = false
+@export var can_be_crushed: bool = false
+@export var can_crush: bool = false
+
 ## Harvester-only fields. Ignored by other unit types.
 @export var is_harvester: bool = false
 @export var cargo_capacity: float = 0.0

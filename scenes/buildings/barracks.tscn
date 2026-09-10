@@ -1,0 +1,22 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/barracks.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/units/rifle_soldier.tscn" id="2"]
+[ext_resource type="Resource" path="res://config/units/rifle_soldier.tres" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/units/engineer.tscn" id="4"]
+[ext_resource type="Resource" path="res://config/units/engineer.tres" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/units/spy.tscn" id="6"]
+[ext_resource type="Resource" path="res://config/units/spy.tres" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/units/attack_dog.tscn" id="8"]
+[ext_resource type="Resource" path="res://config/units/attack_dog.tres" id="9"]
+
+[node name="Barracks" type="StaticBody3D"]
+script = ExtResource("1")
+soldier_scene = ExtResource("2")
+soldier_stats = ExtResource("3")
+engineer_scene = ExtResource("4")
+engineer_stats = ExtResource("5")
+spy_scene = ExtResource("6")
+spy_stats = ExtResource("7")
+dog_scene = ExtResource("8")
+dog_stats = ExtResource("9")

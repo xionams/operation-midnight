@@ -29,6 +29,16 @@ func add_credits(amount: int) -> void:
 	credits += amount
 	credits_changed.emit(credits)
 
+## Removes a share of the player's balance and returns what was taken.
+## Used when an enemy Spy loots a player Refinery.
+func take_credits_fraction(fraction: float) -> int:
+	var taken: int = int(credits * clampf(fraction, 0.0, 1.0))
+	if taken <= 0:
+		return 0
+	credits -= taken
+	credits_changed.emit(credits)
+	return taken
+
 func try_spend(amount: int) -> bool:
 	if credits < amount:
 		return false

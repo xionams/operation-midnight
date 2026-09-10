@@ -7,3 +7,5 @@ extends Node
 
 signal building_placed(building: Node)
 signal unit_spawned(unit: Node)
+signal building_captured(building: Node, by_player: bool)
+signal building_infiltrated(building: Node, effect: String)

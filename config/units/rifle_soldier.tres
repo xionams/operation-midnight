@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/rifle.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Rifle Soldier"
+build_time = 4.0
+cost = 200
+max_health = 120.0
+move_speed = 4.5
+turn_speed = 8.0
+nav_radius = 0.6
+body_color = Color(0.45, 0.5, 0.35, 1)
+body_size = Vector3(0.9, 1.8, 0.9)
+weapon_stats = ExtResource("2")
+armor_type = 0
+is_infantry = true
+can_be_crushed = true
+can_crush = false
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+visual_scene = null

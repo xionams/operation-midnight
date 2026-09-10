@@ -23,6 +23,10 @@ func set_target(new_target: Node) -> void:
 	var health: HealthComponent = new_target.get_node_or_null("HealthComponent")
 	if health != null and health.is_dead():
 		return
+	## Refuse targets this weapon cannot meaningfully hurt, so a dog does
+	## not chase a tank forever doing nothing.
+	if weapon != null and weapon.stats != null and not weapon.can_damage(new_target):
+		return
 	target = new_target as Node3D
 	_last_chase_position = Vector3.INF
 
