@@ -58,13 +58,27 @@ backlog; this file tracks what is in flight.
 - Skirmish setup screen with difficulty, tree paused until START
 - After-action report with match statistics
 
-### In progress
-- Performance measurement at 40 / 80 / 120 units
+**Garrison**
+- Infantry occupy civilian structures and fire from inside at +20% range
+- Occupants are stored, not simulated: unshootable individually, so the
+  counter is to destroy the building
+- Destroying an occupied structure spills survivors at 40% damage
+- Occupying a neutral building claims it
+
+**Expansion**
+- Forward Command Post (1800, 18m influence) for both sides
+- AI plants one near a discovered field when home ore runs low
+
+**Performance** (measured)
+- 40 units: 60 FPS, worst frame 28.9 ms
+- 80 units: 60 FPS, worst frame 16.7 ms
+- 120 units: 60 FPS, worst frame 16.7 ms
+- 40 v 40 battle: 144 FPS uncapped, worst frame 12.5 ms
+- Local avoidance (RVO) enabled; unstick nudge as terrain backstop
 
 ### Not started
-- Garrison system (Priority 16)
-- Forward Command Post / AI expansion to a second resource field
-- AI use of Spies
+- AI use of Spies and Engineers (both exist; only the player uses them)
+- Aircraft, superweapons, naval - explicitly out of scope
 
 ### Known gaps
 - Gate is passable to its owner via collision layers; it does not
