@@ -272,7 +272,9 @@ func _spawn_terrain_blockers() -> void:
 		[Vector3(24, 0, -26), Vector3(10, 7, 44)],
 		[Vector3(58, 0, 6), Vector3(34, 7, 10)],
 		[Vector3(-10, 0, -74), Vector3(46, 7, 10)],
-		[Vector3(66, 0, -34), Vector3(10, 7, 26)],
+		## Kept clear of the line between the enemy base and its ore field;
+		## sitting across it wedged their harvesters against the rock.
+		[Vector3(74, 0, -22), Vector3(10, 7, 22)],
 	]
 	for entry in blockers:
 		_spawn_blocker(entry[0], entry[1])

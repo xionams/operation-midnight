@@ -6,9 +6,27 @@ class_name Refinery
 ## whole harvest fleet can rebuild it from the refinery itself rather
 ## than being economically dead.
 
+const FREE_HARVESTER: UnitStats = preload("res://config/units/harvester.tres")
+
 func _ready() -> void:
 	super._ready()
+	var first: bool = not GameState.has_refinery(is_player_faction)
 	GameState.register_refinery(self, is_player_faction)
+	## The first refinery arrives with a harvester. Paying 2000 for a
+	## building that then does nothing until a further 1200 is spent
+	## stalls the opening badly; every later refinery is bought bare.
+	if first:
+		_spawn_free_harvester.call_deferred()
+
+func _spawn_free_harvester() -> void:
+	if FREE_HARVESTER.unit_scene == null:
+		return
+	var harvester = FREE_HARVESTER.unit_scene.instantiate()
+	harvester.stats = FREE_HARVESTER
+	harvester.is_player_faction = is_player_faction
+	get_parent().add_child(harvester)
+	harvester.global_position = global_position + queue.spawn_offset
+	EventBus.unit_spawned.emit(harvester)
 
 func _on_died() -> void:
 	GameState.unregister_refinery(self, is_player_faction)

@@ -28,7 +28,8 @@ func _tick_last_known_search(delta: float) -> void:
 	if _search_remaining > 0.0 and not arrived:
 		return
 	_searching_last_known = false
-	_owner_unit.call("stop_moving")
+	if _owner_unit.has_method("stop_moving"):
+		_owner_unit.call("stop_moving")
 
 func is_searching() -> bool:
 	return _searching_last_known
@@ -81,22 +82,36 @@ func _physics_process(delta: float) -> void:
 	## the unit advances on where it last saw the target and gives up if
 	## nothing is there.
 	if _owner_unit.is_player_faction and FogHideable.is_hidden(target):
-		_last_known_position = target.global_position
+		## Capture where it was before dropping it - that position is the
+		## entire point of the behaviour.
+		var vanished_at: Vector3 = target.global_position
+		target = null
+		if not _owner_unit.has_method("move_to"):
+			return
+		_last_known_position = vanished_at
 		_searching_last_known = true
 		_search_remaining = SEARCH_TIMEOUT
-		target = null
 		_owner_unit.call("move_to", _last_known_position)
 		return
 
 	var distance: float = _owner_unit.global_position.distance_to(target.global_position)
 
+	## Defensive structures mount this same component but cannot move, so
+	## every movement call is optional. A turret simply drops a target
+	## that walks out of range instead of trying to chase it.
+	var mobile: bool = _owner_unit.has_method("move_to")
+
 	if distance > weapon.stats.attack_range:
+		if not mobile:
+			target = null
+			return
 		if _last_chase_position.distance_to(target.global_position) > reposition_threshold:
 			_last_chase_position = target.global_position
 			_owner_unit.call("move_to", target.global_position)
 	else:
-		_owner_unit.call("stop_moving")
-		_owner_unit.call("face_towards", target.global_position)
+		if mobile:
+			_owner_unit.call("stop_moving")
+			_owner_unit.call("face_towards", target.global_position)
 		if weapon.can_fire():
 			var muzzle: Vector3 = _owner_unit.global_position + Vector3.UP
 			weapon.fire_at(target, muzzle)

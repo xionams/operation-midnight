@@ -131,16 +131,20 @@ func _run() -> void:
 		"(%d -> %d)" % [units_before, _count_enemy_units()])
 
 	# --- offense: a wave eventually marches on the player ---
+	## The AI deliberately stays home until its first scheduled probe, so
+	## the player gets an opening. Skip that grace period rather than
+	## waiting it out in a test.
+	_director._match_time = AIDirector.WAVE_SCHEDULE[0].x + 1.0
 	var attacking: int = 0
 	waited = 0.0
-	while waited < 60.0 and attacking < AIDirector.ATTACK_WAVE_SIZE:
+	while waited < 60.0 and attacking < _director.current_wave_size():
 		waited += get_process_delta_time()
 		await get_tree().process_frame
 		attacking = 0
 		for u in get_tree().get_nodes_in_group("enemy_units"):
 			if is_instance_valid(u) and u.current_command == CommandTypes.Type.ATTACK_MOVE:
 				attacking += 1
-	_check("AI forms an attack wave and sends it", attacking >= AIDirector.ATTACK_WAVE_SIZE,
+	_check("AI forms an attack wave and sends it", attacking >= _director.current_wave_size(),
 		"(%d attacking after %.0fs)" % [attacking, waited])
 
 	_check("The player's balance was never touched by the AI",

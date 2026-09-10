@@ -87,3 +87,4 @@ func _process(delta: float) -> void:
 	_remaining = 0.0
 	_ready_to_place = true
 	order_ready.emit(_stats)
+	EventBus.construction_ready.emit(_stats)

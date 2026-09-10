@@ -38,6 +38,7 @@ func fire_at(target: Node3D, from_position: Vector3) -> void:
 		var attacker := get_parent()
 		target_health.take_damage(stats.damage_against(target_health.armor_type), attacker)
 
+	AudioDirector.play("attack")
 	_spawn_tracer(from_position, target.global_position)
 
 func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> void:

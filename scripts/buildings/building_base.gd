@@ -230,6 +230,7 @@ func _refresh_damage_visual() -> void:
 		2: material.albedo_color = base.darkened(0.55).lerp(Color(0.15, 0.08, 0.05), 0.35)
 
 func _on_died() -> void:
+	AudioDirector.play("explosion")
 	_unregister_power()
 	died.emit(self)
 	queue_free()

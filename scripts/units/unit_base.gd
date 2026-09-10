@@ -27,6 +27,8 @@ var command_position: Vector3 = Vector3.ZERO
 const ACQUIRE_INTERVAL: float = 0.25
 const ACQUIRE_BONUS: float = 5.0
 const MAX_CHASE_DISTANCE: float = 12.0
+const STUCK_TIME: float = 2.5
+const STUCK_EPSILON: float = 0.4
 
 ## Captured on the first physics tick, never in _ready: spawners add the
 ## node to the tree and set its position afterwards, so at _ready time
@@ -35,6 +37,8 @@ const MAX_CHASE_DISTANCE: float = 12.0
 var _guard_origin: Vector3 = Vector3.ZERO
 var _guard_origin_set: bool = false
 var _acquire_timer: float = 0.0
+var _stuck_timer: float = 0.0
+var _stuck_reference: Vector3 = Vector3.ZERO
 
 const UNIT_COLLISION_LAYER: int = 1 << 1 # bit 2
 const GROUND_COLLISION_LAYER: int = 1 << 0 # bit 1
@@ -350,6 +354,30 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_crush_what_we_drove_over()
 	_tick_combat_behavior(delta)
+	_tick_unstick(delta)
+
+## A unit that is navigating but has not actually moved for a while is
+## jammed - against terrain, a building, or another unit. Re-issuing the
+## destination makes the agent re-path from where it actually is, which
+## frees it without teleporting anything or special-casing the terrain
+## that trapped it.
+func _tick_unstick(delta: float) -> void:
+	if nav_agent == null or nav_agent.is_navigation_finished():
+		_stuck_timer = 0.0
+		return
+	if global_position.distance_to(_stuck_reference) > STUCK_EPSILON:
+		_stuck_reference = global_position
+		_stuck_timer = 0.0
+		return
+	_stuck_timer += delta
+	if _stuck_timer < STUCK_TIME:
+		return
+	_stuck_timer = 0.0
+	var destination: Vector3 = nav_agent.target_position
+	## Nudge sideways before re-pathing, so a unit pressed flat against a
+	## wall has somewhere to go rather than immediately re-jamming.
+	global_position += Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+	nav_agent.target_position = destination
 
 ## Armour flattens enemy infantry it drives over. Vehicles pass through
 ## the infantry layer, so contact cannot be read from slide collisions -

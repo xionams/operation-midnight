@@ -23,9 +23,23 @@ const SCOUT: UnitStats = preload("res://config/units/scout_vehicle.tres")
 const ASSAULT: UnitStats = preload("res://config/units/assault_vehicle.tres")
 
 const THINK_INTERVAL: float = 1.5
+
+## Escalation schedule. The wave the AI is willing to commit grows with
+## match time, so the opening is survivable and the midgame is not - but
+## every unit in a wave still had to be produced by a real building, so
+## the schedule sets ambition, never spawns anything.
+const WAVE_SCHEDULE: Array[Vector2] = [
+	Vector2(90.0, 2.0),    # ~1:30  first probe
+	Vector2(210.0, 4.0),   # ~3:30  first real attack
+	Vector2(360.0, 6.0),   # ~6:00  mixed force
+	Vector2(540.0, 9.0),   # ~9:00  pressure
+	Vector2(720.0, 12.0),  # ~12:00 late assault
+]
 const ATTACK_WAVE_SIZE: int = 4
 const MAX_HARVESTERS: int = 3
-const BUILD_SPACING: float = 13.0
+## Wide enough that the ring of structures never seals the base and
+## traps the AI's own harvesters inside it.
+const BUILD_SPACING: float = 17.0
 
 @export var refinery_stats: BuildingStats
 @export var power_plant_stats: BuildingStats
@@ -41,6 +55,7 @@ var _level: Node
 var _timer: float = 0.0
 var _wave: Array = []
 var _build_slot: int = 0
+var _match_time: float = 0.0
 
 func setup(nav_region: Node, level: Node, base: Vector3, player_base: Vector3) -> void:
 	_nav_region = nav_region
@@ -51,11 +66,20 @@ func setup(nav_region: Node, level: Node, base: Vector3, player_base: Vector3) -
 func _process(delta: float) -> void:
 	if not enabled or GameState.match_state != GameState.MatchState.PLAYING:
 		return
+	_match_time += delta
 	_timer -= delta
 	if _timer > 0.0:
 		return
 	_timer = THINK_INTERVAL
 	_think()
+
+## How many units the AI wants to gather before committing an attack.
+func current_wave_size() -> int:
+	var size: float = float(ATTACK_WAVE_SIZE)
+	for entry in WAVE_SCHEDULE:
+		if _match_time >= entry.x:
+			size = entry.y
+	return int(size)
 
 func _think() -> void:
 	_run_economy()
@@ -128,6 +152,9 @@ func _place(stats: BuildingStats) -> void:
 
 # ---------------------------------------------------------- production
 
+## Production is capped by population like the player's, so razing the
+## enemy's Barracks and Vehicle Factory genuinely throttles their army
+## rather than only slowing it.
 func _run_production() -> void:
 	var factory := _find_enemy_building("Vehicle Factory")
 	if factory != null and factory.queue.queue_length() == 0:
@@ -171,7 +198,11 @@ func _run_offense() -> void:
 			continue
 		_wave.append(unit)
 
-	if _wave.size() < ATTACK_WAVE_SIZE:
+	## Before the first scheduled probe the AI stays home entirely, so the
+	## player gets an opening to build rather than an immediate rush.
+	if _match_time < WAVE_SCHEDULE[0].x:
+		return
+	if _wave.size() < current_wave_size():
 		return
 
 	for unit in _wave:

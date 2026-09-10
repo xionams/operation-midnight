@@ -78,16 +78,27 @@ func _run() -> void:
 	_check("Enemy harvester completes a delivery", enemy_income > 0,
 		"(+%d after %.0fs)" % [enemy_income, waited])
 
-	## Nothing should be permanently wedged against terrain.
-	var stuck: int = 0
+	## Nothing should be permanently wedged against terrain. Sampled over
+	## time and by position, because a single frame cannot tell a stuck
+	## unit from one that is turning on the spot or momentarily blocked
+	## by a neighbour.
+	var start_positions: Dictionary = {}
 	for unit in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(unit) and unit.nav_agent != null \
+			and not unit.nav_agent.is_navigation_finished():
+			start_positions[unit] = unit.global_position
+	for i in 180:
+		await get_tree().physics_frame
+	var stuck: int = 0
+	for unit in start_positions:
 		if not is_instance_valid(unit) or unit.nav_agent == null:
 			continue
 		if unit.nav_agent.is_navigation_finished():
 			continue
-		if unit.velocity.length() < 0.05:
+		if unit.global_position.distance_to(start_positions[unit]) < 0.5:
 			stuck += 1
-	_check("No unit is wedged mid-path", stuck == 0, "(%d stuck)" % stuck)
+	_check("No unit is wedged mid-path", stuck == 0,
+		"(%d of %d travelling units made no progress in 6s)" % [stuck, start_positions.size()])
 
 func _nearest_node_distance(from: Vector3) -> float:
 	var best: float = INF

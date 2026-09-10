@@ -16,7 +16,10 @@ var _stage: int = -1
 var _timer: float = 0.0
 
 func _ready() -> void:
-	_advance(0)
+	## Deferred: this node is built before the HUD, so emitting straight
+	## away would fire into a signal nobody has connected to yet and the
+	## player would start the match with an empty objective panel.
+	_advance.call_deferred(0)
 
 func _process(delta: float) -> void:
 	if GameState.match_state != GameState.MatchState.PLAYING:
