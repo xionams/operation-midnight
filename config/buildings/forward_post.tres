@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/forward_post.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Forward Command Post"
+cost = 1800
+prerequisites = PackedStringArray("Resource Refinery")
+population_provided = 5
+category = "BUILDINGS"
+is_wall = false
+build_radius_bonus = 18.0
+weapon_stats = null
+is_defensive = false
+garrisonable = false
+max_health = 1400.0
+build_time = 15.0
+power_generation = 0
+power_consumption = 20
+vision_range = 20.0
+footprint = Vector2(8, 8)
+body_color = Color(0.3, 0.34, 0.32, 1)
+body_size = Vector3(6.5, 4.0, 6.5)
+visual_scene = null
+scene = ExtResource("2")

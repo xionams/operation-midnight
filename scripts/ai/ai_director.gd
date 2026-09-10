@@ -35,6 +35,7 @@ const FACTORY: BuildingStats = preload("res://config/buildings/war_factory.tres"
 const RADAR: BuildingStats = preload("res://config/buildings/radar_center.tres")
 const TECH: BuildingStats = preload("res://config/buildings/tech_center.tres")
 const MG_TOWER: BuildingStats = preload("res://config/buildings/mg_tower.tres")
+const FORWARD_POST: BuildingStats = preload("res://config/buildings/forward_post.tres")
 
 const BUILD_SPACING: float = 17.0
 const DEFEND_RADIUS: float = 46.0
@@ -162,7 +163,7 @@ func _run_economy() -> void:
 			refineries += 1
 	if refineries == 0:
 		return
-	if _harvesters() >= clampi(refineries * 2, 2, 5):
+	if _harvesters() >= clampi(refineries * 3, 3, 6):
 		return
 	var refinery := GameState.get_first_refinery(false)
 	if refinery != null and refinery.queue.queue_length() == 0:
@@ -203,6 +204,16 @@ func _run_construction() -> void:
 				wanted = candidate
 				break
 
+	## Home ore running dry and another field known: plant a forward post
+	## out there so a refinery can follow. This is the only construction
+	## that happens away from the main base.
+	if wanted == null and _should_expand():
+		var site := _expansion_site()
+		if site != Vector3.ZERO and GameState.try_spend_for(false, FORWARD_POST.cost):
+			_place_at(FORWARD_POST, site)
+			_rebuild_cooldown = _tuning()[3]
+			return
+
 	## A base that has been attacked wants a tower covering the approach.
 	if wanted == null and not memory.recent_attack_positions.is_empty() \
 		and _own("Machine Gun Tower") == null and TechTree.is_available(MG_TOWER, false):
@@ -214,6 +225,41 @@ func _run_construction() -> void:
 		return
 	_place(wanted)
 	_rebuild_cooldown = _tuning()[3]
+
+## Expand when the ore near home is nearly gone and the commander knows
+## of a field somewhere else.
+func _should_expand() -> bool:
+	if _own("Forward Command Post") != null:
+		return false
+	if memory.known_resource_fields.size() < 2:
+		return false
+	var home_remaining: float = 0.0
+	for field in get_tree().get_nodes_in_group("resource_nodes"):
+		if is_instance_valid(field) and field.global_position.distance_to(base_position) < 60.0:
+			home_remaining += field.remaining
+	return home_remaining < 6000.0
+
+func _expansion_site() -> Vector3:
+	var best := Vector3.ZERO
+	var best_distance: float = INF
+	for field in memory.known_resource_fields:
+		var distance: float = field.distance_to(base_position)
+		if distance < 50.0 or distance >= best_distance:
+			continue
+		best_distance = distance
+		best = field
+	if best == Vector3.ZERO:
+		return Vector3.ZERO
+	## Set down beside the ore, not on top of it.
+	return best + (base_position - best).normalized() * 14.0
+
+func _place_at(stats: BuildingStats, position: Vector3) -> void:
+	var building = stats.scene.instantiate()
+	building.stats = stats
+	building.is_player_faction = false
+	_nav_region.add_child(building)
+	building.global_position = position
+	EventBus.building_placed.emit(building)
 
 func _power_shortfall() -> int:
 	var generated: int = 0
@@ -244,18 +290,41 @@ func _place(stats: BuildingStats) -> void:
 ## Composition responds to what the AI has seen, scaled by difficulty.
 ## Counters are never instant: it has to scout first, and a low
 ## difficulty commander reacts sluggishly even once it knows.
+## Credits held back so construction can always proceed. Without this the
+## production queues drain the treasury every tick and the AI never
+## affords its second refinery - it stalls at four buildings and a
+## handful of units, which is exactly what it did.
+func _construction_reserve() -> int:
+	if _own("Resource Refinery") == null:
+		return 0
+	var order := _build_order()
+	var counts: Dictionary = {}
+	for building in get_tree().get_nodes_in_group("enemy_buildings"):
+		if is_instance_valid(building) and building.stats != null:
+			var key: String = building.stats.display_name
+			counts[key] = counts.get(key, 0) + 1
+	for candidate in order:
+		if counts.get(candidate.display_name, 0) < order.count(candidate):
+			return candidate.cost
+	return 0
+
 func _run_production() -> void:
 	var composition: Dictionary = memory.estimated_composition()
 	var responsiveness: float = _tuning()[4]
+	var reserve: int = _construction_reserve()
 
 	var factory := _own("Vehicle Factory")
 	if factory != null and factory.queue.queue_length() == 0:
-		factory.produce(_pick_vehicle(composition, responsiveness))
-		return
+		var vehicle := _pick_vehicle(composition, responsiveness)
+		if GameState.enemy_credits - vehicle.cost >= reserve:
+			factory.produce(vehicle)
+			return
 
 	var barracks := _own("Barracks")
 	if barracks != null and barracks.queue.queue_length() == 0:
-		barracks.produce(_pick_infantry(composition, responsiveness))
+		var squad := _pick_infantry(composition, responsiveness)
+		if GameState.enemy_credits - squad.cost >= reserve:
+			barracks.produce(squad)
 
 func _pick_infantry(composition: Dictionary, responsiveness: float) -> UnitStats:
 	var armour_share: float = composition.get("armor", 0.0) + composition.get("vehicle", 0.0)
@@ -358,7 +427,7 @@ func _visible_to_ai(point: Vector3) -> bool:
 # ------------------------------------------------------------- offense
 
 func desired_group_size() -> int:
-	var base_size: float = 5.0
+	var base_size: float = 6.0
 	if _match_time > 600.0:
 		base_size = 14.0
 	elif _match_time > 360.0:
@@ -388,6 +457,9 @@ func _run_offense() -> void:
 		var target := _current_objective
 		for unit in reinforcements:
 			unit.issue_command(CommandTypes.Type.ATTACK_MOVE, target)
+		## Peak strength, so a group that has been topped up is judged
+		## against how strong it ever was rather than its opening size.
+		_attack_start_strength = maxi(_attack_start_strength, _attack_group.size())
 		_review_attack()
 		return
 

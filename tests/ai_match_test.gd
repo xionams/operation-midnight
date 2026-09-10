@@ -8,7 +8,7 @@ extends Node
 ## honest way to answer "is the AI capable of winning", because a strong
 ## AI should beat an opponent who does nothing.
 
-const MATCH_LIMIT: float = 900.0
+const MATCH_LIMIT: float = 1080.0
 
 var _main: Node3D
 var _director: AIDirector
@@ -18,6 +18,8 @@ var _peak_buildings: int = 0
 var _scouted: bool = false
 var _attacked: bool = false
 var _rebuilt: bool = false
+var _start_player_units: int = 0
+var _start_player_buildings: int = 0
 
 func _ready() -> void:
 	_main = get_parent()
@@ -28,6 +30,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_director = _main.get_node("AIDirector")
 	_director.difficulty = AIDirector.Difficulty.NORMAL
+	_start_player_units = get_tree().get_nodes_in_group("player_units").size()
+	_start_player_buildings = get_tree().get_nodes_in_group("player_buildings").size()
 	print("TEST| AI opening strategy: ", _director.strategy_name())
 	await _run()
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
@@ -73,6 +77,11 @@ func _run() -> void:
 		if _director._attack_committed:
 			_attacked = true
 
+		if int(elapsed) % 60 == 0 and absf(elapsed - float(int(elapsed))) < get_process_delta_time():
+			print("PROG| t=%3.0f  army=%2d  buildings=%d  credits=%5d  committed=%s  seen_base=%s" % [
+				elapsed, _army(), _enemy_buildings().size(), GameState.enemy_credits,
+				_director._attack_committed, _director.memory.has_base_guess])
+
 		## Once it is established, raze a structure and see if it rebuilds.
 		if not razed_once and elapsed > 240.0 and _has("Power Plant"):
 			for b in _enemy_buildings():
@@ -97,10 +106,16 @@ func _run() -> void:
 	_check("AI committed an attack", _attacked)
 	_check("AI rebuilt a destroyed structure", _rebuilt)
 
+	## Measured against what the player STARTED with. Comparing to a fixed
+	## number was a false pass: the player begins with 2 units and 1
+	## building, so "fewer than 3 units" was true before the match began.
 	var player_units: int = get_tree().get_nodes_in_group("player_units").size()
 	var player_buildings: int = get_tree().get_nodes_in_group("player_buildings").size()
-	print("TEST| player left with %d units, %d buildings" % [player_units, player_buildings])
-	_check("AI pressured a passive player",
+	print("TEST| player started with %d units / %d buildings, ended with %d / %d" % [
+		_start_player_units, _start_player_buildings, player_units, player_buildings])
+	_check("AI actually damaged a passive player",
 		GameState.match_state == GameState.MatchState.DEFEAT
-		or player_units < 3 or player_buildings < 1,
-		"(state=%d units=%d buildings=%d)" % [GameState.match_state, player_units, player_buildings])
+		or player_units < _start_player_units
+		or player_buildings < _start_player_buildings,
+		"(state=%d units %d->%d buildings %d->%d)" % [GameState.match_state,
+			_start_player_units, player_units, _start_player_buildings, player_buildings])

@@ -14,6 +14,7 @@ const BUILDINGS: Array[String] = [
 	"res://config/buildings/war_factory.tres",
 	"res://config/buildings/radar_center.tres",
 	"res://config/buildings/tech_center.tres",
+	"res://config/buildings/forward_post.tres",
 ]
 
 const DEFENSES: Array[String] = [
