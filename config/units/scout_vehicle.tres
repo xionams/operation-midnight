@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Scout Vehicle"
+build_time = 6.0
 cost = 600
 max_health = 150.0
 move_speed = 9.0

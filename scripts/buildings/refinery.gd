@@ -7,10 +7,16 @@ class_name Refinery
 ## Build Harvester button has somewhere to spawn from.
 
 @export var harvester_scene: PackedScene
-@export var harvester_cost: int = 1200
+@export var harvester_stats: UnitStats
+
+var queue: ProductionQueue
 
 func _ready() -> void:
 	super._ready()
+	queue = ProductionQueue.new()
+	queue.name = "ProductionQueue"
+	queue.spawn_offset = Vector3(stats.body_size.x / 2.0 + 3.0, 0, 0) if stats else Vector3(6, 0, 0)
+	add_child(queue)
 	if is_player_faction:
 		GameState.register_refinery(self)
 
@@ -24,14 +30,5 @@ func receive_resources(amount: float) -> void:
 		return
 	GameState.add_credits(int(round(amount)))
 
-func produce_harvester() -> Node:
-	if harvester_scene == null:
-		return null
-	if not GameState.try_spend(harvester_cost):
-		return null
-	var harvester = harvester_scene.instantiate()
-	get_parent().add_child(harvester)
-	var spawn_offset := Vector3(stats.body_size.x / 2.0 + 3.0, 0, 0) if stats else Vector3(6, 0, 0)
-	harvester.global_position = global_position + spawn_offset
-	EventBus.unit_spawned.emit(harvester)
-	return harvester
+func produce_harvester() -> bool:
+	return queue.enqueue(harvester_stats, harvester_scene)

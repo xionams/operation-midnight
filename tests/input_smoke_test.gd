@@ -135,7 +135,43 @@ func _run() -> void:
 		_check("Box-select picks up both units", SelectionManager.selected_units.size() == 2,
 			"(%d selected)" % SelectionManager.selected_units.size())
 
-	# --- 6. move order ---
+	# --- 6. war factory production ---
+	SelectionManager.clear_selection()
+	var factory_btn := _find_button("War Factory")
+	_check("War Factory build button exists", factory_btn != null)
+	if factory_btn != null:
+		GameState.add_credits(10000)
+		await _click(factory_btn.get_global_rect().get_center())
+		await _click(Vector2(760, 300))
+		var factory := get_tree().get_first_node_in_group("war_factories")
+		_check("War Factory placed and registered", factory != null)
+		if factory != null:
+			var assault_btn := _find_button("Assault")
+			_check("Assault button enabled once factory exists",
+				assault_btn != null and not assault_btn.disabled)
+			var before_units: int = get_tree().get_nodes_in_group("player_units").size()
+			var cr: int = GameState.credits
+			await _click(assault_btn.get_global_rect().get_center())
+			_check("Queuing an Assault charges immediately", GameState.credits == cr - 1500,
+				"(%d -> %d)" % [cr, GameState.credits])
+			_check("Order is queued, not instant", factory.queue.queue_length() == 1
+				and get_tree().get_nodes_in_group("player_units").size() == before_units)
+			# assault build_time is 12s; run the clock out
+			var waited := 0.0
+			while waited < 16.0 and get_tree().get_nodes_in_group("player_units").size() == before_units:
+				waited += get_process_delta_time()
+				await get_tree().process_frame
+			var after_units: int = get_tree().get_nodes_in_group("player_units").size()
+			_check("Assault Vehicle spawns after build_time", after_units == before_units + 1,
+				"(%d -> %d after %.1fs)" % [before_units, after_units, waited])
+			_check("Queue empties after completion", factory.queue.queue_length() == 0)
+
+	# --- 7. move order ---
+	SelectionManager.clear_selection()
+	await get_tree().process_frame
+	if not units.is_empty():
+		await _click(_screen_of(units[0]))
+	_check("A unit is selected for the move order", not SelectionManager.selected_units.is_empty())
 	if not SelectionManager.selected_units.is_empty():
 		var u = SelectionManager.selected_units[0]
 		var start: Vector3 = u.global_position

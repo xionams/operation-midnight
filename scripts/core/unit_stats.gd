@@ -6,6 +6,7 @@ class_name UnitStats
 
 @export var display_name: String = "Unit"
 @export var cost: int = 0
+@export var build_time: float = 0.0 ## Seconds in a ProductionQueue; 0 spawns instantly.
 @export var max_health: float = 100.0
 @export var move_speed: float = 5.0
 @export var turn_speed: float = 6.0

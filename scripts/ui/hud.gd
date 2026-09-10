@@ -9,11 +9,14 @@ class_name HUD
 
 @export var power_plant_stats: BuildingStats
 @export var refinery_stats: BuildingStats
-@export var harvester_cost: int = 1200
+@export var war_factory_stats: BuildingStats
+@export var harvester_stats: UnitStats
+@export var assault_stats: UnitStats
+@export var scout_stats: UnitStats
 @export var placer: BuildingPlacer
 
 const MARGIN: float = 28.0
-const BUTTON_SIZE: Vector2 = Vector2(190, 76)
+const BUTTON_SIZE: Vector2 = Vector2(150, 70)
 
 var _credits_label: Label
 var _power_label: Label
@@ -21,7 +24,11 @@ var _selection_label: Label
 var _cancel_button: Button
 var _build_power_button: Button
 var _build_refinery_button: Button
+var _build_factory_button: Button
 var _build_harvester_button: Button
+var _build_assault_button: Button
+var _build_scout_button: Button
+var _production_label: Label
 var _victory_overlay: Control
 var _victory_label: Label
 var _debug_panel: Label
@@ -31,6 +38,7 @@ func _ready() -> void:
 	layer = 10
 	_build_top_bar()
 	_build_bottom_bar()
+	_build_production_label()
 	_build_victory_overlay()
 	_build_debug_overlay()
 
@@ -101,7 +109,7 @@ func _build_bottom_bar() -> void:
 	row.offset_right = -MARGIN
 	row.offset_bottom = -MARGIN
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 20)
+	row.add_theme_constant_override("separation", 16)
 	add_child(row)
 
 	_build_power_button = _make_build_button("Power Plant\n%d cr" % (power_plant_stats.cost if power_plant_stats else 800))
@@ -112,9 +120,21 @@ func _build_bottom_bar() -> void:
 	_build_refinery_button.pressed.connect(func(): _start_building_placement(refinery_stats))
 	row.add_child(_build_refinery_button)
 
-	_build_harvester_button = _make_build_button("Harvester\n%d cr" % harvester_cost)
+	_build_factory_button = _make_build_button("War Factory\n%d cr" % (war_factory_stats.cost if war_factory_stats else 2500))
+	_build_factory_button.pressed.connect(func(): _start_building_placement(war_factory_stats))
+	row.add_child(_build_factory_button)
+
+	_build_harvester_button = _make_build_button(_unit_label("Harvester", harvester_stats))
 	_build_harvester_button.pressed.connect(_on_build_harvester_pressed)
 	row.add_child(_build_harvester_button)
+
+	_build_assault_button = _make_build_button(_unit_label("Assault", assault_stats))
+	_build_assault_button.pressed.connect(func(): _produce_from_factory("produce_assault"))
+	row.add_child(_build_assault_button)
+
+	_build_scout_button = _make_build_button(_unit_label("Scout", scout_stats))
+	_build_scout_button.pressed.connect(func(): _produce_from_factory("produce_scout"))
+	row.add_child(_build_scout_button)
 
 	_cancel_button = _make_build_button("Cancel")
 	_cancel_button.visible = false
@@ -127,6 +147,63 @@ func _make_build_button(label: String) -> Button:
 	button.custom_minimum_size = BUTTON_SIZE
 	button.add_theme_font_size_override("font_size", 20)
 	return button
+
+func _unit_label(name: String, stats: UnitStats) -> String:
+	return "%s\n%d cr" % [name, stats.cost if stats else 0]
+
+func _build_production_label() -> void:
+	_production_label = Label.new()
+	_production_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_production_label.offset_top = -(MARGIN + BUTTON_SIZE.y + 40)
+	_production_label.offset_bottom = -(MARGIN + BUTTON_SIZE.y + 8)
+	_production_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_production_label.add_theme_font_size_override("font_size", 20)
+	_production_label.visible = false
+	add_child(_production_label)
+
+func _first_factory() -> Node:
+	return get_tree().get_first_node_in_group(WarFactory.GROUP)
+
+func _produce_from_factory(method: String) -> void:
+	var factory := _first_factory()
+	if factory != null:
+		factory.call(method)
+
+## Two producers can be building at once (refinery and factory), so the
+## readout shows whichever is furthest along rather than inventing a
+## combined progress number that matches neither.
+func _active_queue() -> ProductionQueue:
+	var best: ProductionQueue = null
+	var producers: Array = get_tree().get_nodes_in_group(WarFactory.GROUP)
+	var refinery := GameState.get_first_refinery()
+	if refinery != null:
+		producers.append(refinery)
+	for p in producers:
+		if not is_instance_valid(p):
+			continue
+		var q: ProductionQueue = p.get("queue")
+		if q == null or q.queue_length() == 0:
+			continue
+		if best == null or q.progress() > best.progress():
+			best = q
+	return best
+
+func _refresh_production_ui() -> void:
+	var has_refinery: bool = GameState.has_refinery()
+	var has_factory: bool = _first_factory() != null
+	_build_harvester_button.disabled = not has_refinery
+	_build_assault_button.disabled = not has_factory
+	_build_scout_button.disabled = not has_factory
+
+	var queue := _active_queue()
+	if queue == null:
+		_production_label.visible = false
+		return
+	var stats := queue.current_stats()
+	var extra: int = queue.queue_length() - 1
+	var suffix: String = "  (+%d queued)" % extra if extra > 0 else ""
+	_production_label.text = "Building %s  %d%%%s" % [stats.display_name, int(queue.progress() * 100.0), suffix]
+	_production_label.visible = true
 
 func _make_label(text: String, font_size: int) -> Label:
 	var label := Label.new()
@@ -180,6 +257,7 @@ func _build_debug_overlay() -> void:
 	add_child(_debug_panel)
 
 func _process(_delta: float) -> void:
+	_refresh_production_ui()
 	if not _debug_visible:
 		return
 	var units := get_tree().get_nodes_in_group("units").size()

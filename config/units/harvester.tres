@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Supply Harvester"
+build_time = 10.0
 cost = 1200
 max_health = 300.0
 move_speed = 4.0

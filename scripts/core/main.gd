@@ -16,9 +16,9 @@ const SCOUT_VEHICLE_STATS: UnitStats = preload("res://config/units/scout_vehicle
 const COMMAND_HQ_STATS: BuildingStats = preload("res://config/buildings/command_hq.tres")
 const POWER_PLANT_STATS: BuildingStats = preload("res://config/buildings/power_plant.tres")
 const REFINERY_STATS: BuildingStats = preload("res://config/buildings/refinery.tres")
+const WAR_FACTORY_STATS: BuildingStats = preload("res://config/buildings/war_factory.tres")
+const HARVESTER_STATS: UnitStats = preload("res://config/units/harvester.tres")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
-
-const HARVESTER_COST: int = 1200
 
 @export var map_size: float = 120.0
 @export var bounds_margin: float = 6.0
@@ -186,6 +186,9 @@ func _build_hud(placer: BuildingPlacer) -> void:
 	hud.name = "HUD"
 	hud.power_plant_stats = POWER_PLANT_STATS
 	hud.refinery_stats = REFINERY_STATS
-	hud.harvester_cost = HARVESTER_COST
+	hud.war_factory_stats = WAR_FACTORY_STATS
+	hud.harvester_stats = HARVESTER_STATS
+	hud.assault_stats = ASSAULT_VEHICLE_STATS
+	hud.scout_stats = SCOUT_VEHICLE_STATS
 	hud.placer = placer
 	add_child(hud)
