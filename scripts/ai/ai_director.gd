@@ -316,6 +316,15 @@ func _run_production() -> void:
 	var factory := _own("Vehicle Factory")
 	if factory != null and factory.queue.queue_length() == 0:
 		var vehicle := _pick_vehicle(composition, responsiveness)
+		## Nothing in the army can dent a building: build something that
+		## can, ahead of whatever the counter logic would rather have.
+		if _lacks_siege():
+			if TechTree.is_available(ARTILLERY, false):
+				vehicle = ARTILLERY
+			elif TechTree.is_available(TANK, false):
+				vehicle = TANK
+			elif TechTree.is_available(ASSAULT, false):
+				vehicle = ASSAULT
 		if GameState.enemy_credits - vehicle.cost >= reserve:
 			factory.produce(vehicle)
 			return
@@ -331,6 +340,18 @@ func _pick_infantry(composition: Dictionary, responsiveness: float) -> UnitStats
 	if armour_share * responsiveness > 0.3 and TechTree.is_available(AT_SQUAD, false):
 		return AT_SQUAD
 	return RIFLE
+
+## True when the standing army has nothing that meaningfully damages a
+## structure. An all-infantry wave bounces off a Command HQ, which is a
+## large part of why the AI could pressure but never finish.
+func _lacks_siege() -> bool:
+	for unit in _combat_units():
+		var weapon: WeaponStats = unit.stats.weapon_stats
+		if weapon == null:
+			continue
+		if weapon.multiplier_for(Armor.Type.STRUCTURE) >= 0.5:
+			return false
+	return true
 
 func _pick_vehicle(composition: Dictionary, responsiveness: float) -> UnitStats:
 	## A turtling player calls for something that outranges a turret.
@@ -460,6 +481,7 @@ func _run_offense() -> void:
 		## Peak strength, so a group that has been topped up is judged
 		## against how strong it ever was rather than its opening size.
 		_attack_start_strength = maxi(_attack_start_strength, _attack_group.size())
+		_retarget_if_objective_cleared()
 		_review_attack()
 		return
 
@@ -473,15 +495,43 @@ func _run_offense() -> void:
 		unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
 
 ## Prefer a soft, valuable target the AI has actually seen over driving
-## into whatever is best defended.
+## into whatever is best defended. Production first, because killing
+## production is what actually wins - an army can be replaced, a razed
+## Vehicle Factory cannot until it is rebuilt.
 func _choose_target() -> Vector3:
-	for key in ["Resource Refinery", "Vehicle Factory", "Barracks", "Power Plant"]:
+	for key in ["Vehicle Factory", "Barracks", "Resource Refinery", "Power Plant"]:
 		if memory.has_seen_building(key):
 			return memory.seen_buildings[key]["position"]
 	if memory.has_base_guess:
 		return memory.player_base_guess
 	## Nothing found yet - probe toward the far side of the map.
 	return -base_position
+
+## A committed wave that has arrived and run out of things to shoot picks
+## the next structure rather than standing on the rubble of the first.
+func _retarget_if_objective_cleared() -> void:
+	if _current_objective == Vector3.ZERO or _attack_group.is_empty():
+		return
+	var arrived: int = 0
+	for unit in _attack_group:
+		if is_instance_valid(unit) \
+			and unit.global_position.distance_to(_current_objective) < 16.0:
+			arrived += 1
+	if arrived < maxi(2, _attack_group.size() / 2):
+		return
+	## Anything still standing within reach of where they are?
+	for target in get_tree().get_nodes_in_group("player_buildings"):
+		if not is_instance_valid(target):
+			continue
+		if target.global_position.distance_to(_current_objective) > 60.0:
+			continue
+		if target.global_position.distance_to(_current_objective) < 6.0:
+			continue
+		_current_objective = target.global_position
+		for unit in _attack_group:
+			if is_instance_valid(unit):
+				unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
+		return
 
 func _review_attack() -> void:
 	if _attack_group.is_empty():

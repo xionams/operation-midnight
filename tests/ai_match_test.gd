@@ -8,7 +8,7 @@ extends Node
 ## honest way to answer "is the AI capable of winning", because a strong
 ## AI should beat an opponent who does nothing.
 
-const MATCH_LIMIT: float = 1080.0
+const MATCH_LIMIT: float = 600.0
 
 var _main: Node3D
 var _director: AIDirector

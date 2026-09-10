@@ -76,6 +76,27 @@ backlog; this file tracks what is in flight.
 - 40 v 40 battle: 144 FPS uncapped, worst frame 12.5 ms
 - Local avoidance (RVO) enabled; unstick nudge as terrain backstop
 
+### Measured AI competence (NORMAL, vs a fully passive player)
+
+A 10-minute match, logged every 60s:
+
+    t=  0  army= 3  buildings=3  credits=3900
+    t=180  army= 5  buildings=8  credits=2700
+    t=240  army=14  buildings=9  credits=   0  attacking
+    t=360  army= 9  buildings=9  credits= 200  attacking
+    t=540  army= 8  buildings=9  credits= 100  attacking
+    t=600  army= 8  buildings=9  credits= 300
+
+It builds an economy, techs up, scouts, commits, loses waves, retreats,
+rebuilds and re-commits - and it sustained an attack for five straight
+minutes. It killed one player unit and never threatened the HQ.
+
+The binding constraint is income, not tactics: credits sit at 0-300 from
+t=240 onward. Nine buildings and three harvesters cannot fund continuous
+production, so the siege units the army needs are never affordable.
+Target prioritisation and the siege check were added and did NOT change
+the outcome - the AI simply cannot pay for what it decides it wants.
+
 ### Not started
 - AI use of Spies and Engineers (both exist; only the player uses them)
 - Aircraft, superweapons, naval - explicitly out of scope
