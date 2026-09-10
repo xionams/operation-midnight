@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operation Midnight — RTS Asset Gallery</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080d12;
+      --panel: rgba(17, 27, 35, .88);
+      --line: rgba(105, 206, 220, .25);
+      --cyan: #6be3ed;
+      --muted: #92a8b1;
+      --text: #eaf6f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(23, 105, 119, .28), transparent 36rem),
+        linear-gradient(145deg, #091017 0%, var(--bg) 55%, #0b1217 100%);
+    }
+    main { width: min(1180px, calc(100% - 36px)); margin: auto; padding: 58px 0 72px; }
+    .eyebrow { color: var(--cyan); letter-spacing: .2em; text-transform: uppercase; font-size: 11px; font-weight: 800; }
+    h1 { margin: 10px 0 8px; font-size: clamp(32px, 5vw, 58px); letter-spacing: -.045em; line-height: 1; }
+    .intro { max-width: 650px; color: var(--muted); margin: 0 0 36px; font-size: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+    article {
+      overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel);
+      box-shadow: 0 18px 50px rgba(0,0,0,.2); transition: transform .2s ease, border-color .2s ease;
+    }
+    article:hover { transform: translateY(-4px); border-color: rgba(107, 227, 237, .7); }
+    .preview {
+      aspect-ratio: 1 / 1; display: grid; place-items: center; padding: 12px;
+      background-color: #0b1419;
+      background-image: linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,.035) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,.035) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.035) 75%);
+      background-size: 24px 24px; background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+    img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 16px 18px rgba(0,0,0,.42)); }
+    .meta { padding: 18px 19px 20px; }
+    h2 { margin: 0 0 5px; font-size: 18px; }
+    code { color: var(--cyan); font-size: 12px; word-break: break-all; }
+    .tag { display: inline-block; margin-top: 12px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; }
+    footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Operation Midnight / visual inventory</div>
+    <h1>RTS Asset Gallery</h1>
+    <p class="intro">Six transparent PNG assets generated for a futuristic Android strategy game. Hover over an asset, then click the image to open the full-resolution PNG.</p>
+    <section class="grid">
+      <article><a href="military_base.png"><div class="preview"><img src="military_base.png" alt="Futuristic military base"></div></a><div class="meta"><h2>Military Base</h2><code>military_base.png</code><div class="tag">building · isometric</div></div></article>
+      <article><a href="industrial_power_plant.png"><div class="preview"><img src="industrial_power_plant.png" alt="Industrial power plant"></div></a><div class="meta"><h2>Industrial Power Plant</h2><code>industrial_power_plant.png</code><div class="tag">building · isometric</div></div></article>
+      <article><a href="resource_crystal_ore_field.png"><div class="preview"><img src="resource_crystal_ore_field.png" alt="Resource crystal and ore field"></div></a><div class="meta"><h2>Crystal / Ore Field</h2><code>resource_crystal_ore_field.png</code><div class="tag">resource node · isometric</div></div></article>
+      <article><a href="explosion_effect.png"><div class="preview"><img src="explosion_effect.png" alt="Sci-fi explosion effect"></div></a><div class="meta"><h2>Explosion Effect</h2><code>explosion_effect.png</code><div class="tag">VFX · transparent</div></div></article>
+      <article><a href="selectable_unit_icon.png"><div class="preview"><img src="selectable_unit_icon.png" alt="Selectable armored unit icon"></div></a><div class="meta"><h2>Selectable Unit Icon</h2><code>selectable_unit_icon.png</code><div class="tag">HUD · selection</div></div></article>
+      <article><a href="command_attack_icon.png"><div class="preview"><img src="command_attack_icon.png" alt="Attack command icon"></div></a><div class="meta"><h2>Attack Command Icon</h2><code>command_attack_icon.png</code><div class="tag">HUD · command</div></div></article>
+    </section>
+    <footer>Transparent PNGs · optimized at 256–1024 px · ready for Android scaling</footer>
+  </main>
+</body>
+</html>
