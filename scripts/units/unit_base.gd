@@ -129,8 +129,26 @@ func _build_nav_agent() -> void:
 	nav_agent.radius = stats.nav_radius if stats else 1.0
 	nav_agent.path_desired_distance = 0.6
 	nav_agent.target_desired_distance = 0.8
-	nav_agent.avoidance_enabled = false
+
+	## Local avoidance matters at army scale, not in skirmishes: without
+	## it two forces meeting head-on interpenetrate and jam, and dozens of
+	## units sit still pressed against each other. RVO lets them slide
+	## past instead. The unstick nudge stays as a backstop for the cases
+	## avoidance cannot resolve, such as being pinned against terrain.
+	nav_agent.avoidance_enabled = true
+	nav_agent.neighbor_distance = 6.0
+	nav_agent.max_neighbors = 8
+	nav_agent.avoidance_priority = 0.5 if stats != null and stats.is_infantry else 1.0
+	nav_agent.max_speed = stats.move_speed if stats else 5.0
+	nav_agent.velocity_computed.connect(_on_avoidance_velocity)
 	add_child(nav_agent)
+
+## RVO hands back a velocity that avoids neighbours; the body moves with
+## that rather than the raw desired direction.
+func _on_avoidance_velocity(safe_velocity: Vector3) -> void:
+	velocity = safe_velocity
+	move_and_slide()
+	_crush_what_we_drove_over()
 
 func _build_health() -> void:
 	health = HealthComponent.new()
@@ -404,6 +422,8 @@ func _physics_process(delta: float) -> void:
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()
+		if nav_agent != null:
+			nav_agent.set_velocity(Vector3.ZERO)
 		_tick_combat_behavior(delta)
 		return
 

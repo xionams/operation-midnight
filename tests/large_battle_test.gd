@@ -69,10 +69,15 @@ func _run() -> void:
 	_check("Both armies deployed",
 		players.size() == PER_SIDE and enemies.size() == PER_SIDE)
 
-	for u in players:
-		u.issue_command(CommandTypes.Type.ATTACK_MOVE, Vector3(26, 0, 0))
-	for u in enemies:
-		u.issue_command(CommandTypes.Type.ATTACK_MOVE, Vector3(-26, 0, 0))
+	## Spread destinations the way SelectionManager does for a real order.
+	## Sending forty units to one coordinate guarantees a pile-up and
+	## measures the test's own mistake rather than the game's behaviour.
+	for i in players.size():
+		var lane: float = float(i) * 1.8 - 36.0
+		players[i].issue_command(CommandTypes.Type.ATTACK_MOVE, Vector3(20, 0, lane * 0.6))
+	for i in enemies.size():
+		var lane: float = float(i) * 1.8 - 36.0
+		enemies[i].issue_command(CommandTypes.Type.ATTACK_MOVE, Vector3(-20, 0, lane * 0.6))
 
 	var start_units: int = get_tree().get_nodes_in_group("units").size()
 	var elapsed: float = 0.0
@@ -108,14 +113,25 @@ func _run() -> void:
 			ranked += 1
 	_check("Survivors earned veterancy", ranked > 0, "(%d promoted)" % ranked)
 
-	## Nothing should be jammed against terrain after the fight.
-	var idle_stuck: int = 0
+	## Deadlock means "still not moving after time to resolve", so sample
+	## positions and re-check rather than reading one frame.
+	var snapshot: Dictionary = {}
 	for u in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(u) and u.nav_agent != null \
+			and not u.nav_agent.is_navigation_finished():
+			snapshot[u] = u.global_position
+	for i in 240:
+		await get_tree().physics_frame
+	var idle_stuck: int = 0
+	for u in snapshot:
 		if not is_instance_valid(u) or u.nav_agent == null:
 			continue
-		if not u.nav_agent.is_navigation_finished() and u.velocity.length() < 0.05:
+		if u.nav_agent.is_navigation_finished():
+			continue
+		if u.global_position.distance_to(snapshot[u]) < 0.5:
 			idle_stuck += 1
-	_check("No large-scale deadlock", idle_stuck < 8, "(%d not moving)" % idle_stuck)
+	_check("No large-scale deadlock", idle_stuck < 8,
+		"(%d of %d travelling units made no progress)" % [idle_stuck, snapshot.size()])
 
 	print("TEST| battle FPS avg %.1f, worst frame %.1f ms" % [
 		float(frames) / maxf(total, 0.001), worst * 1000.0])

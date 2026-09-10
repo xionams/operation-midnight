@@ -54,8 +54,11 @@ func _run() -> void:
 	var barracks := _enemy("Barracks")
 	if barracks != null:
 		var cap_before: int = TechTree.population_cap(false)
-		_kill(barracks)
-		await get_tree().process_frame
+		## Raze every Barracks: the AI's opening may have built more than
+		## one, and killing a single building would prove nothing.
+		while _enemy("Barracks") != null:
+			_kill(_enemy("Barracks"))
+			await get_tree().process_frame
 		await get_tree().process_frame
 		_check("Razing the Barracks cuts enemy population cap",
 			TechTree.population_cap(false) < cap_before,
@@ -66,10 +69,16 @@ func _run() -> void:
 	# --- destroying the Refinery kills income ---
 	var refinery := _enemy("Resource Refinery")
 	if refinery != null:
-		_kill(refinery)
+		while _enemy("Resource Refinery") != null:
+			_kill(_enemy("Resource Refinery"))
+			await get_tree().process_frame
 		await get_tree().process_frame
 		_check("Enemy has no refinery to unload at", not GameState.has_refinery(false))
 
+		## Starve the AI so it cannot simply rebuild the refinery during
+		## the measurement window; the point is that no refinery means no
+		## unloading, not that it can never recover.
+		GameState.enemy_credits = 0
 		var before: int = GameState.enemy_credits
 		var income: int = 0
 		var last: int = before

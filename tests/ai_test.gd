@@ -96,12 +96,15 @@ func _run() -> void:
 		GameState.get_nearest_refinery(Vector3(70, 0, -60), false) != null)
 
 	# --- the director actually builds and produces ---
+	## Fund it, then give it a real window: construction is gated by build
+	## times and a rebuild cooldown, so measuring growth in a loop that
+	## exits the instant two buildings exist measures nothing.
 	GameState.enemy_credits = 20000
 	var buildings_before: int = _enemy_buildings().size()
 	var units_before: int = _count_enemy_units()
 
 	var waited: float = 0.0
-	while waited < 40.0 and not (_has_enemy("Barracks") and _has_enemy("Power Plant")):
+	while waited < 70.0:
 		waited += get_process_delta_time()
 		await get_tree().process_frame
 
@@ -111,7 +114,7 @@ func _run() -> void:
 	_check("AI base grew", _enemy_buildings().size() > buildings_before,
 		"(%d -> %d)" % [buildings_before, _enemy_buildings().size()])
 	_check("AI paid for what it built", GameState.enemy_credits < 20000,
-		"(%d left)" % GameState.enemy_credits)
+		"(%d left of 20000)" % GameState.enemy_credits)
 
 	## Harvesters are the first thing it should want, but one takes 10s to
 	## build - so wait for it rather than checking the instant the
@@ -139,9 +142,12 @@ func _run() -> void:
 	## Group size scales with match time; jump the clock forward rather
 	## than waiting out the opening in a test.
 	_director._match_time = 200.0
+	## Fund production so a group can actually be assembled, and allow
+	## enough time for the units to be built before judging.
+	GameState.enemy_credits = 40000
 	var attacking: int = 0
 	waited = 0.0
-	while waited < 60.0 and attacking < _director.desired_group_size():
+	while waited < 180.0 and attacking < _director.desired_group_size():
 		waited += get_process_delta_time()
 		await get_tree().process_frame
 		attacking = 0
@@ -149,7 +155,7 @@ func _run() -> void:
 			if is_instance_valid(u) and u.current_command == CommandTypes.Type.ATTACK_MOVE:
 				attacking += 1
 	_check("AI forms an attack wave and sends it", attacking >= _director.desired_group_size(),
-		"(%d attacking after %.0fs)" % [attacking, waited])
+		"(%d of %d wanted, after %.0fs)" % [attacking, _director.desired_group_size(), waited])
 
 	_check("The player's balance was never touched by the AI",
 		GameState.credits == p_before,

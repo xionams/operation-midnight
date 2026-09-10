@@ -73,6 +73,7 @@ var _build_slot: int = 0
 var _attack_group: Array = []
 var _attack_committed: bool = false
 var _attack_start_strength: int = 0
+var _current_objective: Vector3 = Vector3.ZERO
 var _rebuild_cooldown: float = 0.0
 var _scouts: Array = []
 
@@ -372,23 +373,32 @@ func desired_group_size() -> int:
 func _run_offense() -> void:
 	_attack_group = _attack_group.filter(func(u): return is_instance_valid(u))
 
-	if _attack_committed:
-		_review_attack()
-		return
-
+	## Absorb anything idle, whether or not a push is already under way.
+	## Without this the AI commits one wave and then never attacks again
+	## until that wave is destroyed, quietly stockpiling an army at home
+	## while the player is left alone.
+	var reinforcements: Array = []
 	for unit in _combat_units():
 		if _attack_group.has(unit) or _scouts.has(unit):
 			continue
 		_attack_group.append(unit)
+		reinforcements.append(unit)
+
+	if _attack_committed:
+		var target := _current_objective
+		for unit in reinforcements:
+			unit.issue_command(CommandTypes.Type.ATTACK_MOVE, target)
+		_review_attack()
+		return
 
 	if _attack_group.size() < desired_group_size():
 		return
 
-	var target := _choose_target()
+	_current_objective = _choose_target()
 	_attack_start_strength = _attack_group.size()
 	_attack_committed = true
 	for unit in _attack_group:
-		unit.issue_command(CommandTypes.Type.ATTACK_MOVE, target)
+		unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
 
 ## Prefer a soft, valuable target the AI has actually seen over driving
 ## into whatever is best defended.
@@ -416,3 +426,4 @@ func _review_attack() -> void:
 			memory.record_loss_at(unit.global_position)
 	_attack_group.clear()
 	_attack_committed = false
+	_current_objective = Vector3.ZERO
