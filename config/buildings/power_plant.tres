@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/power_plant.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Power Plant"
+cost = 800
+max_health = 400.0
+build_time = 0.0
+power_generation = 100
+power_consumption = 0
+footprint = Vector2(6, 6)
+body_color = Color(0.5, 0.5, 0.55, 1)
+body_size = Vector3(5, 3.2, 5)
+visual_scene = null
+scene = ExtResource("2")

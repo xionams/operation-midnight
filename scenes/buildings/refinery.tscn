@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/refinery.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/units/harvester.tscn" id="2"]
+
+[node name="Refinery" type="StaticBody3D"]
+script = ExtResource("1")
+harvester_scene = ExtResource("2")

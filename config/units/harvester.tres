@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Supply Harvester"
+cost = 1200
+max_health = 300.0
+move_speed = 4.0
+turn_speed = 4.0
+nav_radius = 1.4
+body_color = Color(0.75, 0.6, 0.1, 1)
+body_size = Vector3(2.8, 2.0, 4.2)
+weapon_stats = null
+is_harvester = true
+cargo_capacity = 700.0
+load_time = 6.0
+unload_time = 3.0
+visual_scene = null

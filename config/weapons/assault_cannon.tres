@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Assault Cannon"
+damage = 40.0
+attack_range = 12.0
+attack_cooldown = 1.2
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(1, 0.6, 0.1, 1)

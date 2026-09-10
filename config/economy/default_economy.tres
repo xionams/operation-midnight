@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="EconomyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/economy_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+starting_credits = 5000
+resource_node_amount = 16000

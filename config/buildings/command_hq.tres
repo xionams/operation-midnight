@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/command_hq.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Command Headquarters"
+cost = 0
+max_health = 2000.0
+build_time = 0.0
+power_generation = 0
+power_consumption = 0
+footprint = Vector2(10, 10)
+body_color = Color(0.25, 0.27, 0.3, 1)
+body_size = Vector3(9, 5, 9)
+visual_scene = null
+scene = ExtResource("2")

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Scout Vehicle"
+cost = 600
+max_health = 150.0
+move_speed = 9.0
+turn_speed = 8.0
+nav_radius = 0.9
+body_color = Color(0.3, 0.55, 0.3, 1)
+body_size = Vector3(1.6, 0.9, 2.4)
+weapon_stats = null
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+visual_scene = null

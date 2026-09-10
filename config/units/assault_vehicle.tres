@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/assault_cannon.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Assault Vehicle"
+cost = 1500
+max_health = 500.0
+move_speed = 5.0
+turn_speed = 6.0
+nav_radius = 1.2
+body_color = Color(0.35, 0.4, 0.32, 1)
+body_size = Vector3(2.4, 1.4, 3.6)
+weapon_stats = ExtResource("2")
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+visual_scene = null
