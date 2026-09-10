@@ -44,6 +44,11 @@ const RESOURCE_NODE_A_POS: Vector3 = Vector3(-56, 0, 34)
 const RESOURCE_NODE_B_POS: Vector3 = Vector3(-18, 0, -44)
 ## The contested prize in the middle of the map.
 const RESOURCE_NODE_CENTRAL_POS: Vector3 = Vector3(6, 0, 6)
+## The enemy's home field, mirroring the player's. Without it the map is
+## simply unfair: the AI would start ~100m from the nearest ore and its
+## economy would never start, which reads as a broken opponent rather
+## than an easy one.
+const RESOURCE_NODE_ENEMY_POS: Vector3 = Vector3(54, 0, -42)
 ## Sits between the two bases, worth taking with an Engineer.
 const NEUTRAL_STRUCTURE_POS: Vector3 = Vector3(-30, 0, -6)
 
@@ -79,6 +84,8 @@ func _ready() -> void:
 	var camera := _build_camera()
 	camera.zoom_distance = 38.0
 	camera.focus_on(PLAYER_BASE_POS)
+
+	_build_ai_director()
 
 	var overlay := DebugOverlay.new()
 	overlay.name = "DebugOverlay"
@@ -132,13 +139,20 @@ func _build_level_and_ground() -> void:
 	_level.add_child(_nav_region)
 
 	var navmesh := NavigationMesh.new()
-	navmesh.agent_radius = 1.0
+	## Must be at least the widest unit's nav_radius (Harvester, 1.4) or
+	## paths hug obstacles more closely than the unit physically fits, and
+	## it wedges against terrain and never recovers.
+	navmesh.agent_radius = 1.7
 	navmesh.agent_height = 2.0
 	navmesh.agent_max_climb = 0.5
 	navmesh.cell_size = 0.25
 	navmesh.cell_height = 0.25
 	navmesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	navmesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
+	## Ground(1) + buildings(4) block movement. Resource nodes (8) must not:
+	## they would carve a hole around the ore that harvesters then cannot
+	## path into, leaving them circling the thing they came to collect.
+	navmesh.geometry_collision_mask = 1 | 4
 	_nav_region.navigation_mesh = navmesh
 
 	var ground := StaticBody3D.new()
@@ -203,6 +217,18 @@ func _spawn_enemy_base() -> void:
 	var guard := _spawn_unit(RIFLE_SOLDIER_SCENE, SOLDIER_STATS, false, ENEMY_BASE_POS + Vector3(-12, 0, 3))
 	_attach_enemy_ai(guard)
 
+## The enemy commander runs the same economy and production the player
+## does, so everything it fields had to be paid for and built.
+func _build_ai_director() -> void:
+	var director := AIDirector.new()
+	director.name = "AIDirector"
+	director.refinery_stats = REFINERY_STATS
+	director.power_plant_stats = POWER_PLANT_STATS
+	director.barracks_stats = BARRACKS_STATS
+	director.war_factory_stats = WAR_FACTORY_STATS
+	add_child(director)
+	director.setup(_nav_region, _level, ENEMY_BASE_POS, PLAYER_BASE_POS)
+
 func _attach_enemy_ai(unit: Node) -> void:
 	var ai := EnemyAIController.new()
 	ai.name = "AI"
@@ -212,6 +238,7 @@ func _spawn_resource_fields() -> void:
 	var base_amount: float = float(ECONOMY_CONFIG.resource_node_amount) / 2.0
 	_spawn_resource_node(RESOURCE_NODE_A_POS, base_amount)
 	_spawn_resource_node(RESOURCE_NODE_B_POS, base_amount)
+	_spawn_resource_node(RESOURCE_NODE_ENEMY_POS, base_amount)
 	## Richer than either home field, and in the open middle, so holding
 	## it is a decision rather than a freebie.
 	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, base_amount * 2.0)

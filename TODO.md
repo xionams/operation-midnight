@@ -68,6 +68,15 @@ Phase 6 — UI
 - [x] Camera zoom limits so the map is never fully visible
 - [x] Debug overlays: vision circles, fog cells, paths, current command
 
+## MILESTONE 3 — ENEMY AI (in progress)
+- [x] Faction-aware economy: separate credit pools, per-side refinery registry
+- [x] AIDirector: build order, production, harvester economy, attack waves
+- [x] Enemy home resource field so the map is fair
+- [x] Navmesh agent radius >= widest unit; resource nodes excluded from bake
+- [ ] AI reacts to being attacked (pull defenders, rebuild losses)
+- [ ] AI uses fog itself (needs a second visibility grid)
+- [ ] AI uses Engineers/Spies
+
 ## NEXT
 - Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.
 - Building construction time + visual progress (field already exists on BuildingStats).

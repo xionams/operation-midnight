@@ -17,21 +17,18 @@ func _ready() -> void:
 	queue.name = "ProductionQueue"
 	queue.spawn_offset = Vector3(stats.body_size.x / 2.0 + 3.0, 0, 0) if stats else Vector3(6, 0, 0)
 	add_child(queue)
-	if is_player_faction:
-		GameState.register_refinery(self)
+	GameState.register_refinery(self, is_player_faction)
 
 func _on_died() -> void:
-	if is_player_faction:
-		GameState.unregister_refinery(self)
+	GameState.unregister_refinery(self, is_player_faction)
 	super._on_died()
 
 func _on_faction_changing() -> void:
-	if is_player_faction:
-		GameState.unregister_refinery(self)
+	## Leaves whichever side's list it is currently on, before the flip.
+	GameState.unregister_refinery(self, is_player_faction)
 
 func _on_faction_changed() -> void:
-	if is_player_faction:
-		GameState.register_refinery(self)
+	GameState.register_refinery(self, is_player_faction)
 
 ## Spy target: wipe whatever is being built, without refunding it.
 func sabotage_production() -> int:
@@ -42,7 +39,7 @@ func sabotage_production() -> int:
 func receive_resources(amount: float) -> void:
 	if amount <= 0.0:
 		return
-	GameState.add_credits(int(round(amount)))
+	GameState.add_credits_for(is_player_faction, int(round(amount)))
 
 func produce_harvester() -> bool:
 	return queue.enqueue(harvester_stats, harvester_scene)

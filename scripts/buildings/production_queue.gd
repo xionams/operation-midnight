@@ -38,7 +38,9 @@ func progress() -> float:
 func enqueue(stats: UnitStats, scene: PackedScene) -> bool:
 	if stats == null or scene == null or is_full():
 		return false
-	if not GameState.try_spend(stats.cost):
+	## Charge whoever owns this building, not always the player.
+	var owner_is_player: bool = get_parent().is_player_faction
+	if not GameState.try_spend_for(owner_is_player, stats.cost):
 		return false
 	_orders.append(stats)
 	_scenes.append(scene)
@@ -52,7 +54,7 @@ func cancel_last() -> bool:
 	if _orders.is_empty():
 		return false
 	var index: int = _orders.size() - 1
-	GameState.add_credits(_orders[index].cost)
+	GameState.add_credits_for(get_parent().is_player_faction, _orders[index].cost)
 	_orders.remove_at(index)
 	_scenes.remove_at(index)
 	if _orders.is_empty():
