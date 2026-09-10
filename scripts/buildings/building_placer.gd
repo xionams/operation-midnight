@@ -64,6 +64,11 @@ func _build_ghost() -> void:
 	add_child(_ghost)
 
 func _input(event: InputEvent) -> void:
+	# Pointer tracking only, so the ghost keeps following the cursor even
+	# as it crosses the HUD. Clicks are deliberately NOT handled here:
+	# _input runs ahead of the GUI, so confirming here would swallow every
+	# press aimed at a HUD button — including Cancel, which would then
+	# quietly place the building and charge for it instead of aborting.
 	if event is InputEventMouseMotion:
 		_pointer_pos = (event as InputEventMouseMotion).position
 	elif event is InputEventScreenDrag:
@@ -71,6 +76,7 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch:
 		_pointer_pos = (event as InputEventScreenTouch).position
 
+func _unhandled_input(event: InputEvent) -> void:
 	if active_stats == null:
 		return
 
