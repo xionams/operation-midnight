@@ -87,9 +87,18 @@ Open in Godot 4.x and press Play. You start with a Command HQ, one Assault Vehic
 - No save system, no Android export preset (no Android SDK/keystore configured in this environment) — the input/UI layer is already touch-complete, but an actual `.apk` has not been produced or tested on a device/emulator.
 - Camera can still pan via one-finger drag while a building ghost is being positioned on touch, which can feel like the ghost "overshoots" the finger. Minor polish item.
 
-## Remaining/likely bugs
+## Verification status
 
-- Nothing has been run inside the Godot editor in this environment (no Godot binary available here), so this has been written and statically reviewed for GDScript correctness but not play-tested. Please open it in the editor and check the Output panel for parser errors on first run — most likely failure points would be a typo in a `.tres`/`.tscn` resource path or a NavigationMesh property name.
+Verified headless on Godot 4.3 (2026-09-10) — clean import, zero script errors, and a scripted
+run of the real gameplay loop confirmed: navmesh bakes (82 polygons), both bases and resource
+fields spawn, refinery registers its 20 power draw, harvester production deducts 1200 credits,
+the harvester completes a full `IDLE → TO_NODE → LOADING → TO_REFINERY → UNLOADING` round trip
+and delivers +700 credits, an Assault Vehicle chases and damages its target, and destroying the
+enemy HQ sets the match to Victory.
+
+Not yet verified, because it needs a display rather than headless mode: camera pan/zoom,
+box-select, touch gestures, HUD layout and scaling, the building ghost preview, and the tracer
+and explosion visuals. Open the project in the editor to check those.
 
 ## Recommended Milestone 2 tasks
 

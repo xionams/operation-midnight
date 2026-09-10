@@ -17,7 +17,17 @@
 - Debug overlay (F3): FPS, unit count, credits, power, match state
 
 ## CURRENT
-- Play-test in the Godot editor (not yet run in this environment — no Godot binary available here) and fix any parser/runtime errors on first launch.
+- Headless verification passed on Godot 4.3 (2026-09-10): clean import, zero script errors,
+  navmesh bakes (82 polys), harvester completes IDLE→TO_NODE→LOADING→TO_REFINERY→UNLOADING and
+  delivers +700 credits, combat damages targets, HQ destruction triggers Victory.
+- Still unverified — needs a display (editor run or Xvfb): camera pan/zoom, box-select, touch
+  gestures, HUD layout/scaling, building ghost preview, tracer and explosion visuals.
+- Camera framing fixed (2026-09-10): pitch 49°→62°, opening zoom 55→38, focus pulled toward
+  centre, and the ground mesh widened to 2.4x purely as a visual skirt (collision and navmesh
+  unchanged at 82 polys) so the horizon and map edge stay out of frame.
+- Wire Codex's assets in `assets/generated_rts/` — currently referenced by nothing.
+- Codex round 2 delivered re-exports only. Still outstanding: HUD icons, tileable terrain
+  textures, muzzle flash / impact sprites, and whether .glb models are possible.
 
 ## NEXT
 - Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.

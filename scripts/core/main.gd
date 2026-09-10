@@ -46,8 +46,8 @@ func _ready() -> void:
 	_nav_region.bake_navigation_mesh(false)
 
 	var camera := _build_camera()
-	camera.zoom_distance = 55.0
-	camera.focus_on(PLAYER_BASE_POS.lerp(Vector3.ZERO, 0.2))
+	camera.zoom_distance = 38.0
+	camera.focus_on(PLAYER_BASE_POS.lerp(Vector3.ZERO, 0.35))
 
 	var placer := _build_placer()
 	_build_hud(placer)
@@ -107,7 +107,11 @@ func _build_level_and_ground() -> void:
 
 	var mesh_instance := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(map_size, map_size)
+	# Visual only, and deliberately wider than the collision box below: the
+	# ground the player can reach stays map_size (collision drives the navmesh
+	# and every ground raycast), while the extra skirt keeps the map edge and
+	# the void beyond it out of frame at the camera's shallowest angle.
+	plane.size = Vector2(map_size * 2.4, map_size * 2.4)
 	mesh_instance.mesh = plane
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.24, 0.34, 0.2)

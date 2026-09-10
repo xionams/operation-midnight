@@ -18,7 +18,10 @@ class_name RTSCamera
 @export var follow_speed: float = 8.0
 @export var touch_pan_sensitivity: float = 0.0035
 
-var CAMERA_DIR: Vector3 = Vector3(0, 1.15, 1).normalized()
+## Steeper than a 45° view on purpose: at a shallower pitch the horizon
+## enters frame at the default 75° FOV and eats roughly a third of a
+## landscape phone screen with empty sky.
+var CAMERA_DIR: Vector3 = Vector3(0, 1.9, 1).normalized()
 
 var pan_target: Vector3 = Vector3.ZERO
 var zoom_distance: float = 40.0
