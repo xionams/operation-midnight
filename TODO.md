@@ -29,6 +29,17 @@
 - Codex round 2 delivered re-exports only. Still outstanding: HUD icons, tileable terrain
   textures, muzzle flash / impact sprites, and whether .glb models are possible.
 
+## UNIT LOGICS (done 2026-09-10)
+- Armor classes (INFANTRY / LIGHT / HEAVY / BUILDING) + damage-vs-armor table on WeaponStats.
+  Counters are tuned in `config/weapons/*.tres`, never in scripts.
+- Barracks trains Rifle Soldier, Engineer, Spy, Attack Dog.
+- Engineer captures enemy buildings intact (power, groups, registrations and production all move).
+- Spy infiltrates: loot a Refinery, wipe a production queue with no refund, black out a Power Plant.
+- Disguise + detection: disguised Spies are ignored by enemy targeting; Attack Dogs reveal them.
+- Vehicles crush enemy infantry — infantry are on their own collision layer so armour drives
+  through them rather than being blocked.
+- Verified by `tests/logic_test.tscn` (26 checks).
+
 ## NEXT
 - Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.
 - Building construction time + visual progress (field already exists on BuildingStats).
