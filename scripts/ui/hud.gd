@@ -19,6 +19,7 @@ class_name HUD
 @export var spy_stats: UnitStats
 @export var dog_stats: UnitStats
 @export var placer: BuildingPlacer
+@export var debug_overlay: DebugOverlay
 
 const MARGIN: float = 28.0
 const BUTTON_SIZE: Vector2 = Vector2(118, 56)
@@ -444,11 +445,13 @@ func _build_victory_overlay() -> void:
 
 func _build_debug_overlay() -> void:
 	_debug_panel = Label.new()
-	_debug_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	## Top-left under the status bar: the bottom-left corner already holds
+	## the selection panel, and the two were drawing over each other.
+	_debug_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_debug_panel.offset_left = MARGIN
-	_debug_panel.offset_top = -220
-	_debug_panel.offset_right = MARGIN + 260
-	_debug_panel.offset_bottom = -(MARGIN + BUTTON_SIZE.y + 12)
+	_debug_panel.offset_top = MARGIN * 0.5 + 68
+	_debug_panel.offset_right = MARGIN + 280
+	_debug_panel.offset_bottom = MARGIN * 0.5 + 320
 	_debug_panel.add_theme_font_size_override("font_size", 16)
 	_debug_panel.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
 	_debug_panel.visible = false
@@ -469,13 +472,25 @@ func _process(_delta: float) -> void:
 	if not _debug_visible:
 		return
 	var units := get_tree().get_nodes_in_group("units").size()
-	_debug_panel.text = "FPS: %d\nUnits: %d\nCredits: %d\nPower: %d / %d\nMatch: %s" % [
+	## Naming the lead unit's actual order is what makes the overlay useful
+	## for debugging behaviour rather than just performance.
+	var lead: String = ""
+	if not SelectionManager.selected_units.is_empty():
+		var unit = SelectionManager.selected_units[0]
+		if is_instance_valid(unit) and unit.stats != null:
+			lead = "\n\n%s\n  cmd %s\n  to  %.0f, %.0f" % [
+				unit.stats.display_name,
+				CommandTypes.type_name(unit.current_command),
+				unit.command_position.x, unit.command_position.z]
+	_debug_panel.text = "FPS: %d\nUnits: %d\nCredits: %d\nPower: %d / %d\nMatch: %s\nExplored: %.1f%%%s" % [
 		Engine.get_frames_per_second(),
 		units,
 		GameState.credits,
 		GameState.power_generated,
 		GameState.power_consumed,
 		GameState.MatchState.keys()[GameState.match_state],
+		FogOfWar.explored_fraction() * 100.0,
+		lead,
 	]
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -485,6 +500,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _toggle_debug() -> void:
 	_debug_visible = not _debug_visible
 	_debug_panel.visible = _debug_visible
+	if debug_overlay:
+		debug_overlay.set_enabled(_debug_visible)
 
 func _start_building_placement(stats: BuildingStats) -> void:
 	if stats == null or placer == null:

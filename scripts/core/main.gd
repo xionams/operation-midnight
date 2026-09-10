@@ -80,8 +80,12 @@ func _ready() -> void:
 	camera.zoom_distance = 38.0
 	camera.focus_on(PLAYER_BASE_POS)
 
+	var overlay := DebugOverlay.new()
+	overlay.name = "DebugOverlay"
+	add_child(overlay)
+
 	var placer := _build_placer()
-	_build_hud(placer)
+	_build_hud(placer, overlay)
 
 	EventBus.building_placed.connect(func(_building): _nav_region.bake_navigation_mesh(true))
 	EventBus.command_issued.connect(func(type, position): CommandMarker.spawn(_level, position, type))
@@ -287,7 +291,7 @@ func _build_placer() -> BuildingPlacer:
 	add_child(placer)
 	return placer
 
-func _build_hud(placer: BuildingPlacer) -> void:
+func _build_hud(placer: BuildingPlacer, overlay: DebugOverlay) -> void:
 	var hud := HUD.new()
 	hud.name = "HUD"
 	hud.power_plant_stats = POWER_PLANT_STATS
@@ -302,4 +306,5 @@ func _build_hud(placer: BuildingPlacer) -> void:
 	hud.spy_stats = SPY_STATS
 	hud.dog_stats = DOG_STATS
 	hud.placer = placer
+	hud.debug_overlay = overlay
 	add_child(hud)

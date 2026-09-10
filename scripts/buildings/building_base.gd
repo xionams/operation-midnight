@@ -14,6 +14,7 @@ signal died(building: BuildingBase)
 
 var health: HealthComponent
 
+var health_bar: HealthBar
 var _indicator: MeshInstance3D
 
 const BUILDING_COLLISION_LAYER: int = 1 << 2 # bit 3
@@ -32,6 +33,7 @@ func _ready() -> void:
 	_build_collision()
 	_build_health()
 	_build_visual()
+	_build_health_bar()
 	_register_power()
 
 func _build_fog_visibility() -> void:
@@ -86,6 +88,10 @@ func _build_visual() -> void:
 	indicator_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_indicator.material_override = indicator_material
 	add_child(_indicator)
+
+func _build_health_bar() -> void:
+	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
+	health_bar = HealthBar.attach(self, health, size.y, maxf(size.x * 0.8, 2.0))
 
 func _faction_color() -> Color:
 	return Color(0.2, 0.45, 1.0) if is_player_faction else Color(0.9, 0.15, 0.15)

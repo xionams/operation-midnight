@@ -16,6 +16,7 @@ signal died(unit: UnitBase)
 var health: HealthComponent
 var nav_agent: NavigationAgent3D
 var selection_ring: MeshInstance3D
+var health_bar: HealthBar
 
 ## Current order, exposed so the HUD and debug overlay can report what a
 ## unit believes it is doing.
@@ -63,6 +64,7 @@ func _ready() -> void:
 	_build_weapon()
 	_build_visual()
 	_build_selection_ring()
+	_build_health_bar()
 
 ## Enemy-owned entities can be hidden by fog. Player-owned ones never are:
 ## you always see your own army.
@@ -158,9 +160,15 @@ func _build_selection_ring() -> void:
 	selection_ring.visible = false
 	add_child(selection_ring)
 
+func _build_health_bar() -> void:
+	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)
+	health_bar = HealthBar.attach(self, health, size.y, maxf(size.x, 1.4))
+
 func set_selected(selected: bool) -> void:
 	if selection_ring:
 		selection_ring.visible = selected
+	if health_bar:
+		health_bar.set_selected(selected)
 
 func move_to(target_position: Vector3) -> void:
 	if nav_agent:
