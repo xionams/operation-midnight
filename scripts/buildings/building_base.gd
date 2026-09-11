@@ -94,7 +94,8 @@ func _build_health() -> void:
 	health.died.connect(_on_died)
 
 func _build_visual() -> void:
-	if stats and stats.visual_scene:
+	## See UnitBase._build_visual for what OM_NO_MODELS is for.
+	if stats and stats.visual_scene and OS.get_environment("OM_NO_MODELS").is_empty():
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
 		_visual_root = visual

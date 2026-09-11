@@ -41,6 +41,16 @@ def main():
     for asset_id, spec in sorted(asset_specs.ASSETS.items()):
         nodes = spec["builder"]()
 
+        ## Every material on a mesh is another draw call, and units are the
+        ## things there are a hundred of. Measured at 120 units: models as
+        ## first built cost ~13 FPS against primitive stand-ins, and the
+        ## geometry is only ~30k triangles, so the cost is per-surface, not
+        ## per-triangle. Structures keep their full material set - there
+        ## are a dozen of them, not a hundred.
+        if spec["class"] == "unit":
+            for _name, mesh, _t in nodes:
+                asset_specs.merge_groups(mesh, asset_specs.UNIT_MATERIAL_MERGE)
+
         materials = {}
         for _, mesh, _ in nodes:
             for name in mesh.groups:

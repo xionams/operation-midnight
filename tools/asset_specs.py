@@ -109,7 +109,7 @@ def _command_hq():
     m = Mesh()
     w, h, d = 9.0, 5.0, 9.0
     box(m, "Hull", (w, 3.4, d), (0, 1.7, 0), chamfer=0.22)
-    box(m, "Hull", (w * 0.62, 1.6, d * 0.62), (0, 4.2, 0.4), chamfer=0.18)
+    box(m, "Steel", (w * 0.62, 1.6, d * 0.62), (0, 4.2, 0.4), chamfer=0.18)
     box(m, "Glass", (w * 0.58, 0.55, d * 0.10), (0, 4.3, -d * 0.30))
     # Command mast at the rear, the tallest thing in any player base.
     cylinder(m, "Metal", 0.16, 3.4, (-w * 0.30, h - 0.7, d * 0.34), segments=8)
@@ -778,3 +778,30 @@ OVERHANG = {
     "at_squad":          (0.0, 0.0, 0.4),   # launcher tube
     "crate_stack":       (0.0, 0.0, 0.3),
 }
+
+
+# ------------------------------------------------- draw-call reduction
+#
+# Applied to unit-class assets only. A steel barrel on an olive tank is a
+# detail nobody can resolve at 38 metres; a draw call per unit per frame
+# is something the frame timer resolves very clearly.
+UNIT_MATERIAL_MERGE = {
+    "Metal": "Hull",
+    "Glass": "Dark",
+    "Amber": "Faction",
+}
+
+
+def merge_groups(mesh, mapping):
+    """Fold one material's triangles into another, in place."""
+    for source, target in mapping.items():
+        if source not in mesh.groups:
+            continue
+        positions, normals, indices = mesh.groups.pop(source)
+        if target not in mesh.groups:
+            mesh.groups[target] = ([], [], [])
+        tp, tn, ti = mesh.groups[target]
+        offset = len(tp)
+        tp.extend(positions)
+        tn.extend(normals)
+        ti.extend(index + offset for index in indices)

@@ -17,6 +17,13 @@ uniform sampler2D fog_tex : filter_linear;
 uniform float map_size = 220.0;
 uniform vec3 base_color : source_color = vec3(0.24, 0.34, 0.2);
 uniform float unexplored_brightness = 0.07;
+// Every unexplored surface resolves to this ONE colour rather than to a
+// dimmed version of its own. Scaling each surface by a brightness factor
+// keeps their relative differences, so a light concrete road stayed
+// visibly brighter than dark terrain and drew the whole road network
+// through the shroud. Converging on a shared colour is what actually
+// hides a thing.
+uniform vec3 unexplored_color : source_color = vec3(0.017, 0.024, 0.014);
 uniform float explored_brightness = 0.34;
 uniform float roughness_value = 0.9;
 
@@ -39,12 +46,12 @@ void fragment() {
 		shade = texture(fog_tex, uv).r;
 	}
 
-	float brightness = mix(unexplored_brightness, explored_brightness,
-		smoothstep(0.0, EXPLORED_SHADE, shade));
+	float known = smoothstep(0.0, EXPLORED_SHADE, shade);
+	float brightness = mix(unexplored_brightness, explored_brightness, known);
 	brightness = mix(brightness, 1.0,
 		smoothstep(EXPLORED_SHADE, 1.0, shade));
 
-	ALBEDO = base_color * brightness;
+	ALBEDO = mix(unexplored_color, base_color * brightness, known);
 	ROUGHNESS = roughness_value;
 	SPECULAR = 0.0;
 }

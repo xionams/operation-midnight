@@ -283,3 +283,34 @@ No LODs at MVP. Revisit only if the 120-unit stress test regresses.
 5. Inside its §13 triangle budget.
 6. Registered in `assets/manifest.json` with honest status.
 7. Imports into Godot with no errors and no scale correction.
+
+---
+
+## 15. Performance switches
+
+Three environment variables turn off one visual layer each, so the cost
+of an art change can be measured rather than argued about:
+
+| Variable | Effect |
+|---|---|
+| `OM_NO_MODELS` | Units and structures fall back to primitive stand-ins |
+| `OM_NO_SCENERY` | Skips pads, roads, rock faces and props |
+| `OM_NO_VFX` | Suppresses every particle effect |
+
+They exist because the first integration of this asset pass cost ~19 FPS
+at 120 units and two plausible-sounding explanations (particle count,
+uncached materials) both turned out to be wrong. Measured with these:
+
+    models + scenery + VFX off   60.0 / 60.0 / 59.7 FPS   (40 / 80 / 120 units)
+    models off only              59.8 / 58.8 / 53.9
+    everything on, first cut     52.4 / 47.4 / 40.9
+    everything on, after fix     59.7 / 60.0 / 59.4
+
+The cost was draw calls, not triangles: at 120 units the whole scene is
+about 30k triangles, but each unit had grown from two surfaces sharing
+one material to six. Merging `Metal`, `Glass` and `Amber` into existing
+slots on unit-class models only - structures keep their full set, there
+being a dozen of them rather than a hundred - recovered all of it.
+
+**Rule for the next art pass: a unit model gets at most three material
+slots.** Structures may use the full set.

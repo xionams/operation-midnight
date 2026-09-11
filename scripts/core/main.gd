@@ -88,7 +88,9 @@ func _ready() -> void:
 	_spawn_resource_fields()
 	_spawn_neutral_structure()
 	_spawn_terrain_blockers()
-	_dress_battlefield()
+	## OM_NO_SCENERY skips the decoration pass; see UnitBase._build_visual.
+	if OS.get_environment("OM_NO_SCENERY").is_empty():
+		_dress_battlefield()
 	_nav_region.bake_navigation_mesh(false)
 
 	## Seed the player's own ground as explored, then run one vision pass

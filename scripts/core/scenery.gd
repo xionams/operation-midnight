@@ -18,6 +18,12 @@ const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 ## turn a world position into a fog cell.
 var map_size: float = 220.0
 
+## One fog material per distinct colour, not per surface. The first cut
+## built a fresh ShaderMaterial for every surface of every prop - roughly
+## four hundred unique materials across the map - which defeats batching
+## and cost about 10 FPS at 120 units for no visual difference.
+var _fog_materials: Dictionary = {}
+
 const MODELS: Dictionary = {
 	"base_pad": preload("res://assets/models/base_pad.glb"),
 	"road": preload("res://assets/models/road_segment.glb"),
@@ -63,13 +69,21 @@ func _fog_paint(node: Node3D) -> void:
 			continue
 		for surface in mesh.get_surface_count():
 			var source := mesh.surface_get_material(surface) as StandardMaterial3D
-			var material := ShaderMaterial.new()
-			material.shader = FOG_SHADER
-			material.set_shader_parameter("fog_tex", fog_texture)
-			material.set_shader_parameter("map_size", map_size)
-			material.set_shader_parameter("base_color",
-				source.albedo_color if source != null else Color(0.5, 0.5, 0.5))
-			mesh_instance.set_surface_override_material(surface, material)
+			var colour: Color = source.albedo_color if source != null else Color(0.5, 0.5, 0.5)
+			mesh_instance.set_surface_override_material(
+				surface, _fog_material(colour, fog_texture))
+
+func _fog_material(colour: Color, fog_texture: Texture2D) -> ShaderMaterial:
+	var key: String = str(colour)
+	if _fog_materials.has(key):
+		return _fog_materials[key]
+	var material := ShaderMaterial.new()
+	material.shader = FOG_SHADER
+	material.set_shader_parameter("fog_tex", fog_texture)
+	material.set_shader_parameter("map_size", map_size)
+	material.set_shader_parameter("base_color", colour)
+	_fog_materials[key] = material
+	return material
 
 func _exclude(centre: Vector3, radius: float) -> void:
 	_exclusions.append([centre, radius * radius])

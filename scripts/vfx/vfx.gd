@@ -20,6 +20,10 @@ const DUST_TAN: Color = Color(0.60, 0.56, 0.44)
 const SPARK_WHITE: Color = Color(1.0, 0.95, 0.80)
 
 static var _dot: GradientTexture2D = null
+## Cleared by OM_NO_VFX, so the effect layer can be measured separately
+## from models and scenery. Also the switch to reach for if a low-end
+## device needs the frame budget back.
+static var enabled: bool = OS.get_environment("OM_NO_VFX").is_empty()
 
 ## One soft radial dot shared by every effect in the game.
 static func _particle_texture() -> GradientTexture2D:
@@ -54,7 +58,7 @@ static func _burst(parent: Node, position: Vector3, count: int, color: Color,
 		size: float, velocity: float, lifetime: float, gravity: float,
 		additive: bool = true, direction: Vector3 = Vector3.UP,
 		spread: float = 45.0) -> CPUParticles3D:
-	if parent == null or not is_instance_valid(parent):
+	if parent == null or not is_instance_valid(parent) or not enabled:
 		return null
 	var particles := CPUParticles3D.new()
 	particles.emitting = false

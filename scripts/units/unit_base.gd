@@ -160,7 +160,10 @@ func _build_health() -> void:
 	health.died.connect(_on_died)
 
 func _build_visual() -> void:
-	if stats and stats.visual_scene:
+	## OM_NO_MODELS falls back to the primitive stand-ins. Kept because it
+	## is how the art pass's performance cost was isolated: models, scenery
+	## and VFX can each be switched off independently and measured.
+	if stats and stats.visual_scene and OS.get_environment("OM_NO_MODELS").is_empty():
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
 		## The model carries its own faction markings in a named material
