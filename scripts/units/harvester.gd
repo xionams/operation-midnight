@@ -17,6 +17,9 @@ var _refinery = null
 var _timer: float = 0.0
 ## Set when no known field has anything left, cleared when one is found.
 var no_resources: bool = false
+## When the current delivery run began, so the economy can measure how
+## long a round trip actually takes on this map.
+var _trip_started: float = -1.0
 
 const ARRIVE_NODE_DISTANCE: float = 4.5
 const ARRIVE_REFINERY_DISTANCE: float = 4.5
@@ -68,8 +71,20 @@ func _tick_idle() -> void:
 	if assigned_node == null or not is_instance_valid(assigned_node) or assigned_node.remaining <= 0.0:
 		assigned_node = _find_resource_node()
 	if assigned_node:
+		no_resources = false
+		## Clock a full gather-and-deliver cycle so route quality can be
+		## measured rather than assumed - a long haul is why an extra
+		## harvester can be worth more than an extra tank.
+		if _trip_started < 0.0:
+			_trip_started = Time.get_ticks_msec() / 1000.0
 		move_to(assigned_node.global_position)
 		state = State.TO_NODE
+	elif not no_resources:
+		## Every field this side knows about is exhausted. Say so once
+		## rather than idling silently, because the answer is to expand.
+		no_resources = true
+		if is_player_faction:
+			EventBus.no_resources_available.emit(self)
 
 func _tick_to_node() -> void:
 	if not is_instance_valid(assigned_node) or assigned_node.remaining <= 0.0:
@@ -102,6 +117,10 @@ func _tick_unloading(delta: float) -> void:
 		return
 	if is_instance_valid(_refinery):
 		_refinery.call("receive_resources", cargo)
+		if _trip_started > 0.0:
+			EventBus.harvest_round_trip.emit(
+				is_player_faction, Time.get_ticks_msec() / 1000.0 - _trip_started)
+			_trip_started = -1.0
 	cargo = 0.0
 	state = State.IDLE
 

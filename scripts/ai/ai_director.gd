@@ -37,9 +37,22 @@ const TECH: BuildingStats = preload("res://config/buildings/tech_center.tres")
 const MG_TOWER: BuildingStats = preload("res://config/buildings/mg_tower.tres")
 const FORWARD_POST: BuildingStats = preload("res://config/buildings/forward_post.tres")
 
+## Treasury floor per difficulty. An EASY commander manages money badly
+## on purpose; HARD keeps a deeper buffer so it can absorb a raid.
+const RESERVE_BY_DIFFICULTY: Dictionary = {
+	Difficulty.EASY: 700,
+	Difficulty.NORMAL: 1500,
+	Difficulty.HARD: 2000,
+}
+
 const BUILD_SPACING: float = 17.0
 const DEFEND_RADIUS: float = 46.0
 const RETREAT_LOSS_FRACTION: float = 0.65
+## How far short of the objective an attack force gathers.
+const STAGING_STANDOFF: float = 42.0
+## Reinforcements wait until they are worth sending as a body.
+const REINFORCE_MIN_VALUE: int = 1800
+const MIN_SIEGE_SHARE: float = 0.2
 
 ## Difficulty -> [think interval, group size scale, scouts, rebuild delay,
 ##                counter-production responsiveness]
@@ -65,6 +78,7 @@ var base_position: Vector3 = Vector3.ZERO
 var enabled: bool = true
 var strategy: int = Strategy.ECONOMY
 var memory: AIMemory
+var economy: AIEconomy
 
 var _nav_region: Node
 var _level: Node
@@ -77,6 +91,7 @@ var _attack_start_strength: int = 0
 var _current_objective: Vector3 = Vector3.ZERO
 var _rebuild_cooldown: float = 0.0
 var _scouts: Array = []
+var _reinforcements: Array = []
 
 func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) -> void:
 	_nav_region = nav_region
@@ -85,6 +100,16 @@ func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) 
 	memory = AIMemory.new()
 	memory.name = "AIMemory"
 	add_child(memory)
+
+	economy = AIEconomy.new()
+	economy.name = "AIEconomy"
+	economy.is_player = false
+	economy.reserve_target = RESERVE_BY_DIFFICULTY[difficulty]
+	add_child(economy)
+	EventBus.harvest_round_trip.connect(func(is_player, seconds):
+		if not is_player:
+			economy.record_round_trip(seconds))
+
 	strategy = _pick_strategy()
 
 func _pick_strategy() -> int:
@@ -156,31 +181,36 @@ func _combat_units() -> Array:
 
 ## Harvester count scales with refineries. An AI that builds tanks before
 ## income simply stops once its opening money is gone.
+## Harvesters are the highest-value purchase the AI can make while its
+## refineries are under-saturated, and replacing a lost one is CRITICAL -
+## an economy with no earners cannot recover by saving.
 func _run_economy() -> void:
-	var refineries: int = 0
-	for building in get_tree().get_nodes_in_group("enemy_buildings"):
-		if is_instance_valid(building) and building is Refinery:
-			refineries += 1
-	if refineries == 0:
-		return
-	if _harvesters() >= clampi(refineries * 3, 3, 6):
+	if not economy.needs_harvester():
 		return
 	var refinery := GameState.get_first_refinery(false)
-	if refinery != null and refinery.queue.queue_length() == 0:
-		refinery.produce(HARVESTER)
+	if refinery == null or refinery.queue.queue_length() > 0:
+		return
+	var urgency: AIEconomy.Priority = AIEconomy.Priority.CRITICAL \
+		if economy.active_harvesters() == 0 else AIEconomy.Priority.ECONOMY
+	if not economy.can_afford(HARVESTER.cost, urgency):
+		return
+	refinery.produce(HARVESTER)
 
 # --------------------------------------------------------- construction
 
 func _build_order() -> Array:
 	match strategy:
+		## Every opening takes a second refinery before the tech tier. One
+		## refinery cannot fund continuous production, which is precisely
+		## how the commander ended up pinned at zero credits all match.
 		Strategy.INFANTRY_PRESSURE:
-			return [REFINERY, BARRACKS, POWER_PLANT, BARRACKS, FACTORY, RADAR, TECH]
+			return [REFINERY, BARRACKS, POWER_PLANT, REFINERY, FACTORY, POWER_PLANT, RADAR, TECH]
 		Strategy.FAST_VEHICLES:
-			return [REFINERY, POWER_PLANT, FACTORY, BARRACKS, RADAR, TECH]
+			return [REFINERY, POWER_PLANT, FACTORY, REFINERY, BARRACKS, POWER_PLANT, RADAR, TECH]
 		Strategy.TECH:
-			return [REFINERY, POWER_PLANT, BARRACKS, FACTORY, RADAR, TECH, POWER_PLANT]
+			return [REFINERY, POWER_PLANT, REFINERY, BARRACKS, FACTORY, POWER_PLANT, RADAR, TECH]
 		_:
-			return [REFINERY, POWER_PLANT, BARRACKS, REFINERY, FACTORY, RADAR, TECH]
+			return [REFINERY, POWER_PLANT, REFINERY, BARRACKS, FACTORY, POWER_PLANT, RADAR, TECH]
 
 ## Rebuilding is the same code path as building: a razed structure simply
 ## becomes a gap in the wanted list again, and the AI pays for it like
@@ -221,6 +251,21 @@ func _run_construction() -> void:
 
 	if wanted == null or not TechTree.is_available(wanted, false):
 		return
+
+	## Infrastructure the economy cannot run without outranks the reserve;
+	## everything else respects it.
+	var priority: AIEconomy.Priority = AIEconomy.Priority.TECH
+	if wanted == REFINERY and economy.refineries().is_empty():
+		priority = AIEconomy.Priority.CRITICAL
+	elif wanted == POWER_PLANT and _power_shortfall() > 0:
+		priority = AIEconomy.Priority.CRITICAL
+	elif wanted == REFINERY or wanted == FORWARD_POST:
+		priority = AIEconomy.Priority.ECONOMY
+	elif wanted == MG_TOWER:
+		priority = AIEconomy.Priority.DEFENCE
+
+	if not economy.can_afford(wanted.cost, priority):
+		return
 	if not GameState.try_spend_for(false, wanted.cost):
 		return
 	_place(wanted)
@@ -228,16 +273,21 @@ func _run_construction() -> void:
 
 ## Expand when the ore near home is nearly gone and the commander knows
 ## of a field somewhere else.
+## Expand when income is inadequate or the ore near home is thinning, and
+## a field is known elsewhere. A post on its own earns nothing, so the
+## build order follows it with a refinery out there.
 func _should_expand() -> bool:
 	if _own("Forward Command Post") != null:
 		return false
 	if memory.known_resource_fields.size() < 2:
 		return false
+	if economy.refineries().size() < 2:
+		return false
 	var home_remaining: float = 0.0
 	for field in get_tree().get_nodes_in_group("resource_nodes"):
 		if is_instance_valid(field) and field.global_position.distance_to(base_position) < 60.0:
 			home_remaining += field.remaining
-	return home_remaining < 6000.0
+	return home_remaining < 9000.0 or economy.income_per_minute < 2500.0
 
 func _expansion_site() -> Vector3:
 	var best := Vector3.ZERO
@@ -325,14 +375,16 @@ func _run_production() -> void:
 				vehicle = TANK
 			elif TechTree.is_available(ASSAULT, false):
 				vehicle = ASSAULT
-		if GameState.enemy_credits - vehicle.cost >= reserve:
+		if GameState.enemy_credits - vehicle.cost >= reserve \
+			and economy.can_afford(vehicle.cost, AIEconomy.Priority.ARMY):
 			factory.produce(vehicle)
 			return
 
 	var barracks := _own("Barracks")
 	if barracks != null and barracks.queue.queue_length() == 0:
 		var squad := _pick_infantry(composition, responsiveness)
-		if GameState.enemy_credits - squad.cost >= reserve:
+		if GameState.enemy_credits - squad.cost >= reserve \
+			and economy.can_afford(squad.cost, AIEconomy.Priority.ARMY):
 			barracks.produce(squad)
 
 func _pick_infantry(composition: Dictionary, responsiveness: float) -> UnitStats:
@@ -434,6 +486,7 @@ func _run_defence() -> void:
 			continue
 		unit.issue_command(CommandTypes.Type.ATTACK_MOVE, threats[0].global_position)
 		_attack_group.erase(unit)
+		_reinforcements.erase(unit)
 
 func _visible_to_ai(point: Vector3) -> bool:
 	var eyes: Array = get_tree().get_nodes_in_group("enemy_units")
@@ -447,6 +500,20 @@ func _visible_to_ai(point: Vector3) -> bool:
 
 # ------------------------------------------------------------- offense
 
+## Attack readiness is measured in credits committed, not bodies. Twenty
+## rifle squads and four tanks are not the same army, and counting heads
+## said they were - which is how the AI ended up trickling infantry into
+## a base it could never break.
+func desired_group_value() -> int:
+	var target: float = 3000.0
+	if _match_time > 540.0:
+		target = 9000.0
+	elif _match_time > 330.0:
+		target = 6000.0
+	elif _match_time > 180.0:
+		target = 4200.0
+	return int(target * _tuning()[1])
+
 func desired_group_size() -> int:
 	var base_size: float = 6.0
 	if _match_time > 600.0:
@@ -457,42 +524,95 @@ func desired_group_size() -> int:
 		base_size = 7.0
 	return maxi(3, int(base_size * _tuning()[1]))
 
+func _group_value(units: Array) -> int:
+	var total: int = 0
+	for unit in units:
+		if is_instance_valid(unit) and unit.stats != null:
+			total += unit.stats.cost
+	return total
+
+## Share of the gathered force that can actually hurt a building. An
+## all-infantry wave bounces off a Command HQ no matter how large it is.
+func _group_siege_share(units: Array) -> float:
+	var total: int = 0
+	var siege: int = 0
+	for unit in units:
+		if not is_instance_valid(unit) or unit.stats == null:
+			continue
+		var weapon: WeaponStats = unit.stats.weapon_stats
+		if weapon == null:
+			continue
+		total += unit.stats.cost
+		if weapon.multiplier_for(Armor.Type.STRUCTURE) >= 0.5:
+			siege += unit.stats.cost
+	return float(siege) / maxf(float(total), 1.0)
+
+## Staging point: short of the objective, so the force gathers out of
+## reach of whatever is defending it rather than arriving one unit at a
+## time inside the enemy's guns.
+func _staging_point(objective: Vector3) -> Vector3:
+	var toward_home: Vector3 = (base_position - objective)
+	if toward_home.length() < 1.0:
+		return base_position
+	return objective + toward_home.normalized() * STAGING_STANDOFF
+
 ## Gathers a group, commits it at a chosen target, and pulls the
 ## survivors out when it is clearly losing. Attacking piecemeal feeds the
 ## defender; never retreating makes every battle a suicide.
 func _run_offense() -> void:
 	_attack_group = _attack_group.filter(func(u): return is_instance_valid(u))
+	_reinforcements = _reinforcements.filter(func(u): return is_instance_valid(u))
 
-	## Absorb anything idle, whether or not a push is already under way.
-	## Without this the AI commits one wave and then never attacks again
-	## until that wave is destroyed, quietly stockpiling an army at home
-	## while the player is left alone.
-	var reinforcements: Array = []
+	## Newly produced units join a staging pool, never the battle line
+	## directly. Feeding units in one at a time is how an army is spent
+	## without ever being used.
 	for unit in _combat_units():
-		if _attack_group.has(unit) or _scouts.has(unit):
+		if _attack_group.has(unit) or _reinforcements.has(unit) or _scouts.has(unit):
 			continue
-		_attack_group.append(unit)
-		reinforcements.append(unit)
+		_reinforcements.append(unit)
+		unit.issue_command(CommandTypes.Type.MOVE, _staging_point(_pending_objective()))
 
 	if _attack_committed:
-		var target := _current_objective
-		for unit in reinforcements:
-			unit.issue_command(CommandTypes.Type.ATTACK_MOVE, target)
-		## Peak strength, so a group that has been topped up is judged
-		## against how strong it ever was rather than its opening size.
+		_release_reinforcements()
 		_attack_start_strength = maxi(_attack_start_strength, _attack_group.size())
 		_retarget_if_objective_cleared()
 		_review_attack()
 		return
 
-	if _attack_group.size() < desired_group_size():
+	## Gather at the staging point until the force is worth committing,
+	## can hurt buildings, and the economy can replace what it loses.
+	if _group_value(_reinforcements) < desired_group_value():
+		return
+	if _group_siege_share(_reinforcements) < MIN_SIEGE_SHARE:
+		return
+	if not economy.can_sustain_offensive():
 		return
 
+	_attack_group = _reinforcements.duplicate()
+	_reinforcements.clear()
 	_current_objective = _choose_target()
 	_attack_start_strength = _attack_group.size()
 	_attack_committed = true
 	for unit in _attack_group:
 		unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
+
+## Reinforcements join the fight as a body once they are worth sending,
+## rather than arriving individually and dying individually.
+func _release_reinforcements() -> void:
+	if _group_value(_reinforcements) < REINFORCE_MIN_VALUE:
+		return
+	for unit in _reinforcements:
+		if is_instance_valid(unit):
+			unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
+			_attack_group.append(unit)
+	_reinforcements.clear()
+
+## Where the next attack will go, so staging can be positioned before the
+## force is committed.
+func _pending_objective() -> Vector3:
+	if _current_objective != Vector3.ZERO:
+		return _current_objective
+	return _choose_target()
 
 ## Prefer a soft, valuable target the AI has actually seen over driving
 ## into whatever is best defended. Production first, because killing

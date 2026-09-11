@@ -17,3 +17,6 @@ signal construction_ready(stats: BuildingStats)
 signal objective_changed(title: String, lines: PackedStringArray)
 signal low_power_changed(low: bool)
 signal no_resources_available(harvester: Node)
+## Emitted when a harvester completes a full gather-and-deliver cycle,
+## so economic route quality can be measured rather than assumed.
+signal harvest_round_trip(is_player: bool, seconds: float)

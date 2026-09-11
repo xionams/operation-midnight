@@ -57,6 +57,7 @@ var _setup_overlay: Control
 var _difficulty_buttons: Dictionary = {}
 var _chosen_difficulty: int = AIDirector.Difficulty.NORMAL
 var _debug_panel: Label
+var _ai_econ_panel: Label
 var _debug_visible: bool = false
 
 func _ready() -> void:
@@ -650,9 +651,24 @@ func _build_debug_overlay() -> void:
 	_debug_panel.visible = false
 	add_child(_debug_panel)
 
+	## The AI's own economy, shown beside the player's debug readout. It
+	## exists because the previous milestone's bottleneck was invisible
+	## without it - the commander looked busy while quietly bankrupt.
+	_ai_econ_panel = Label.new()
+	_ai_econ_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_ai_econ_panel.offset_left = MARGIN + 300
+	_ai_econ_panel.offset_top = MARGIN + 60
+	_ai_econ_panel.offset_right = MARGIN + 600
+	_ai_econ_panel.offset_bottom = MARGIN + 320
+	_ai_econ_panel.add_theme_font_size_override("font_size", 13)
+	_ai_econ_panel.add_theme_color_override("font_color", Color(1.0, 0.65, 0.35))
+	_ai_econ_panel.visible = false
+	add_child(_ai_econ_panel)
+
 func _toggle_debug() -> void:
 	_debug_visible = not _debug_visible
 	_debug_panel.visible = _debug_visible
+	_ai_econ_panel.visible = _debug_visible
 	if debug_overlay:
 		debug_overlay.set_enabled(_debug_visible)
 
@@ -705,11 +721,30 @@ func _process(delta: float) -> void:
 		if is_instance_valid(unit) and unit.stats != null and unit.has_method("issue_command"):
 			lead = "\n\n%s\n  cmd %s" % [unit.stats.display_name,
 				CommandTypes.type_name(unit.current_command)]
+	_refresh_ai_economy_panel()
 	_debug_panel.text = "FPS: %d\nUnits: %d\nCredits: %d\nPower: %d / %d\nExplored: %.1f%%%s" % [
 		Engine.get_frames_per_second(),
 		get_tree().get_nodes_in_group("units").size(),
 		GameState.credits, GameState.power_generated, GameState.power_consumed,
 		FogOfWar.explored_fraction() * 100.0, lead]
+
+## Debug-only AI economy readout. Disabled with the rest of the debug
+## overlay, and reads the same AIEconomy the commander decides from.
+func _refresh_ai_economy_panel() -> void:
+	var director = get_tree().current_scene.get_node_or_null("AIDirector")
+	if director == null or director.economy == null:
+		_ai_econ_panel.text = ""
+		return
+	var s: Dictionary = director.economy.snapshot()
+	_ai_econ_panel.text = ("AI ECONOMY (%s)\n\nCredits:   %d\nIncome:    %d/min\nSpend:     %d/min\n"
+		+ "Harvesters: %d / %d active (want %d)\nRefineries: %d\nRound trip: %.0fs\n"
+		+ "Reserve:   %d\nArmy value: %d\nSiege share: %.0f%%\nStrategy:  %s") % [
+		AIDirector.Difficulty.keys()[director.difficulty],
+		s["credits"], s["income_per_min"], s["spend_per_min"],
+		s["active_harvesters"], s["harvesters"], s["target_harvesters"],
+		s["refineries"], s["round_trip"], s["reserve"],
+		s["army_value"], s["siege_share"] * 100.0,
+		director.strategy_name()]
 
 func _refresh_construction() -> void:
 	if construction == null or not construction.is_busy():

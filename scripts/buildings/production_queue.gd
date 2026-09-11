@@ -25,6 +25,10 @@ func queue_length() -> int:
 
 ## Orders already paid for still occupy population, or a player could
 ## queue an unlimited army and watch it all arrive past the cap at once.
+## Read-only view of what is queued, for economic accounting.
+func orders() -> Array:
+	return _orders.duplicate()
+
 func queued_population() -> int:
 	var total: int = 0
 	for stats in _orders:
