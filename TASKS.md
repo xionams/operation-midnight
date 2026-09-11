@@ -71,8 +71,55 @@ That pressure toward the contested centre is a design property worth
 keeping, not a bug to tune away; it is recorded here so the next balance
 pass starts from the measurement.
 
-### Outstanding
-- [ ] Phase 23 scenario D: AI power restoration after losing generators
+Phase 19/20, measured by `tests/ai_field_probe.gd` (distances are from
+the AI base, ore remaining per field):
+
+    t=  0  36m:16000  98m:20000  103m:28000  168m:16000   trip  0.0s  in/min      0
+    t=180  36m:  600  98m:20000  103m:28000  168m:16000   trip 20.4s  in/min 11,197
+    t=240  36m: gone  98m:19300  103m:24500  168m:16000   trip 30.0s  in/min  4,199
+    t=300  98m:18600  103m:21000                          trip 52.8s  in/min  5,599
+    t=420  98m:16500  103m:12600                          trip 63.4s  in/min  1,399
+
+The home field is stripped between t=180 and t=240, exactly as predicted,
+and every later number follows from that one event. Map control does
+matter: the central field drops 28,000 -> 12,600, so the AI is genuinely
+fighting for the middle rather than sitting at home. A 10-15 minute match
+has ore to spare in total (45,100 of 80,000 left at t=420); what runs out
+is ore that is *close*.
+
+- [x] Phase 15 economic harassment (bounded opportunity retarget)
+- [x] Phase 16 player economy damage compounds offensive confidence
+- [x] Phase 19 resource field values measured, left unchanged
+- [x] Phase 20 economic map control confirmed: central field contested
+- [x] Phase 23 scenarios A-E, 11/11 checks, 0 failures
+
+### Recovery results (`tests/ai_economy_recovery_test.gd`)
+
+    E: expansion destroyed                            PASS
+    E: decides about the expansion and keeps earning  PASS (rebuilt=true, +12,600/180s)
+    A: replaces a single lost harvester               PASS (8 -> 8)
+    C: harvest fleet destroyed                        PASS
+    C: rebuilds harvesters from reserve               PASS (2)
+    C: income resumes after losing the fleet          PASS (+1,400)
+    B: rebuilds a destroyed refinery                  PASS (2 -> 2)
+    D: restores power generation                      PASS (200)
+    Economy is alive after sustained damage           PASS (+1,400 over 60s)
+
+Scenario E has to run before any damage is done. Rebuilding a razed base
+correctly outranks expanding, so a damaged AI never reaches the expansion
+branch and the scenario cannot be observed at all - it reported N/A twice
+before the ordering was fixed, which was the harness looking in the wrong
+place rather than the AI declining to act.
+
+### Known limitation, not fixed this milestone
+
+The AI builds its Forward Command Post (t=300 in the probe) but never
+follows it with a refinery out there, so refineries stay at 2 and the
+round trip keeps climbing to 63s. Phase 7 describes the chain as
+post -> refinery -> harvesters; only the first link happens. The
+expansion currently buys map presence, not income. Left alone
+deliberately: it is a pre-existing gap rather than a regression from
+this milestone's changes, and closing it is a feature.
 
 
 Living status for the current milestone. `TODO.md` keeps the long-range

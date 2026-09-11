@@ -263,4 +263,5 @@ func _on_died() -> void:
 	AudioDirector.play("explosion")
 	_unregister_power()
 	died.emit(self)
+	EventBus.building_destroyed.emit(self)
 	queue_free()

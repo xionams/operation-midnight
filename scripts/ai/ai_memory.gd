@@ -24,6 +24,11 @@ var player_base_guess: Vector3 = Vector3.ZERO
 var has_base_guess: bool = false
 var known_resource_fields: Array[Vector3] = []
 var recent_attack_positions: Array[Vector3] = []
+## Sightings of the player's economy - harvesters and the buildings that
+## pay for everything - as {position, kind, value, last_seen}. Positions
+## matter here in a way they do not for composition counting: a harvester
+## is only worth attacking where it actually is.
+var seen_economy: Array = []
 var losses: Array[Vector3] = []
 
 var _timer: float = 0.0
@@ -53,6 +58,8 @@ func _observe() -> void:
 			continue
 		var key: String = target.stats.display_name
 		fresh_units[key] = fresh_units.get(key, 0) + 1
+		if target.stats.is_harvester:
+			_record_economy(target.global_position, "harvester", target.stats.cost)
 
 	for key in fresh_units:
 		seen_units[key] = {"count": fresh_units[key], "last_seen": _now}
@@ -64,6 +71,9 @@ func _observe() -> void:
 			continue
 		seen_buildings[target.stats.display_name] = {
 			"position": target.global_position, "last_seen": _now}
+		if ECONOMIC_BUILDINGS.has(target.stats.display_name):
+			_record_economy(target.global_position, target.stats.display_name,
+				target.stats.cost)
 		if target.stats.display_name == "Command Headquarters":
 			player_base_guess = target.global_position
 			has_base_guess = true
@@ -75,6 +85,34 @@ func _observe() -> void:
 			continue
 		if not known_resource_fields.any(func(p): return p.distance_to(field.global_position) < 6.0):
 			known_resource_fields.append(field.global_position)
+
+## Structures whose loss costs the player income or production, in the
+## order the brief ranks them.
+const ECONOMIC_BUILDINGS: Array[String] = [
+	"Resource Refinery", "Power Plant", "Vehicle Factory", "Barracks",
+]
+
+## One live record per place, refreshed rather than appended, so a
+## stationary refinery does not crowd out everything else.
+func _record_economy(position: Vector3, kind: String, value: int) -> void:
+	for record in seen_economy:
+		if record["kind"] == kind and record["position"].distance_to(position) < 10.0:
+			record["position"] = position
+			record["last_seen"] = _now
+			return
+	seen_economy.append({
+		"position": position, "kind": kind, "value": value, "last_seen": _now})
+	if seen_economy.size() > 12:
+		seen_economy.pop_front()
+
+## Stale sightings are worse than none: sending a wave at where a
+## harvester was four minutes ago is how an army wanders into a base.
+func fresh_economy_targets(max_age: float = 45.0) -> Array:
+	var list: Array = []
+	for record in seen_economy:
+		if _now - record["last_seen"] <= max_age:
+			list.append(record)
+	return list
 
 func _visible_to_any(eyes: Array, point: Vector3) -> bool:
 	for eye in eyes:

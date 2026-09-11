@@ -13,6 +13,9 @@ signal building_infiltrated(building: Node, effect: String)
 ## their command landed, without the command path knowing about the UI.
 signal command_issued(type: int, position: Vector3)
 signal building_sold(building: Node)
+## Emitted for every structure that dies, whichever side owned it. The AI
+## uses it to notice when it has just cost the player their economy.
+signal building_destroyed(building: Node)
 signal construction_ready(stats: BuildingStats)
 signal objective_changed(title: String, lines: PackedStringArray)
 signal low_power_changed(low: bool)

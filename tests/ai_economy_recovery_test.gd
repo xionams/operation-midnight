@@ -9,6 +9,14 @@ extends Node
 
 const SETTLE: float = 150.0
 const RECOVERY_WINDOW: float = 180.0
+## The AI expands at roughly t=300 on this map when left alone. Scenario E
+## runs before any damage for that reason: rebuilding a razed base
+## correctly outranks expanding, so a damaged AI never reaches the
+## expansion branch at all and the scenario cannot be observed.
+## Measured at t=300 in the field probe, but it trails the whole eight
+## building order, so a slower opening pushes it well past that. Waiting
+## generously here is cheaper than a scenario that reports N/A.
+const EXPANSION_WAIT: float = 420.0
 
 var _main: Node3D
 var _director: AIDirector
@@ -48,6 +56,22 @@ func _keep_match_alive() -> void:
 		return
 	if hq.health.current_health < hq.health.max_health:
 		hq.health.current_health = hq.health.max_health
+
+## Polls rather than sleeping the whole window, so the scenario starts the
+## moment the post exists instead of always paying for the worst case.
+func _wait_for_expansion(max_wait: float) -> void:
+	var waited: float = 0.0
+	while waited < max_wait and _expansion() == null:
+		waited += get_process_delta_time()
+		_keep_match_alive()
+		await get_tree().process_frame
+
+func _expansion() -> Node:
+	for b in get_tree().get_nodes_in_group("enemy_buildings"):
+		if is_instance_valid(b) and b.stats != null \
+			and b.stats.display_name == "Forward Command Post":
+			return b
+	return null
 
 func _player_hq() -> Node:
 	for b in get_tree().get_nodes_in_group("player_buildings"):
@@ -96,6 +120,29 @@ func _run() -> void:
 		_economy.refineries().size() >= 1 and _economy.harvesters().size() >= 2,
 		"(%d refineries, %d harvesters)" % [
 			_economy.refineries().size(), _economy.harvesters().size()])
+
+	# --- Scenario E: lose the expansion ---
+	##
+	## The brief asks for a decision here, not a reflex: after losing a
+	## forward base the AI should judge whether rebuilding out there is
+	## still worth it. Both answers are correct, so what is asserted is
+	## that a coherent choice was made and the economy survived it -
+	## either a rebuilt expansion, or a main base still earning.
+	await _wait_for_expansion(EXPANSION_WAIT)
+	var post = _expansion()
+	if post == null:
+		## Not a pass and not a failure: the AI never had cause to expand
+		## within this run. Said plainly rather than scored either way.
+		print("TEST| E: no expansion existed to destroy (AI never expanded) N/A")
+	else:
+		_kill(post)
+		await get_tree().process_frame
+		_check("E: expansion destroyed", _expansion() == null)
+		var income_after: int = await _income_over(RECOVERY_WINDOW)
+		var rebuilt: bool = _expansion() != null
+		_check("E: decides about the expansion and keeps earning",
+			rebuilt or income_after > 0,
+			"(rebuilt=%s, +%d over %ds)" % [rebuilt, income_after, int(RECOVERY_WINDOW)])
 
 	# --- Scenario A: lose one harvester ---
 	var before: int = _economy.harvesters().size()

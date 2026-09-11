@@ -53,6 +53,16 @@ const STAGING_STANDOFF: float = 42.0
 ## Reinforcements wait until they are worth sending as a body.
 const REINFORCE_MIN_VALUE: int = 1800
 const MIN_SIEGE_SHARE: float = 0.2
+## How far a committed wave will divert for an economic target. Small on
+## purpose: harassment is an opportunity taken on the way, not a reason
+## to drag an army across the map.
+const OPPORTUNITY_RADIUS: float = 55.0
+## Each piece of player economy destroyed buys this much extra tolerance
+## for losses, and the bonus decays. Killing an economy should encourage
+## the AI to press, not to declare the objective complete and leave.
+const CONFIDENCE_PER_KILL: float = 0.08
+const CONFIDENCE_DECAY: float = 0.01
+const MAX_CONFIDENCE: float = 0.25
 
 ## Difficulty -> [think interval, group size scale, scouts, rebuild delay,
 ##                counter-production responsiveness]
@@ -92,6 +102,8 @@ var _current_objective: Vector3 = Vector3.ZERO
 var _rebuild_cooldown: float = 0.0
 var _scouts: Array = []
 var _reinforcements: Array = []
+## Grows when the AI razes the player's economy, decays with time.
+var _confidence: float = 0.0
 
 func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) -> void:
 	_nav_region = nav_region
@@ -106,6 +118,7 @@ func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) 
 	economy.is_player = false
 	economy.reserve_target = RESERVE_BY_DIFFICULTY[difficulty]
 	add_child(economy)
+	EventBus.building_destroyed.connect(_on_building_destroyed)
 	EventBus.harvest_round_trip.connect(func(is_player, seconds):
 		if not is_player:
 			economy.record_round_trip(seconds))
@@ -134,6 +147,7 @@ func _process(delta: float) -> void:
 		return
 	_match_time += delta
 	_rebuild_cooldown = maxf(0.0, _rebuild_cooldown - delta)
+	_confidence = maxf(0.0, _confidence - CONFIDENCE_DECAY * delta)
 	_timer -= delta
 	if _timer > 0.0:
 		return
@@ -627,6 +641,47 @@ func _choose_target() -> Vector3:
 	## Nothing found yet - probe toward the far side of the map.
 	return -base_position
 
+## Phase 15: killing the player's economy is cheaper than killing their
+## base, but only when the target is on the way. Returns the best fresh
+## economic sighting within OPPORTUNITY_RADIUS of where the army already
+## is, ranked harvester -> refinery -> power -> production, or ZERO when
+## nothing qualifies. The radius is what stops this from turning an
+## assault into a wild goose chase.
+const OPPORTUNITY_RANK: Array[String] = [
+	"harvester", "Resource Refinery", "Power Plant", "Vehicle Factory", "Barracks",
+]
+
+func _army_centre() -> Vector3:
+	var sum := Vector3.ZERO
+	var count: int = 0
+	for unit in _attack_group:
+		if is_instance_valid(unit):
+			sum += unit.global_position
+			count += 1
+	if count == 0:
+		return Vector3.ZERO
+	return sum / float(count)
+
+func _opportunity_target(from: Vector3) -> Vector3:
+	if from == Vector3.ZERO:
+		return Vector3.ZERO
+	var best := Vector3.ZERO
+	var best_rank: int = OPPORTUNITY_RANK.size()
+	var best_distance: float = INF
+	for record in memory.fresh_economy_targets():
+		var distance: float = from.distance_to(record["position"])
+		if distance > OPPORTUNITY_RADIUS:
+			continue
+		var rank: int = OPPORTUNITY_RANK.find(record["kind"])
+		if rank < 0:
+			continue
+		if rank > best_rank or (rank == best_rank and distance >= best_distance):
+			continue
+		best_rank = rank
+		best_distance = distance
+		best = record["position"]
+	return best
+
 ## A committed wave that has arrived and run out of things to shoot picks
 ## the next structure rather than standing on the rubble of the first.
 func _retarget_if_objective_cleared() -> void:
@@ -638,6 +693,17 @@ func _retarget_if_objective_cleared() -> void:
 			and unit.global_position.distance_to(_current_objective) < 16.0:
 			arrived += 1
 	if arrived < maxi(2, _attack_group.size() / 2):
+		return
+
+	## Something economic within reach beats walking to the next building
+	## on the list.
+	var opportunity := _opportunity_target(_army_centre())
+	if opportunity != Vector3.ZERO \
+		and opportunity.distance_to(_current_objective) > 6.0:
+		_current_objective = opportunity
+		for unit in _attack_group:
+			if is_instance_valid(unit):
+				unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
 		return
 	## Anything still standing within reach of where they are?
 	for target in get_tree().get_nodes_in_group("player_buildings"):
@@ -653,12 +719,25 @@ func _retarget_if_objective_cleared() -> void:
 				unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
 		return
 
+## Phase 16: the player losing economic infrastructure is a compounding
+## advantage, and the AI should treat it as one. A wave that has just
+## razed a refinery keeps going rather than turning for home on the next
+## casualty.
+func _on_building_destroyed(building: Node) -> void:
+	if not is_instance_valid(building) or building.stats == null:
+		return
+	if not building.is_player_faction or building.is_neutral:
+		return
+	if not AIMemory.ECONOMIC_BUILDINGS.has(building.stats.display_name):
+		return
+	_confidence = minf(MAX_CONFIDENCE, _confidence + CONFIDENCE_PER_KILL)
+
 func _review_attack() -> void:
 	if _attack_group.is_empty():
 		_attack_committed = false
 		return
 	var lost: float = 1.0 - float(_attack_group.size()) / maxf(float(_attack_start_strength), 1.0)
-	if lost < RETREAT_LOSS_FRACTION:
+	if lost < RETREAT_LOSS_FRACTION + _confidence:
 		return
 	## The push has failed. Pull the survivors home rather than feeding
 	## them in one at a time.
