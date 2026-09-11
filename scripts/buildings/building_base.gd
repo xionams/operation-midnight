@@ -33,6 +33,8 @@ const REPAIR_HP_PER_SECOND: float = 0.05
 const REPAIR_CREDITS_PER_HP: float = 0.5
 
 var _body: MeshInstance3D
+## The instanced greybox, kept so capture can repaint its faction slot.
+var _visual_root: Node = null
 var _damage_stage: int = -1
 
 func get_faction() -> int:
@@ -94,6 +96,8 @@ func _build_visual() -> void:
 	if stats and stats.visual_scene:
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
+		_visual_root = visual
+		FactionPaint.apply(visual, _faction_color())
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -155,6 +159,9 @@ func set_faction(player: bool) -> void:
 		var material := _indicator.material_override as StandardMaterial3D
 		if material != null:
 			material.albedo_color = _faction_color()
+	## Capturing a structure repaints it rather than swapping the model.
+	if _visual_root != null:
+		FactionPaint.apply(_visual_root, _faction_color())
 	if health != null:
 		health.heal_to_full()
 

@@ -163,6 +163,9 @@ func _build_visual() -> void:
 	if stats and stats.visual_scene:
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
+		## The model carries its own faction markings in a named material
+		## slot, so it needs painting rather than a separate indicator box.
+		FactionPaint.apply(visual, FactionPaint.color_for(is_player_faction))
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)

@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="UnitStats" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 [ext_resource type="Resource" path="res://config/weapons/tank_cannon.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/main_battle_tank.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://assets/models/main_battle_tank.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -31,4 +32,4 @@ cargo_capacity = 0.0
 load_time = 0.0
 unload_time = 0.0
 unit_scene = ExtResource("9")
-visual_scene = null
+visual_scene = ExtResource("10")

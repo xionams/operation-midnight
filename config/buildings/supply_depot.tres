@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="BuildingStats" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/strategic_structure.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/supply_depot.glb" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -22,5 +23,5 @@ vision_range = 12.0
 footprint = Vector2(7, 7)
 body_color = Color(0.5, 0.42, 0.25, 1)
 body_size = Vector3(6, 3.6, 6)
-visual_scene = null
+visual_scene = ExtResource("3")
 scene = ExtResource("2")
