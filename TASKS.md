@@ -1,5 +1,43 @@
 # Operation Midnight — Task Board
 
+## Milestone 6 — AI Economy & Match Closure (in progress)
+
+Objective: NORMAL AI must destroy a passive player's Command HQ in 8-15
+minutes, 3/3, using the same economy the player has.
+
+### Measured baseline (before this milestone's fixes)
+
+    t=  0  cr=3900  in/min=    0  out/min=    0  ref=0  harv=0
+    t= 30  cr=1600  in/min=    0  out/min= 6799  ref=1  harv=1
+    t= 90  cr=   0  in/min= 2799  out/min= 6399  ref=2  harv=3
+    t=120  cr=1600  in/min= 5599  out/min= 2399  ref=2  harv=4
+
+Spend outran income better than 2:1 and the treasury hit zero at t=90.
+The commander was insolvent, not mis-targeted.
+
+### Done
+- [x] Phase 1 economy instrumentation (AIEconomy + 30s snapshots)
+- [x] Phase 2 treasury reserve, abandoned when the economy is crippled
+- [x] Phase 3 spending priority ladder (CRITICAL..LUXURY)
+- [x] Phase 4 harvester saturation, 3/refinery, 4 on long routes
+- [x] Phase 5 second refinery in every opening, before the tech tier
+- [x] Phase 6 offensives gated on the economy replacing casualties
+- [x] Phase 7 expansion conditions include inadequate income
+- [x] Phase 8 round-trip measurement feeding saturation policy
+- [x] Phase 10 army value by role, not unit count
+- [x] Phase 11 siege share requirement (20% of army value)
+- [x] Phase 12 attack thresholds by credit value
+- [x] Phase 13 reinforcements released as a body
+- [x] Phase 14 staging point short of the objective
+- [x] Phase 21 ai_passive_player_test with binary pass/fail
+- [x] Phase 25 AI economy debug panel
+
+### Outstanding
+- [ ] Phase 22 three repeat passive wins
+- [ ] Phase 23 economy damage/recovery scenario
+- [ ] Phases 18/19 player-side economy review and field value tuning
+
+
 Living status for the current milestone. `TODO.md` keeps the long-range
 backlog; this file tracks what is in flight.
 

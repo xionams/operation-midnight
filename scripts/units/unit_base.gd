@@ -354,6 +354,9 @@ func _tick_combat_behavior(delta: float) -> void:
 func _should_return_home() -> bool:
 	if current_command == CommandTypes.Type.ATTACK_MOVE \
 		or current_command == CommandTypes.Type.MOVE:
+		## An advancing unit has no post to return to; where it stands now
+		## becomes home if it is ever told to hold.
+		_guard_origin = global_position
 		return false
 	if nav_agent != null and not nav_agent.is_navigation_finished():
 		return false
@@ -399,8 +402,32 @@ func _tick_guard() -> void:
 		and (nav_agent == null or nav_agent.is_navigation_finished()):
 		move_to(post)
 
+## Acquisition considers units FIRST, then structures.
+##
+## Structures were previously not considered at all, which meant an
+## attack-move could never engage a base: an army would arrive at the
+## enemy HQ and stand there indefinitely because nothing ever became a
+## target. It is why sieges never resolved for either side.
+##
+## Units still take precedence at equal opportunity - something shooting
+## back is the more urgent problem - so this does not turn troops into
+## building-obsessed sappers that ignore the defenders.
 func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
-	var group: String = "enemy_units" if is_player_faction else "player_units"
+	var unit_group: String = "enemy_units" if is_player_faction else "player_units"
+	var found := _nearest_in_group(unit_group, radius, attacker)
+	if found != null:
+		return found
+
+	var building_group: String = "enemy_buildings" if is_player_faction else "player_buildings"
+	return _nearest_in_group(building_group, radius, attacker)
+
+## Advancing orders ignore the leash; holding orders honour it.
+func _leash_applies() -> bool:
+	return current_command != CommandTypes.Type.ATTACK_MOVE \
+		and current_command != CommandTypes.Type.MOVE \
+		and current_command != CommandTypes.Type.PATROL
+
+func _nearest_in_group(group: String, radius: float, attacker: AttackerComponent) -> Node:
 	var best: Node = null
 	var best_dist: float = INF
 	for candidate in get_tree().get_nodes_in_group(group):
@@ -415,10 +442,15 @@ func _nearest_hostile(radius: float, attacker: AttackerComponent) -> Node:
 		var dist: float = global_position.distance_to(candidate.global_position)
 		if dist > radius or dist >= best_dist:
 			continue
-		## Never chase further from home than the leash allows.
-		var leash: float = STANCE_LEASH.get(stance, MAX_CHASE_DISTANCE)
-		if leash > 0.0 and candidate.global_position.distance_to(_guard_origin) > leash + radius:
-			continue
+		## The leash keeps a unit holding a position from wandering off
+		## after a target. It must NOT restrict a unit that was ordered to
+		## advance: _guard_origin is where the order was given, so once an
+		## attack-move had travelled further than the leash it rejected
+		## every target in front of it and the assault simply stopped.
+		if _leash_applies():
+			var leash: float = STANCE_LEASH.get(stance, MAX_CHASE_DISTANCE)
+			if leash > 0.0 and candidate.global_position.distance_to(_guard_origin) > leash + radius:
+				continue
 		best_dist = dist
 		best = candidate
 	return best
