@@ -44,18 +44,20 @@ def asset(asset_id, cls, size, builder, description, tri_budget):
 
 # ------------------------------------------------------- shared motifs
 
-def faction_band(mesh, width, height, depth, thickness=0.28):
-    """A roof band across the widest face plus a front stripe.
+def faction_band(mesh, width, height, depth, thickness=0.14):
+    """A roof band across the front edge plus one flank stripe.
 
     Section 8 of the art direction: faction colour on upward-facing
-    surfaces, 8-15% of visible area. This is the single most important
-    readability element in the game, so it is one shared function rather
-    than something each asset improvises.
+    surfaces, 8-15% of visible area. The first cut of this covered about
+    a quarter of every roof, which read as a toy rather than a marking -
+    these proportions come to roughly 11%. It is one shared function
+    rather than something each asset improvises, so the whole game moves
+    together when it is tuned.
     """
-    box(mesh, "Faction", (width * 0.82, thickness, depth * 0.16),
-        (0.0, height + thickness * 0.35, -depth * 0.30))
-    box(mesh, "Faction", (width * 0.16, thickness * 0.8, depth * 0.72),
-        (width * 0.34, height + thickness * 0.3, depth * 0.05))
+    box(mesh, "Faction", (width * 0.70, thickness, depth * 0.085),
+        (0.0, height + thickness * 0.5, -depth * 0.33))
+    box(mesh, "Faction", (width * 0.085, thickness, depth * 0.50),
+        (width * 0.36, height + thickness * 0.5, depth * 0.02))
 
 
 def roof_vents(mesh, count, width, height, depth, radius=0.28):
@@ -106,9 +108,9 @@ def crates(mesh, origin, count=3, scale=1.0):
 def _command_hq():
     m = Mesh()
     w, h, d = 9.0, 5.0, 9.0
-    box(m, "Hull", (w, 2.6, d), (0, 1.3, 0), chamfer=0.22)
-    box(m, "Hull", (w * 0.62, 1.5, d * 0.62), (0, 3.35, 0.4), chamfer=0.18)
-    box(m, "Glass", (w * 0.58, 0.55, d * 0.10), (0, 3.5, -d * 0.30))
+    box(m, "Hull", (w, 3.4, d), (0, 1.7, 0), chamfer=0.22)
+    box(m, "Hull", (w * 0.62, 1.6, d * 0.62), (0, 4.2, 0.4), chamfer=0.18)
+    box(m, "Glass", (w * 0.58, 0.55, d * 0.10), (0, 4.3, -d * 0.30))
     # Command mast at the rear, the tallest thing in any player base.
     cylinder(m, "Metal", 0.16, 3.4, (-w * 0.30, h - 0.7, d * 0.34), segments=8)
     box(m, "Metal", (1.5, 0.1, 0.1), (-w * 0.30, h + 0.6, d * 0.34))
@@ -118,15 +120,15 @@ def _command_hq():
     box(m, "Concrete", (w * 0.9, 0.18, 1.5), (0, 0.09, -d * 0.41))
     for side in (-1, 1):
         box(m, "Dark", (0.5, 2.0, 0.5), (side * w * 0.40, 1.0, -d * 0.40), chamfer=0.08)
-    roof_vents(m, 3, w, 2.6, d * 0.7)
-    faction_band(m, w, 2.6, d)
+    roof_vents(m, 3, w, 3.4, d * 0.7)
+    faction_band(m, w, 3.4, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _power_plant():
     m = Mesh()
     w, h, d = 5.0, 3.2, 5.0
-    box(m, "Hull", (w, 2.0, d), (0, 1.0, 0), chamfer=0.18)
+    box(m, "Hull", (w, 2.4, d), (0, 1.2, 0), chamfer=0.18)
     # Two cooling towers: the identifying read from above.
     for side in (-1, 1):
         cylinder(m, "Concrete", 1.05, 1.6, (side * 1.25, 2.8, 0.9), segments=12, top_radius=0.85)
@@ -136,14 +138,14 @@ def _power_plant():
         cylinder(m, "Metal", 0.14, w * 0.8, (0, 0.7 + i * 0.45, -d * 0.42),
                  segments=6, axis="x")
     box(m, "Dark", (1.4, 1.2, 0.3), (0, 0.6, -d / 2.0 + 0.08))
-    faction_band(m, w, 2.0, d)
+    faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _refinery():
     m = Mesh()
     w, h, d = 7.0, 3.6, 7.0
-    box(m, "Hull", (w * 0.92, 1.9, d * 0.86), (0, 0.95, 0.3), chamfer=0.2)
+    box(m, "Hull", (w * 0.92, 2.4, d * 0.86), (0, 1.2, 0.3), chamfer=0.2)
     # The hopper is the dominant read.
     box(m, "Rust", (2.8, 1.9, 2.8), (-w * 0.14, 2.75, 0.7), chamfer=0.3)
     wedge(m, "Rust", (2.8, 1.0, 2.8), (-w * 0.14, 1.4, 0.7))
@@ -155,30 +157,30 @@ def _refinery():
     box(m, "Metal", (0.26, 0.26, 2.6), (-w * 0.14, 3.9, 0.7))
     for i in range(2):
         box(m, "Amber", (0.5, 0.3, 0.5), (-w * 0.14 + (i - 0.5) * 1.4, 3.85, 0.7))
-    faction_band(m, w, 1.9, d)
+    faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _barracks():
     m = Mesh()
     w, h, d = 6.0, 3.4, 6.0
-    box(m, "Hull", (w, 2.2, d * 0.8), (0, 1.1, 0.3), chamfer=0.18)
-    wedge(m, "Hull", (w, 0.9, d * 0.8), (0, 2.65, 0.3))
+    box(m, "Hull", (w, 2.6, d * 0.8), (0, 1.3, 0.3), chamfer=0.18)
+    wedge(m, "Hull", (w, 0.9, d * 0.8), (0, 3.05, 0.3))
     box(m, "Dark", (1.5, 1.6, 0.3), (0, 0.8, -d * 0.10))
     box(m, "Concrete", (w * 0.7, 0.16, 1.4), (0, 0.08, -d * 0.38))
     sandbags(m, -w * 0.30, -d * 0.40, 1.8)
     sandbags(m, w * 0.30, -d * 0.40, 1.8)
     cylinder(m, "Metal", 0.1, 2.4, (w * 0.40, h - 0.2, d * 0.36), segments=6)
-    roof_vents(m, 2, w, 3.1, d * 0.5, radius=0.22)
-    faction_band(m, w, 2.2, d)
+    roof_vents(m, 2, w, 3.5, d * 0.5, radius=0.22)
+    faction_band(m, w, 2.6, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _war_factory():
     m = Mesh()
     w, h, d = 9.0, 4.2, 9.0
-    box(m, "Hull", (w, 2.6, d * 0.9), (0, 1.3, 0.2), chamfer=0.22)
-    wedge(m, "Steel", (w, 1.1, d * 0.9), (0, 3.15, 0.2))
+    box(m, "Hull", (w, 3.2, d * 0.9), (0, 1.6, 0.2), chamfer=0.22)
+    wedge(m, "Steel", (w, 1.1, d * 0.9), (0, 3.75, 0.2))
     # Roll-up door, the width of a tank, facing -Z.
     box(m, "Dark", (4.0, 2.2, 0.35), (0, 1.1, -d * 0.42))
     for i in range(5):
@@ -189,33 +191,33 @@ def _war_factory():
     box(m, "Metal", (w * 0.85, 0.3, 0.4), (0, 4.6, d * 0.22))
     box(m, "Dark", (0.6, 0.7, 0.6), (w * 0.12, 4.1, d * 0.22))
     box(m, "Concrete", (5.2, 0.16, 2.0), (0, 0.08, -d * 0.39))
-    roof_vents(m, 3, w, 3.6, d * 0.6)
-    faction_band(m, w, 2.6, d)
+    roof_vents(m, 3, w, 4.2, d * 0.6)
+    faction_band(m, w, 3.2, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _radar_center():
     m = Mesh()
     w, h, d = 6.0, 6.5, 6.0
-    box(m, "Hull", (w * 0.9, 2.0, d * 0.9), (0, 1.0, 0), chamfer=0.2)
-    box(m, "Steel", (2.2, 2.4, 2.2), (0, 3.2, 0.5), chamfer=0.15)
+    box(m, "Hull", (w * 0.9, 2.6, d * 0.9), (0, 1.3, 0), chamfer=0.2)
+    box(m, "Steel", (2.2, 2.2, 2.2), (0, 3.7, 0.5), chamfer=0.15)
     # The dish IS the building. Tilted so it reads from above.
     cylinder(m, "Metal", 0.22, 1.2, (0, 4.9, 0.5), segments=8)
     cylinder(m, "Concrete", 1.9, 0.3, (0, 5.7, 0.2), segments=14, top_radius=2.1)
     cylinder(m, "Dark", 1.55, 0.16, (0, 5.86, 0.2), segments=14)
     box(m, "Metal", (0.14, 0.9, 0.14), (0, 6.1, 0.2))
     box(m, "Glass", (w * 0.5, 0.5, 0.1), (0, 1.5, -d * 0.45))
-    faction_band(m, w, 2.0, d)
+    faction_band(m, w, 2.6, d)
     return [("Body", m, (0, 0, 0))]
 
 
 def _tech_center():
     m = Mesh()
     w, h, d = 7.5, 5.0, 7.5
-    box(m, "Hull", (w, 2.2, d), (0, 1.1, 0), chamfer=0.22)
-    box(m, "Steel", (w * 0.66, 1.5, d * 0.66), (0, 3.0, 0), chamfer=0.16)
-    box(m, "Glass", (w * 0.62, 0.9, d * 0.02), (0, 3.05, -d * 0.33))
-    box(m, "Glass", (w * 0.02, 0.9, d * 0.62), (-w * 0.33, 3.05, 0))
+    box(m, "Hull", (w, 2.9, d), (0, 1.45, 0), chamfer=0.22)
+    box(m, "Steel", (w * 0.66, 1.6, d * 0.66), (0, 3.7, 0), chamfer=0.16)
+    box(m, "Glass", (w * 0.62, 0.9, d * 0.02), (0, 3.75, -d * 0.33))
+    box(m, "Glass", (w * 0.02, 0.9, d * 0.62), (-w * 0.33, 3.75, 0))
     # Antenna array at the rear.
     for i in range(3):
         x = (i - 1) * 1.1
@@ -223,7 +225,7 @@ def _tech_center():
                  segments=6)
     box(m, "Metal", (2.6, 0.1, 0.1), (0, 4.9, d * 0.30))
     box(m, "Dark", (1.6, 1.5, 0.3), (0, 0.75, -d / 2.0 + 0.08))
-    faction_band(m, w, 2.2, d)
+    faction_band(m, w, 2.9, d)
     return [("Body", m, (0, 0, 0))]
 
 
@@ -336,13 +338,13 @@ def _supply_depot():
     m = Mesh()
     w, h, d = 6.0, 3.6, 6.0
     box(m, "Concrete", (w, 0.2, d), (0, 0.1, 0))
-    box(m, "Hull", (w * 0.85, 1.8, d * 0.45), (0, 1.0, d * 0.26), chamfer=0.16)
-    wedge(m, "Steel", (w * 0.85, 0.7, d * 0.45), (0, 2.25, d * 0.26))
+    box(m, "Hull", (w * 0.85, 2.4, d * 0.45), (0, 1.2, d * 0.26), chamfer=0.16)
+    wedge(m, "Steel", (w * 0.85, 0.8, d * 0.45), (0, 2.8, d * 0.26))
     crates(m, (-w * 0.24, 0.0, -d * 0.26), count=3, scale=1.0)
     crates(m, (w * 0.26, 0.0, -d * 0.18), count=2, scale=0.9)
     for i in range(2):
         cylinder(m, "Rust", 0.32, 0.9, (w * 0.36, 0.45, d * 0.02 - i * 0.75), segments=10)
-    faction_band(m, w, 1.8, d)
+    faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
 

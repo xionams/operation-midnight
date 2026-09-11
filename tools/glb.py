@@ -178,6 +178,18 @@ def wedge(mesh, material, size, pos=(0.0, 0.0, 0.0), rot_y=0.0):
     mesh.add_tri(material, bl[1], tl[1], bl[2])
 
 
+def srgb_to_linear(channel):
+    """glTF baseColorFactor is LINEAR; the palette is authored in sRGB.
+
+    Skipping this conversion is not a subtle error - it washes the whole
+    game out, turning gunmetal (0.227) into light grey (0.514). Godot
+    converts back on display, so the two must agree.
+    """
+    if channel <= 0.04045:
+        return channel / 12.92
+    return ((channel + 0.055) / 1.055) ** 2.4
+
+
 def _pad(data, alignment=4, fill=b"\x00"):
     remainder = len(data) % alignment
     return data if remainder == 0 else data + fill * (alignment - remainder)
@@ -195,17 +207,18 @@ def write_glb(path, name, nodes, materials):
 
     for mat_name, rgba in materials.items():
         roughness, metallic = MATERIAL_PRESETS.get(mat_name, (0.8, 0.0))
+        linear = [srgb_to_linear(c) for c in rgba[:3]] + [rgba[3]]
         entry = {
             "name": mat_name,
             "pbrMetallicRoughness": {
-                "baseColorFactor": list(rgba),
+                "baseColorFactor": linear,
                 "metallicFactor": metallic,
                 "roughnessFactor": roughness,
             },
             "doubleSided": False,
         }
         if mat_name == "Emissive":
-            entry["emissiveFactor"] = list(rgba[:3])
+            entry["emissiveFactor"] = linear[:3]
         material_index[mat_name] = len(gltf_materials)
         gltf_materials.append(entry)
 
