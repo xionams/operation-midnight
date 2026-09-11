@@ -32,10 +32,47 @@ The commander was insolvent, not mis-targeted.
 - [x] Phase 21 ai_passive_player_test with binary pass/fail
 - [x] Phase 25 AI economy debug panel
 
+- [x] Phase 22 three repeat passive wins (4:21, 4:50, 5:15 - all PASS)
+- [x] Phase 24 full regression after the economy changes: 7/7 suites,
+      0 failures (logic, fog, depth, economy_regression, infrastructure,
+      vertical_slice, ai)
+
+### Decisive defect found this milestone
+
+`UnitBase._nearest_hostile()` only ever scanned unit groups, never
+building groups, so an attack-move could not acquire a structure: armies
+arrived at a base and stood in it. A second defect measured targets
+against `_guard_origin` - where the order was issued - so an advancing
+unit rejected everything once it had moved ~30m. Together these are why
+sieges never resolved, for either side, across three milestones. Fixed
+in `58254a0`.
+
+### Economy measurements (Phases 18/19/20)
+
+Harvest rate is 700 credits per round trip. Measured trips and the
+resulting income, NORMAL AI, passive opponent:
+
+    1 refinery,  3 harvesters, trip 25s   ->  ~2,800 cr/min observed
+    2 refineries, 6 harvesters, trip 21s  ->  12,598 cr/min observed
+                                              (theory 6*700*60/21 = 12,000)
+
+Against production costs: a Vehicle Factory running continuously is
+1800/18s = 6,000 cr/min, a Barracks 300/5s = 3,600 cr/min. A saturated
+two-refinery economy funds both plus construction, which is the intent.
+
+The catch is duration, not rate. Each home field holds 16,000 - about
+23 loads - so six saturated harvesters strip it in under two minutes.
+The logs show exactly that: `trip` climbs 21s -> 43s -> 65s as harvesters
+fall back to the central field 103m away, and total harvested (20,200 -
+23,700) exceeds the 16,000 a home field contains. Income after the home
+field dies is roughly 5,000 cr/min, enough for one production building.
+
+That pressure toward the contested centre is a design property worth
+keeping, not a bug to tune away; it is recorded here so the next balance
+pass starts from the measurement.
+
 ### Outstanding
-- [ ] Phase 22 three repeat passive wins
-- [ ] Phase 23 economy damage/recovery scenario
-- [ ] Phases 18/19 player-side economy review and field value tuning
+- [ ] Phase 23 scenario D: AI power restoration after losing generators
 
 
 Living status for the current milestone. `TODO.md` keeps the long-range

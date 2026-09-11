@@ -37,10 +37,30 @@ func _check(name: String, cond: bool, detail: String = "") -> void:
 	if not cond:
 		_fails.append(name + " " + detail)
 
+## The AI now wins this matchup in four to five minutes, and once the
+## match ends the director stops thinking - which silently invalidated
+## every scenario that ran after that point. Keep the player's HQ
+## standing so the match continues; this test is about economic
+## recovery, not about whether the AI can finish a kill.
+func _keep_match_alive() -> void:
+	var hq := _player_hq()
+	if hq == null or hq.health == null:
+		return
+	if hq.health.current_health < hq.health.max_health:
+		hq.health.current_health = hq.health.max_health
+
+func _player_hq() -> Node:
+	for b in get_tree().get_nodes_in_group("player_buildings"):
+		if is_instance_valid(b) and b.stats != null \
+			and b.stats.display_name == "Command Headquarters":
+			return b
+	return null
+
 func _wait(seconds: float) -> void:
 	var elapsed: float = 0.0
 	while elapsed < seconds:
 		elapsed += get_process_delta_time()
+		_keep_match_alive()
 		await get_tree().process_frame
 
 ## Measures whether money actually arrives over a window, which is the
@@ -51,6 +71,7 @@ func _income_over(seconds: float) -> int:
 	var elapsed: float = 0.0
 	while elapsed < seconds:
 		elapsed += get_process_delta_time()
+		_keep_match_alive()
 		await get_tree().process_frame
 		var now: int = GameState.enemy_credits
 		if now > last:
@@ -69,6 +90,8 @@ func _run() -> void:
 	## Let the AI establish itself on its own income first.
 	await _wait(SETTLE)
 	print("TEST| settled: %s" % _economy.format_line(SETTLE))
+	_check("Match still running (AI has not won yet)",
+		GameState.match_state == GameState.MatchState.PLAYING)
 	_check("AI established an economy before damage",
 		_economy.refineries().size() >= 1 and _economy.harvesters().size() >= 2,
 		"(%d refineries, %d harvesters)" % [
@@ -101,8 +124,10 @@ func _run() -> void:
 		_kill(_economy.refineries()[0])
 	await get_tree().process_frame
 	await _wait(RECOVERY_WINDOW)
+	## Assert the count actually returns to what it was. The previous
+	## form passed while the AI rebuilt nothing at all.
 	_check("B: rebuilds a destroyed refinery",
-		_economy.refineries().size() >= mini(refineries_before, 1),
+		_economy.refineries().size() >= refineries_before,
 		"(%d -> %d)" % [refineries_before, _economy.refineries().size()])
 
 	# --- Scenario D: lose power ---
