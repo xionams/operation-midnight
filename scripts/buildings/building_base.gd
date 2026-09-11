@@ -36,6 +36,7 @@ var _body: MeshInstance3D
 ## The instanced greybox, kept so capture can repaint its faction slot.
 var _visual_root: Node = null
 var _damage_stage: int = -1
+var _damage_plume: Node = null
 
 func get_faction() -> int:
 	return GameState.Faction.PLAYER if is_player_faction else GameState.Faction.ENEMY
@@ -256,6 +257,7 @@ func _refresh_damage_visual() -> void:
 	if stage == _damage_stage:
 		return
 	_damage_stage = stage
+	_refresh_damage_plume(stage)
 	var material := _body.material_override as StandardMaterial3D
 	if material == null:
 		return
@@ -265,7 +267,20 @@ func _refresh_damage_visual() -> void:
 		1: material.albedo_color = base.darkened(0.28)
 		2: material.albedo_color = base.darkened(0.55).lerp(Color(0.15, 0.08, 0.05), 0.35)
 
+## Smoke from stage 1, fire as well from stage 2, and nothing at all once
+## repaired - a burning building that stays burning after repair teaches
+## the player to distrust the effect.
+func _refresh_damage_plume(stage: int) -> void:
+	if _damage_plume != null and is_instance_valid(_damage_plume):
+		_damage_plume.queue_free()
+		_damage_plume = null
+	if stage <= 0:
+		return
+	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
+	_damage_plume = VFX.damage_plume(self, Vector3(0, size.y * 0.85, 0), stage)
+
 func _on_died() -> void:
+	VFX.explosion_large(self, global_position + Vector3.UP)
 	MatchStats.record_building_death(is_player_faction and not is_neutral)
 	AudioDirector.play("explosion")
 	_unregister_power()

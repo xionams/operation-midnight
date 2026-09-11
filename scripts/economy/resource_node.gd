@@ -47,29 +47,16 @@ func _build_collision() -> void:
 	shape.position = Vector3(0, 1, 0)
 	add_child(shape)
 
-func _build_visual() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = get_instance_id()
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.15, 0.85, 0.65)
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+const ORE_MODEL: PackedScene = preload("res://assets/models/ore_field.glb")
 
+func _build_visual() -> void:
 	var crystals := Node3D.new()
 	crystals.name = "Crystals"
 	add_child(crystals)
-
-	for i in range(6):
-		var crystal := MeshInstance3D.new()
-		var mesh := PrismMesh.new()
-		var height: float = rng.randf_range(1.0, 2.4)
-		mesh.size = Vector3(0.8, height, 0.8)
-		crystal.mesh = mesh
-		crystal.material_override = material
-		var angle: float = rng.randf_range(0, TAU)
-		var radius: float = rng.randf_range(0.2, 1.4)
-		crystal.position = Vector3(cos(angle) * radius, height / 2.0, sin(angle) * radius)
-		crystal.rotation.y = rng.randf_range(0, TAU)
-		crystals.add_child(crystal)
+	## Amber ore on a dark apron rather than green crystals: resources are
+	## a signal colour in this game's palette, and "crystal" read as
+	## fantasy rather than as the industrial mining the fiction wants.
+	crystals.add_child(ORE_MODEL.instantiate())
 
 func _update_visual_scale() -> void:
 	var crystals := get_node_or_null("Crystals")

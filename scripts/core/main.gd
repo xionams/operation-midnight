@@ -70,6 +70,7 @@ const START_REVEAL_RADIUS: float = 34.0
 var _level: Node3D
 var _nav_region: NavigationRegion3D
 var _construction: ConstructionQueue
+var _scenery: Scenery
 var _bounds_min: Vector2
 var _bounds_max: Vector2
 
@@ -87,6 +88,7 @@ func _ready() -> void:
 	_spawn_resource_fields()
 	_spawn_neutral_structure()
 	_spawn_terrain_blockers()
+	_dress_battlefield()
 	_nav_region.bake_navigation_mesh(false)
 
 	## Seed the player's own ground as explored, then run one vision pass
@@ -285,8 +287,32 @@ func _spawn_strategic(stats: BuildingStats, pos: Vector3, benefit: int) -> void:
 ## Rock formations and barriers, so the battlefield has routes and choke
 ## points rather than being one open rectangle. Placeholder boxes: they
 ## exist to shape navigation, not to look like anything yet.
-func _spawn_terrain_blockers() -> void:
-	var blockers: Array = [
+## Presentation only: pads, roads and props, none of which collide, so
+## the navmesh and every existing path are unchanged.
+func _dress_battlefield() -> void:
+	_scenery = Scenery.new()
+	_scenery.name = "Scenery"
+	_scenery.map_size = map_size
+	_level.add_child(_scenery)
+
+	for field in [RESOURCE_NODE_A_POS, RESOURCE_NODE_B_POS,
+			RESOURCE_NODE_CENTRAL_POS, RESOURCE_NODE_ENEMY_POS]:
+		_scenery._exclude(field, 11.0)
+	for position in CIVILIAN_POSITIONS:
+		_scenery._exclude(position, 9.0)
+	for position in [COMMS_OUTPOST_POS, REPAIR_DEPOT_POS, SUPPLY_DEPOT_POS]:
+		_scenery._exclude(position, 9.0)
+	for entry in _blocker_layout():
+		_scenery.dress_blocker(entry[0], entry[1])
+
+	_scenery.decorate_base(PLAYER_BASE_POS, true)
+	_scenery.decorate_base(ENEMY_BASE_POS, false)
+	_scenery.lay_road(PLAYER_BASE_POS + Vector3(14, 0, -14), RESOURCE_NODE_CENTRAL_POS)
+	_scenery.lay_road(RESOURCE_NODE_CENTRAL_POS, ENEMY_BASE_POS + Vector3(-14, 0, 14))
+	_scenery.scatter(map_size, 90)
+
+func _blocker_layout() -> Array:
+	return [
 		[Vector3(-34, 0, 30), Vector3(30, 7, 10)],
 		[Vector3(-4, 0, 40), Vector3(10, 7, 34)],
 		[Vector3(34, 0, 26), Vector3(36, 7, 10)],
@@ -298,7 +324,9 @@ func _spawn_terrain_blockers() -> void:
 		## sitting across it wedged their harvesters against the rock.
 		[Vector3(74, 0, -22), Vector3(10, 7, 22)],
 	]
-	for entry in blockers:
+
+func _spawn_terrain_blockers() -> void:
+	for entry in _blocker_layout():
 		_spawn_blocker(entry[0], entry[1])
 
 func _spawn_blocker(pos: Vector3, size: Vector3) -> void:
@@ -315,15 +343,9 @@ func _spawn_blocker(pos: Vector3, size: Vector3) -> void:
 	shape.position = Vector3(0, size.y / 2.0, 0)
 	rock.add_child(shape)
 
-	var mesh_instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh_instance.mesh = mesh
-	mesh_instance.position = Vector3(0, size.y / 2.0, 0)
-	## Blockers fog exactly like the ground, so terrain shape is part of
-	## what the player has to discover rather than a free map outline.
-	mesh_instance.material_override = _make_fog_material(Color(0.28, 0.26, 0.24))
-	rock.add_child(mesh_instance)
+	## No mesh: Scenery.dress_blocker() puts rock faces on this footprint.
+	## The collision box below is what actually blocks movement, and it is
+	## unchanged.
 
 	_nav_region.add_child(rock)
 	rock.global_position = pos

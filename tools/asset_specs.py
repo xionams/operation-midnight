@@ -703,10 +703,10 @@ def _road_segment():
 
 def _base_pad():
     m = Mesh()
+    ## A plain slab with no kerb: pads are laid edge to edge, and any trim
+    ## on the border draws a grid of seams across what should read as one
+    ## continuous apron.
     box(m, "Concrete", (10.0, 0.08, 10.0), (0, 0.04, 0))
-    for sx in (-1, 1):
-        box(m, "Concrete_Dark", (0.3, 0.10, 10.0), (sx * 4.85, 0.05, 0))
-        box(m, "Concrete_Dark", (10.0, 0.10, 0.3), (0, 0.05, sx * 4.85))
     return [("Body", m, (0, 0, 0))]
 
 

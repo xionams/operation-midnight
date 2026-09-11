@@ -177,6 +177,10 @@ func _build_production_panel() -> void:
 		var tab := Button.new()
 		tab.text = category.substr(0, 4)
 		tab.tooltip_text = category
+		var tab_icon := Icons.for_category(category)
+		if tab_icon != null:
+			tab.icon = tab_icon
+			tab.expand_icon = true
 		tab.custom_minimum_size = Vector2(60, 26)
 		tab.add_theme_font_size_override("font_size", 12)
 		tab.pressed.connect(func(): _set_category(category))
@@ -205,6 +209,12 @@ func _set_category(category: String) -> void:
 		row.custom_minimum_size = Vector2(PANEL_W - 30, ITEM_H)
 		row.add_theme_font_size_override("font_size", 13)
 		row.clip_text = true
+		var row_icon := Icons.for_name(stats.display_name)
+		if row_icon != null:
+			row.icon = row_icon
+			row.expand_icon = true
+			row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			row.add_theme_constant_override("h_separation", 8)
 		row.pressed.connect(func(): _on_item_pressed(stats))
 		_item_list.add_child(row)
 		_item_rows[stats] = row
@@ -279,16 +289,19 @@ func _build_selection_panel() -> void:
 	orders.add_theme_constant_override("separation", 3)
 	column.add_child(orders)
 	_attack_move_button = _order_button(orders, "Atk Move",
-		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed))
-	_order_button(orders, "Stop", func(): SelectionManager.command_stop())
-	_order_button(orders, "Guard", func(): SelectionManager.command_guard())
+		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed),
+		"cmd_attack_move")
+	_order_button(orders, "Stop", func(): SelectionManager.command_stop(), "cmd_stop")
+	_order_button(orders, "Guard", func(): SelectionManager.command_guard(), "cmd_guard")
 
 	var stance_row := HBoxContainer.new()
 	stance_row.add_theme_constant_override("separation", 3)
 	column.add_child(stance_row)
-	_order_button(stance_row, "Patrol", func(): SelectionManager.arm_patrol())
-	_order_button(stance_row, "Hold", func(): SelectionManager.set_stance(UnitBase.Stance.HOLD))
-	_order_button(stance_row, "Aggro", func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE))
+	_order_button(stance_row, "Patrol", func(): SelectionManager.arm_patrol(), "cmd_patrol")
+	_order_button(stance_row, "Hold",
+		func(): SelectionManager.set_stance(UnitBase.Stance.HOLD), "cmd_hold")
+	_order_button(stance_row, "Aggro",
+		func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE), "cmd_aggro")
 
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 3)
@@ -306,15 +319,22 @@ func _build_selection_panel() -> void:
 	_building_actions.add_theme_constant_override("separation", 3)
 	_building_actions.visible = false
 	column.add_child(_building_actions)
-	_order_button(_building_actions, "Sell", _on_sell_pressed)
-	_order_button(_building_actions, "Repair", _on_repair_pressed)
-	_order_button(_building_actions, "Rally", func(): SelectionManager.arm_rally_point())
+	_order_button(_building_actions, "Sell", _on_sell_pressed, "cmd_sell")
+	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair")
+	_order_button(_building_actions, "Rally",
+		func(): SelectionManager.arm_rally_point(), "cmd_move")
 
-func _order_button(parent: Control, text: String, handler: Callable) -> Button:
+func _order_button(parent: Control, text: String, handler: Callable,
+		icon_name: String = "") -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(82, 30)
 	button.add_theme_font_size_override("font_size", 13)
+	var icon := Icons.get_icon(icon_name)
+	if icon != null:
+		button.icon = icon
+		button.expand_icon = true
+		button.add_theme_constant_override("h_separation", 4)
 	button.pressed.connect(handler)
 	parent.add_child(button)
 	return button

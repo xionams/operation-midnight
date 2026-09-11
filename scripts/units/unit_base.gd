@@ -550,6 +550,12 @@ func _crush_what_we_drove_over() -> void:
 			victim_health.take_damage(victim_health.max_health * 10.0, self)
 
 func _on_died() -> void:
+	## Infantry fall; vehicles burn. The difference is what tells a player
+	## at a glance how much they just lost.
+	if stats != null and not stats.is_infantry:
+		VFX.vehicle_wreck(self, global_position)
+	else:
+		VFX.impact(self, global_position + Vector3.UP * 0.6)
 	MatchStats.record_unit_death(is_player_faction)
 	died.emit(self)
 	SelectionManager.notify_unit_removed(self)

@@ -58,6 +58,22 @@ func fire_at(target: Node3D, from_position: Vector3) -> void:
 
 	AudioDirector.play("attack")
 	_spawn_tracer(from_position, target.global_position)
+	_spawn_fire_effects(from_position, target.global_position)
+
+## Presentation only. The scale of the effect follows the weapon's own
+## numbers rather than a per-unit switch, so a new weapon gets a sensible
+## flash for free and artillery never looks like a rifle.
+func _spawn_fire_effects(from_position: Vector3, impact_position: Vector3) -> void:
+	var direction: Vector3 = (impact_position - from_position).normalized()
+	if stats.splash_radius > 0.0:
+		VFX.artillery_flash(self, from_position, direction)
+		VFX.shell_impact(self, impact_position)
+	elif stats.damage >= 60.0:
+		VFX.cannon_flash(self, from_position, direction)
+		VFX.shell_impact(self, impact_position)
+	else:
+		VFX.muzzle_flash(self, from_position, direction)
+		VFX.impact(self, impact_position)
 
 ## Explosive ordnance damages everything near the impact, friend or foe -
 ## which is exactly why artillery is dangerous to use inside your own
