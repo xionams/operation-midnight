@@ -17,6 +17,10 @@ const SCAN_INTERVAL: float = 1.0
 const FORGET_AFTER: float = 240.0
 
 ## display_name -> {count, last_seen}
+## Which side this memory belongs to. The observer is symmetric: it looks
+## out of its own eyes at the other faction's things.
+var is_player: bool = false
+
 var seen_units: Dictionary = {}
 var seen_buildings: Dictionary = {}
 
@@ -29,6 +33,9 @@ var recent_attack_positions: Array[Vector3] = []
 ## matter here in a way they do not for composition counting: a harvester
 ## is only worth attacking where it actually is.
 var seen_economy: Array = []
+## Cost per unit type, learned from what has actually been seen, so the
+## commander can price the opposing army instead of counting heads.
+var _unit_cost: Dictionary = {}
 var losses: Array[Vector3] = []
 
 var _timer: float = 0.0
@@ -44,27 +51,40 @@ func _process(delta: float) -> void:
 
 ## Anything within vision of an AI unit or structure is fair to record.
 ## This is the only place enemy state enters the AI at all.
+func _own_units() -> String:
+	return "player_units" if is_player else "enemy_units"
+
+func _own_buildings() -> String:
+	return "player_buildings" if is_player else "enemy_buildings"
+
+func _foe_units() -> String:
+	return "enemy_units" if is_player else "player_units"
+
+func _foe_buildings() -> String:
+	return "enemy_buildings" if is_player else "player_buildings"
+
 func _observe() -> void:
-	var eyes: Array = get_tree().get_nodes_in_group("enemy_units")
-	eyes.append_array(get_tree().get_nodes_in_group("enemy_buildings"))
+	var eyes: Array = get_tree().get_nodes_in_group(_own_units())
+	eyes.append_array(get_tree().get_nodes_in_group(_own_buildings()))
 	if eyes.is_empty():
 		return
 
 	var fresh_units: Dictionary = {}
-	for target in get_tree().get_nodes_in_group("player_units"):
+	for target in get_tree().get_nodes_in_group(_foe_units()):
 		if not is_instance_valid(target) or target.stats == null:
 			continue
 		if not _visible_to_any(eyes, target.global_position):
 			continue
 		var key: String = target.stats.display_name
 		fresh_units[key] = fresh_units.get(key, 0) + 1
+		_unit_cost[key] = target.stats.cost
 		if target.stats.is_harvester:
 			_record_economy(target.global_position, "harvester", target.stats.cost)
 
 	for key in fresh_units:
 		seen_units[key] = {"count": fresh_units[key], "last_seen": _now}
 
-	for target in get_tree().get_nodes_in_group("player_buildings"):
+	for target in get_tree().get_nodes_in_group(_foe_buildings()):
 		if not is_instance_valid(target) or target.stats == null:
 			continue
 		if not _visible_to_any(eyes, target.global_position):
@@ -155,6 +175,18 @@ func estimated_composition() -> Dictionary:
 	for key in weights:
 		weights[key] /= total
 	return weights
+
+## What the enemy army is worth, in credits, weighted by how stale each
+## sighting is. This is the honest answer to "how strong are they" - it
+## only knows what it has actually seen.
+func seen_army_value() -> int:
+	var total: float = 0.0
+	for key in seen_units:
+		if _unit_cost.get(key, 0) <= 0:
+			continue
+		var record: Dictionary = seen_units[key]
+		total += confidence(record) * float(record.get("count", 0)) * float(_unit_cost[key])
+	return int(total)
 
 func record_attack_at(position: Vector3) -> void:
 	recent_attack_positions.append(position)

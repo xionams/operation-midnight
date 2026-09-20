@@ -1,3 +1,60 @@
+## Milestone 7 — Android Beachhead (partly blocked)
+
+Renderer switched Forward Plus -> Mobile with a full test pass; Android
+export preset added; touch input fixed and tested; HUD sized for a thumb.
+
+Blocked here and not attempted: installing the JDK and Android SDK needs
+root, and there is no device to install an APK on. Everything short of
+those is done.
+
+### Decisive defect
+
+Godot emulates mouse events from touch by default. Gameplay acted on them
+as well as on the touch events, so every tap ran twice - and the emulated
+left-drag hit the desktop rule that a drag is always a marquee, meaning
+**the camera could not be panned with one finger at all**. The game would
+have shipped unplayable on the platform it targets.
+
+## Milestone 8 — An Opponent That Fights Back (in progress)
+
+The commander is now faction-agnostic: the same brain runs on either
+side. `tests/ai_versus_test.gd` puts two of them on one map, which is the
+first time any AI measurement here has been taken against someone who
+shoots back.
+
+### Measured, three matches after the fixes below
+
+    match 1   player wins 7:32   waves 2/1   retreats 1/1
+    match 2   player wins 7:57   waves 3/1   retreats 2/1
+    match 3   player wins        waves 1/0   retreats 0/0
+
+Multi-wave pressure is real now (2-3 waves with retreats between them),
+and a commander that retreats comes back when it can. When it does not,
+it is because it is facing three times its own army value - that is
+judgement, not paralysis, and the test asserts the gate rather than the
+outcome: a retreating commander is never "ready but idle".
+
+### Defects found by running the AI against itself
+
+- `desired_group_value()` ramped on the clock alone, so a commander got
+  MORE passive as a match went on: after a failed wave the bar had risen
+  out of reach and it never attacked again. It is now sized against the
+  opponent's seen army value, floored and capped.
+- The harvest round-trip signal handler named its parameter `is_player`,
+  shadowing the commander's own. Once a second commander existed, both
+  recorded only the enemy's trips and sized their harvester fleets off
+  the opponent's route. Identical trip numbers for both sides in one
+  match is what gave it away.
+- `depth_test`'s veterancy check was flaky at about 50%: it sited its
+  duel inside the acquisition range of its own earlier fixtures, and then
+  raced the tank's own AttackerComponent for the trigger. Now isolated
+  and observed rather than driven. 5/5.
+
+### Outstanding
+- [ ] AI defends its expansion, and builds a refinery there
+- [ ] Re-tune EASY / NORMAL / HARD against an active opponent
+- [ ] Player-side commander still underperforms in some openings
+
 # Operation Midnight — Task Board
 
 ## Milestone 6 — AI Economy & Match Closure (in progress)

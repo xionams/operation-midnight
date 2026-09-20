@@ -84,6 +84,12 @@ const STRATEGY_WEIGHTS: Dictionary = {
 
 @export var difficulty: Difficulty = Difficulty.NORMAL
 
+## Which side this commander plays. The brain is identical for both - only
+## the groups it reads and the treasury it spends change. Running a second
+## instance on the player side is how the AI finally gets an opponent that
+## fights back, instead of being measured against someone standing still.
+@export var is_player: bool = false
+
 var base_position: Vector3 = Vector3.ZERO
 var enabled: bool = true
 var strategy: int = Strategy.ECONOMY
@@ -104,6 +110,9 @@ var _scouts: Array = []
 var _reinforcements: Array = []
 ## Grows when the AI razes the player's economy, decays with time.
 var _confidence: float = 0.0
+## When the staging force first became worth sending, so a commander that
+## keeps almost-attacking eventually commits.
+var _ready_since: float = 0.0
 
 func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) -> void:
 	_nav_region = nav_region
@@ -111,16 +120,23 @@ func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) 
 	base_position = base
 	memory = AIMemory.new()
 	memory.name = "AIMemory"
+	memory.is_player = is_player
 	add_child(memory)
 
 	economy = AIEconomy.new()
 	economy.name = "AIEconomy"
-	economy.is_player = false
+	economy.is_player = is_player
 	economy.reserve_target = RESERVE_BY_DIFFICULTY[difficulty]
 	add_child(economy)
 	EventBus.building_destroyed.connect(_on_building_destroyed)
-	EventBus.harvest_round_trip.connect(func(is_player, seconds):
-		if not is_player:
+	## The parameter name here used to be `is_player`, which shadowed this
+	## commander's own is_player - so once a second commander existed,
+	## BOTH of them recorded only the enemy's harvest trips and sized
+	## their harvester fleets off the opponent's route. Identical
+	## round-trip numbers for both sides in the same match is what gave
+	## it away; it is not a value two economies can share by accident.
+	EventBus.harvest_round_trip.connect(func(from_player_side, seconds):
+		if from_player_side == is_player:
 			economy.record_round_trip(seconds))
 
 	strategy = _pick_strategy()
@@ -164,8 +180,20 @@ func _think() -> void:
 
 # ------------------------------------------------------------- helpers
 
+func _own_units() -> String:
+	return "player_units" if is_player else "enemy_units"
+
+func _own_buildings() -> String:
+	return "player_buildings" if is_player else "enemy_buildings"
+
+func _foe_units() -> String:
+	return "enemy_units" if is_player else "player_units"
+
+func _foe_buildings() -> String:
+	return "enemy_buildings" if is_player else "player_buildings"
+
 func _own(display_name: String) -> Node:
-	for building in get_tree().get_nodes_in_group("enemy_buildings"):
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
 		if is_instance_valid(building) and building.stats != null \
 			and building.stats.display_name == display_name:
 			return building
@@ -173,7 +201,7 @@ func _own(display_name: String) -> Node:
 
 func _count_units(predicate: Callable) -> int:
 	var count: int = 0
-	for unit in get_tree().get_nodes_in_group("enemy_units"):
+	for unit in get_tree().get_nodes_in_group(_own_units()):
 		if is_instance_valid(unit) and unit.stats != null and predicate.call(unit):
 			count += 1
 	return count
@@ -183,7 +211,7 @@ func _harvesters() -> int:
 
 func _combat_units() -> Array:
 	var list: Array = []
-	for unit in get_tree().get_nodes_in_group("enemy_units"):
+	for unit in get_tree().get_nodes_in_group(_own_units()):
 		if not is_instance_valid(unit) or unit.stats == null:
 			continue
 		if unit.stats.is_harvester or unit.get_node_or_null("AttackerComponent") == null:
@@ -201,7 +229,7 @@ func _combat_units() -> Array:
 func _run_economy() -> void:
 	if not economy.needs_harvester():
 		return
-	var refinery := GameState.get_first_refinery(false)
+	var refinery := GameState.get_first_refinery(is_player)
 	if refinery == null or refinery.queue.queue_length() > 0:
 		return
 	var urgency: AIEconomy.Priority = AIEconomy.Priority.CRITICAL \
@@ -238,7 +266,7 @@ func _run_construction() -> void:
 		wanted = POWER_PLANT
 	else:
 		var counts: Dictionary = {}
-		for building in get_tree().get_nodes_in_group("enemy_buildings"):
+		for building in get_tree().get_nodes_in_group(_own_buildings()):
 			if is_instance_valid(building) and building.stats != null:
 				var key: String = building.stats.display_name
 				counts[key] = counts.get(key, 0) + 1
@@ -253,17 +281,17 @@ func _run_construction() -> void:
 	## that happens away from the main base.
 	if wanted == null and _should_expand():
 		var site := _expansion_site()
-		if site != Vector3.ZERO and GameState.try_spend_for(false, FORWARD_POST.cost):
+		if site != Vector3.ZERO and GameState.try_spend_for(is_player, FORWARD_POST.cost):
 			_place_at(FORWARD_POST, site)
 			_rebuild_cooldown = _tuning()[3]
 			return
 
 	## A base that has been attacked wants a tower covering the approach.
 	if wanted == null and not memory.recent_attack_positions.is_empty() \
-		and _own("Machine Gun Tower") == null and TechTree.is_available(MG_TOWER, false):
+		and _own("Machine Gun Tower") == null and TechTree.is_available(MG_TOWER, is_player):
 		wanted = MG_TOWER
 
-	if wanted == null or not TechTree.is_available(wanted, false):
+	if wanted == null or not TechTree.is_available(wanted, is_player):
 		return
 
 	## Infrastructure the economy cannot run without outranks the reserve;
@@ -280,7 +308,7 @@ func _run_construction() -> void:
 
 	if not economy.can_afford(wanted.cost, priority):
 		return
-	if not GameState.try_spend_for(false, wanted.cost):
+	if not GameState.try_spend_for(is_player, wanted.cost):
 		return
 	_place(wanted)
 	_rebuild_cooldown = _tuning()[3]
@@ -320,7 +348,7 @@ func _expansion_site() -> Vector3:
 func _place_at(stats: BuildingStats, position: Vector3) -> void:
 	var building = stats.scene.instantiate()
 	building.stats = stats
-	building.is_player_faction = false
+	building.is_player_faction = is_player
 	_nav_region.add_child(building)
 	building.global_position = position
 	EventBus.building_placed.emit(building)
@@ -328,7 +356,7 @@ func _place_at(stats: BuildingStats, position: Vector3) -> void:
 func _power_shortfall() -> int:
 	var generated: int = 0
 	var consumed: int = 0
-	for building in get_tree().get_nodes_in_group("enemy_buildings"):
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
 		if not is_instance_valid(building) or building.stats == null:
 			continue
 		generated += building.stats.power_generation
@@ -344,7 +372,7 @@ func _place(stats: BuildingStats) -> void:
 	var offset := Vector3(cos(angle), 0, sin(angle)) * ring
 	var building = stats.scene.instantiate()
 	building.stats = stats
-	building.is_player_faction = false
+	building.is_player_faction = is_player
 	_nav_region.add_child(building)
 	building.global_position = base_position + offset
 	EventBus.building_placed.emit(building)
@@ -363,7 +391,7 @@ func _construction_reserve() -> int:
 		return 0
 	var order := _build_order()
 	var counts: Dictionary = {}
-	for building in get_tree().get_nodes_in_group("enemy_buildings"):
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
 		if is_instance_valid(building) and building.stats != null:
 			var key: String = building.stats.display_name
 			counts[key] = counts.get(key, 0) + 1
@@ -383,13 +411,13 @@ func _run_production() -> void:
 		## Nothing in the army can dent a building: build something that
 		## can, ahead of whatever the counter logic would rather have.
 		if _lacks_siege():
-			if TechTree.is_available(ARTILLERY, false):
+			if TechTree.is_available(ARTILLERY, is_player):
 				vehicle = ARTILLERY
-			elif TechTree.is_available(TANK, false):
+			elif TechTree.is_available(TANK, is_player):
 				vehicle = TANK
-			elif TechTree.is_available(ASSAULT, false):
+			elif TechTree.is_available(ASSAULT, is_player):
 				vehicle = ASSAULT
-		if GameState.enemy_credits - vehicle.cost >= reserve \
+		if GameState.balance_of(is_player) - vehicle.cost >= reserve \
 			and economy.can_afford(vehicle.cost, AIEconomy.Priority.ARMY):
 			factory.produce(vehicle)
 			return
@@ -397,13 +425,13 @@ func _run_production() -> void:
 	var barracks := _own("Barracks")
 	if barracks != null and barracks.queue.queue_length() == 0:
 		var squad := _pick_infantry(composition, responsiveness)
-		if GameState.enemy_credits - squad.cost >= reserve \
+		if GameState.balance_of(is_player) - squad.cost >= reserve \
 			and economy.can_afford(squad.cost, AIEconomy.Priority.ARMY):
 			barracks.produce(squad)
 
 func _pick_infantry(composition: Dictionary, responsiveness: float) -> UnitStats:
 	var armour_share: float = composition.get("armor", 0.0) + composition.get("vehicle", 0.0)
-	if armour_share * responsiveness > 0.3 and TechTree.is_available(AT_SQUAD, false):
+	if armour_share * responsiveness > 0.3 and TechTree.is_available(AT_SQUAD, is_player):
 		return AT_SQUAD
 	return RIFLE
 
@@ -422,11 +450,11 @@ func _lacks_siege() -> bool:
 func _pick_vehicle(composition: Dictionary, responsiveness: float) -> UnitStats:
 	## A turtling player calls for something that outranges a turret.
 	if memory.has_seen_building("Machine Gun Tower") or memory.has_seen_building("Anti-Armor Turret"):
-		if TechTree.is_available(ARTILLERY, false) and randf() < 0.5 * responsiveness + 0.2:
+		if TechTree.is_available(ARTILLERY, is_player) and randf() < 0.5 * responsiveness + 0.2:
 			return ARTILLERY
-	if composition.get("infantry", 0.0) > 0.5 and TechTree.is_available(ASSAULT, false):
+	if composition.get("infantry", 0.0) > 0.5 and TechTree.is_available(ASSAULT, is_player):
 		return ASSAULT
-	if TechTree.is_available(TANK, false) and randf() < 0.45:
+	if TechTree.is_available(TANK, is_player) and randf() < 0.45:
 		return TANK
 	if _count_units(func(u): return u.stats.display_name == "Scout Vehicle") < _tuning()[2]:
 		return SCOUT
@@ -442,7 +470,7 @@ func _run_scouting() -> void:
 	var wanted: int = _tuning()[2]
 
 	if _scouts.size() < wanted:
-		for unit in get_tree().get_nodes_in_group("enemy_units"):
+		for unit in get_tree().get_nodes_in_group(_own_units()):
 			if not is_instance_valid(unit) or unit.stats == null:
 				continue
 			if unit.stats.display_name != "Scout Vehicle" or _scouts.has(unit):
@@ -476,7 +504,7 @@ func _next_scout_target() -> Vector3:
 ## garrison; a real push pulls the standing army home.
 func _run_defence() -> void:
 	var threats: Array = []
-	for unit in get_tree().get_nodes_in_group("player_units"):
+	for unit in get_tree().get_nodes_in_group(_foe_units()):
 		if not is_instance_valid(unit) or unit.stats == null:
 			continue
 		if unit.global_position.distance_to(base_position) > DEFEND_RADIUS:
@@ -503,8 +531,8 @@ func _run_defence() -> void:
 		_reinforcements.erase(unit)
 
 func _visible_to_ai(point: Vector3) -> bool:
-	var eyes: Array = get_tree().get_nodes_in_group("enemy_units")
-	eyes.append_array(get_tree().get_nodes_in_group("enemy_buildings"))
+	var eyes: Array = get_tree().get_nodes_in_group(_own_units())
+	eyes.append_array(get_tree().get_nodes_in_group(_own_buildings()))
 	for eye in eyes:
 		if not is_instance_valid(eye) or eye.stats == null:
 			continue
@@ -518,14 +546,33 @@ func _visible_to_ai(point: Vector3) -> bool:
 ## rifle squads and four tanks are not the same army, and counting heads
 ## said they were - which is how the AI ended up trickling infantry into
 ## a base it could never break.
+## How much army is worth committing.
+##
+## This used to ramp on the clock alone, which made the commander MORE
+## passive the longer a match ran: after a failed attack the bar had
+## risen, so it rebuilt toward a number it could no longer reach and
+## never attacked again. Measured in AI-vs-AI, each side attacked exactly
+## once in eight minutes.
+##
+## The bar is now mostly about the opponent. Enough to beat what has
+## actually been seen, with a margin - floored so it never trickles, and
+## capped so it never waits forever. The clock only raises the floor.
+const ATTACK_MARGIN: float = 1.35
+const ATTACK_FLOOR: float = 2600.0
+const ATTACK_CEILING: float = 9000.0
+## A force that has been ready this long goes anyway. Waiting past the
+## point of readiness is how an army rots in its own base.
+const PATIENCE: float = 75.0
+
 func desired_group_value() -> int:
-	var target: float = 3000.0
-	if _match_time > 540.0:
-		target = 9000.0
-	elif _match_time > 330.0:
-		target = 6000.0
+	var floor_value: float = ATTACK_FLOOR
+	if _match_time > 330.0:
+		floor_value = 4200.0
 	elif _match_time > 180.0:
-		target = 4200.0
+		floor_value = 3400.0
+
+	var needed: float = float(memory.seen_army_value()) * ATTACK_MARGIN
+	var target: float = clampf(maxf(needed, floor_value), ATTACK_FLOOR, ATTACK_CEILING)
 	return int(target * _tuning()[1])
 
 func desired_group_size() -> int:
@@ -573,6 +620,25 @@ func _staging_point(objective: Vector3) -> Vector3:
 ## Gathers a group, commits it at a chosen target, and pulls the
 ## survivors out when it is clearly losing. Attacking piecemeal feeds the
 ## defender; never retreating makes every battle a suicide.
+## Why no attack is being committed right now. Exists because "the AI
+## does not attack again after a retreat" is a claim with five possible
+## causes, and guessing which one has already cost two wrong fixes.
+func offense_block_reason() -> String:
+	if _attack_committed:
+		return "committed"
+	var value: int = _group_value(_reinforcements)
+	var want: int = desired_group_value()
+	if value < want and not (_ready_since > 0.0 and _match_time - _ready_since > PATIENCE):
+		return "force %d < %d" % [value, want]
+	if _group_siege_share(_reinforcements) < MIN_SIEGE_SHARE:
+		return "siege %.0f%% < %.0f%%" % [
+			_group_siege_share(_reinforcements) * 100.0, MIN_SIEGE_SHARE * 100.0]
+	if not economy.can_sustain_offensive():
+		return "economy: harv=%d ref=%d in/min=%d cr=%d" % [
+			economy.active_harvesters(), economy.refineries().size(),
+			int(economy.income_per_minute), GameState.balance_of(is_player)]
+	return "ready"
+
 func _run_offense() -> void:
 	_attack_group = _attack_group.filter(func(u): return is_instance_valid(u))
 	_reinforcements = _reinforcements.filter(func(u): return is_instance_valid(u))
@@ -595,12 +661,21 @@ func _run_offense() -> void:
 
 	## Gather at the staging point until the force is worth committing,
 	## can hurt buildings, and the economy can replace what it loses.
-	if _group_value(_reinforcements) < desired_group_value():
+	var value: int = _group_value(_reinforcements)
+	if value >= desired_group_value():
+		_ready_since = _ready_since if _ready_since > 0.0 else _match_time
+	elif value < ATTACK_FLOOR * _tuning()[1]:
+		## Dropped below a force worth sending at all; start the clock over.
+		_ready_since = 0.0
+
+	var impatient: bool = _ready_since > 0.0 and _match_time - _ready_since > PATIENCE
+	if value < desired_group_value() and not impatient:
 		return
 	if _group_siege_share(_reinforcements) < MIN_SIEGE_SHARE:
 		return
 	if not economy.can_sustain_offensive():
 		return
+	_ready_since = 0.0
 
 	_attack_group = _reinforcements.duplicate()
 	_reinforcements.clear()
@@ -706,7 +781,7 @@ func _retarget_if_objective_cleared() -> void:
 				unit.issue_command(CommandTypes.Type.ATTACK_MOVE, _current_objective)
 		return
 	## Anything still standing within reach of where they are?
-	for target in get_tree().get_nodes_in_group("player_buildings"):
+	for target in get_tree().get_nodes_in_group(_foe_buildings()):
 		if not is_instance_valid(target):
 			continue
 		if target.global_position.distance_to(_current_objective) > 60.0:
@@ -726,7 +801,7 @@ func _retarget_if_objective_cleared() -> void:
 func _on_building_destroyed(building: Node) -> void:
 	if not is_instance_valid(building) or building.stats == null:
 		return
-	if not building.is_player_faction or building.is_neutral:
+	if building.is_player_faction != (not is_player) or building.is_neutral:
 		return
 	if not AIMemory.ECONOMIC_BUILDINGS.has(building.stats.display_name):
 		return

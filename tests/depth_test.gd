@@ -21,6 +21,14 @@ func _ready() -> void:
 		hud._begin_match()
 	await get_tree().process_frame
 	FogOfWar.enabled = false
+	## The strategic commander is not under test here, and it is the only
+	## nondeterministic actor in the scene: it pools loose combat units
+	## into its staging group and walks them away mid-duel. Left running,
+	## the veterancy check failed about two runs in three depending on
+	## which opening the AI happened to roll.
+	var director = get_parent().get_node_or_null("AIDirector")
+	if director != null:
+		director.enabled = false
 	await _run()
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
 	for f in _fails:
@@ -101,12 +109,29 @@ func _run() -> void:
 		harvester.get_node_or_null("VeterancyComponent") == null)
 
 	# --- XP goes to whoever dealt the damage, not the last shot ---
-	var shooter = _spawn_unit("res://config/units/main_battle_tank.tres", true, Vector3(-66, 0, 40))
-	var victim = _spawn_unit("res://config/units/rifle_soldier.tres", false, Vector3(-62, 0, 40))
+	## Well away from everything spawned above. Sited next to them, the
+	## victim was inside the acquisition range of units from earlier
+	## checks, which shot it dead before this one could fire - the check
+	## failed about half the time, and it was the fixtures racing each
+	## other rather than anything wrong with veterancy.
+	var duel := Vector3(-92, 0, -92)
+	var shooter = _spawn_unit("res://config/units/main_battle_tank.tres", true, duel)
+	var victim = _spawn_unit("res://config/units/rifle_soldier.tres", false,
+		duel + Vector3(4, 0, 0))
 	await get_tree().process_frame
 	var shooter_vet: VeterancyComponent = shooter.get_node("VeterancyComponent")
 	var xp_before: float = shooter_vet.experience
-	shooter.get_node("Weapon").fire_at(victim, shooter.global_position)
+	_check("The duel victim survived to be shot at", is_instance_valid(victim))
+	## The tank's own AttackerComponent engages the moment it has a target,
+	## so calling fire_at by hand raced it: whichever fired first put the
+	## weapon on cooldown and the other silently no-opped, which is the
+	## last quarter of this check's flakiness. Watch the experience rise
+	## instead - the behaviour under test is that dealing damage earns
+	## rank, not who pulled the trigger.
+	var duel_wait: float = 0.0
+	while duel_wait < 3.0 and shooter_vet.experience <= xp_before:
+		duel_wait += get_process_delta_time()
+		await get_tree().process_frame
 	_check("Dealing damage awards experience", shooter_vet.experience > xp_before,
 		"(%.1f -> %.1f)" % [xp_before, shooter_vet.experience])
 
