@@ -55,6 +55,15 @@ var _press_pos: Vector2 = Vector2.ZERO
 var _current_pos: Vector2 = Vector2.ZERO
 var _press_time: float = 0.0
 var _touch_index: int = -1
+## Godot emulates mouse events from touch, and the GUI depends on that to
+## keep buttons working on a phone. Gameplay must NOT also act on them:
+## handling both meant every tap ran twice, and worse, the emulated
+## left-drag hit the desktop rule that a drag is always a marquee - so on
+## a touchscreen the camera could never be panned with one finger at all.
+## Any real mouse the player also has goes quiet for a second after a
+## touch, which nobody can notice.
+const TOUCH_MOUSE_LOCKOUT: float = 1.0
+var _last_touch_time: float = -99.0
 var _pressed_on_entity: bool = false
 
 var _last_tap_time: float = -99.0
@@ -69,6 +78,10 @@ func _get_camera() -> Camera3D:
 
 ## RTSCamera consults this so a drag that has become a marquee cannot
 ## also slide the battlefield underneath it.
+## True while a finger is, or has just been, driving the game.
+func _touch_is_driving() -> bool:
+	return (Time.get_ticks_msec() / 1000.0) - _last_touch_time < TOUCH_MOUSE_LOCKOUT
+
 func is_panning_allowed() -> bool:
 	return _gesture != Gesture.MARQUEE
 
@@ -98,14 +111,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton:
+		if _touch_is_driving():
+			return
 		_handle_mouse_button(event as InputEventMouseButton)
 	elif event is InputEventMouseMotion:
+		if _touch_is_driving():
+			return
 		_current_pos = (event as InputEventMouseMotion).position
 		if _gesture == Gesture.PENDING and _press_pos.distance_to(_current_pos) >= DRAG_THRESHOLD_PX:
 			_enter_marquee()
 	elif event is InputEventScreenTouch:
+		_last_touch_time = Time.get_ticks_msec() / 1000.0
 		_handle_touch(event as InputEventScreenTouch)
 	elif event is InputEventScreenDrag:
+		_last_touch_time = Time.get_ticks_msec() / 1000.0
 		_handle_drag(event as InputEventScreenDrag)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		_handle_key(event as InputEventKey)

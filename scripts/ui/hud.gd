@@ -14,9 +14,17 @@ class_name HUD
 ## resources, so a new unit appears in the UI by existing, not by editing
 ## layout code here.
 
+## Minimum comfortable touch target. The project renders at a 1280x720
+## reference and stretches, so on a 1080p phone these reference pixels
+## land at 1.5x - 44 here is about 4.2mm of glass, against the ~3mm the
+## old 30px buttons gave. Android's guideline is 48dp; a landscape RTS
+## cannot spend that everywhere without eating the battlefield, so the
+## controls a player actually jabs at mid-match get it and the rest sit
+## just under.
+const TOUCH_MIN: float = 44.0
 const MARGIN: float = 16.0
 const PANEL_W: float = 268.0
-const ITEM_H: float = 46.0
+const ITEM_H: float = 52.0
 const GROUP_ASSIGN_HOLD: float = 0.45
 
 @export var placer: BuildingPlacer
@@ -130,7 +138,7 @@ func _build_top_bar() -> void:
 
 	var debug_toggle := Button.new()
 	debug_toggle.text = "Debug"
-	debug_toggle.custom_minimum_size = Vector2(78, 34)
+	debug_toggle.custom_minimum_size = Vector2(80, TOUCH_MIN * 0.86)
 	debug_toggle.pressed.connect(_toggle_debug)
 	row.add_child(debug_toggle)
 
@@ -181,7 +189,7 @@ func _build_production_panel() -> void:
 		if tab_icon != null:
 			tab.icon = tab_icon
 			tab.expand_icon = true
-		tab.custom_minimum_size = Vector2(60, 26)
+		tab.custom_minimum_size = Vector2(64, TOUCH_MIN * 0.86)
 		tab.add_theme_font_size_override("font_size", 12)
 		tab.pressed.connect(func(): _set_category(category))
 		tabs.add_child(tab)
@@ -269,7 +277,7 @@ func _build_selection_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	panel.offset_left = MARGIN
-	panel.offset_top = -(MARGIN + 240)
+	panel.offset_top = -(MARGIN + 306)
 	panel.offset_right = MARGIN + PANEL_W
 	panel.offset_bottom = -MARGIN
 	add_child(panel)
@@ -281,7 +289,7 @@ func _build_selection_panel() -> void:
 	_info_panel = RichTextLabel.new()
 	_info_panel.bbcode_enabled = true
 	_info_panel.fit_content = true
-	_info_panel.custom_minimum_size = Vector2(PANEL_W - 24, 120)
+	_info_panel.custom_minimum_size = Vector2(PANEL_W - 24, 104)
 	_info_panel.add_theme_font_size_override("normal_font_size", 14)
 	column.add_child(_info_panel)
 
@@ -309,7 +317,7 @@ func _build_selection_panel() -> void:
 	for index in [1, 2, 3]:
 		var button := Button.new()
 		button.text = str(index)
-		button.custom_minimum_size = Vector2(40, 30)
+		button.custom_minimum_size = Vector2(TOUCH_MIN, TOUCH_MIN)
 		button.add_theme_font_size_override("font_size", 13)
 		button.button_down.connect(func(): _begin_group_hold(index))
 		button.button_up.connect(func(): _end_group_hold(index))
@@ -328,7 +336,7 @@ func _order_button(parent: Control, text: String, handler: Callable,
 		icon_name: String = "") -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(82, 30)
+	button.custom_minimum_size = Vector2(86, TOUCH_MIN)
 	button.add_theme_font_size_override("font_size", 13)
 	var icon := Icons.get_icon(icon_name)
 	if icon != null:
