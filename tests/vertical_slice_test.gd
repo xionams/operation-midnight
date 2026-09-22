@@ -71,15 +71,39 @@ func _produce(path: String) -> Node:
 	var stats: UnitStats = load(path)
 	GameState.add_credits(stats.cost + 500)
 	var producer := BuildCatalog.producer_for(stats, true)
-	if producer == null or not producer.produce(stats):
+	if producer == null:
+		print("TEST|   (no producer for %s)" % stats.display_name)
 		return null
-	var before: int = get_tree().get_nodes_in_group("player_units").size()
+	## Report WHY a production request was refused. This check failed
+	## about one run in eight and was written off as timing; the reason
+	## is worth printing rather than guessing at again.
+	if not TechTree.has_population_for(stats, true):
+		print("TEST|   (population %d/%d, %s needs %d)" % [
+			TechTree.population_used(true), TechTree.population_cap(true),
+			stats.display_name, stats.population])
+	if not producer.produce(stats):
+		print("TEST|   (%s refused by %s)" % [stats.display_name, producer.name])
+		return null
+	## Watch for THIS unit arriving, not for the headcount to change.
+	## Counting was wrong in a way that only showed up once the AI got
+	## more aggressive: if a player unit died in the same frame the new
+	## one spawned, the total was unchanged and the test concluded
+	## nothing had been built. The tank was there the whole time.
+	var existing: Dictionary = {}
+	for unit in get_tree().get_nodes_in_group("player_units"):
+		existing[unit.get_instance_id()] = true
+
 	var waited: float = 0.0
-	while waited < CHECK_TIMEOUT and get_tree().get_nodes_in_group("player_units").size() == before:
+	while waited < CHECK_TIMEOUT:
+		for unit in get_tree().get_nodes_in_group("player_units"):
+			if existing.has(unit.get_instance_id()):
+				continue
+			if unit.stats == stats:
+				return unit
 		waited += get_process_delta_time()
 		await get_tree().process_frame
-	var units := get_tree().get_nodes_in_group("player_units")
-	return units[units.size() - 1] if units.size() > before else null
+	print("TEST|   (%s never arrived in %.0fs)" % [stats.display_name, CHECK_TIMEOUT])
+	return null
 
 func _run() -> void:
 	var base := Vector3(-78, 0, 62)

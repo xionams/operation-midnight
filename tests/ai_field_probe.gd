@@ -5,7 +5,7 @@ extends Node
 ## and the AI's structure list, so "the economy stalls at four minutes"
 ## can be attributed rather than guessed at.
 
-const RUN_TIME: float = 420.0
+const RUN_TIME: float = 660.0
 const INTERVAL: float = 60.0
 
 var _director: AIDirector
@@ -44,6 +44,14 @@ func _report(t: float) -> void:
 			names[b.stats.display_name] = names.get(b.stats.display_name, 0) + 1
 	print("FIELD| t=%4.0f fields[%s]" % [t, ", ".join(parts)])
 	print("BASE | t=%4.0f %s" % [t, str(names)])
+	var anchor = _director._expansion_anchor()
+	var out_there: int = 0
+	if anchor != Vector3.ZERO:
+		for refinery in _economy.refineries():
+			if refinery.global_position.distance_to(anchor) < 34.0:
+				out_there += 1
+	print("EXP  | t=%4.0f post=%s refinery_out_there=%d" % [
+		t, "yes" if anchor != Vector3.ZERO else "no", out_there])
 	print(_economy.format_line(t))
 
 func _run() -> void:

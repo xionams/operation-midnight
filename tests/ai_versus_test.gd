@@ -51,8 +51,15 @@ func _ready() -> void:
 		hud._begin_match()
 	await get_tree().process_frame
 
+	## Difficulty for the enemy side comes from a user argument, so the
+	## three settings can be compared against the same opponent:
+	##     godot ... res://tests/ai_versus_test.tscn -- 0|1|2
+	var level: int = AIDirector.Difficulty.NORMAL
+	for arg in OS.get_cmdline_user_args():
+		if arg.is_valid_int():
+			level = clampi(arg.to_int(), 0, 2)
 	_enemy = _main.get_node("AIDirector")
-	_enemy.difficulty = AIDirector.Difficulty.NORMAL
+	_enemy.difficulty = level
 
 	## A second commander on the player side, with the player's own base
 	## and treasury. Nothing is granted to it that the human does not get.
@@ -77,7 +84,9 @@ func _ready() -> void:
 	FogOfWar.reveal_area(Vector3(-78, 0, 62), 34.0)
 	FogOfWar.update_now()
 
-	print("VS| player=%s  enemy=%s" % [_player.strategy_name(), _enemy.strategy_name()])
+	print("VS| player=%s(NORMAL)  enemy=%s(%s)" % [
+		_player.strategy_name(), _enemy.strategy_name(),
+		["EASY", "NORMAL", "HARD"][_enemy.difficulty]])
 	await _run()
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
 	for f in _fails:

@@ -113,6 +113,10 @@ var _confidence: float = 0.0
 ## When the staging force first became worth sending, so a commander that
 ## keeps almost-attacking eventually commits.
 var _ready_since: float = 0.0
+## Where the forward base went. A post on its own earns nothing - the
+## refinery beside it is the entire point of expanding - so the position
+## has to outlive the tick that chose it.
+var _expansion_at: Vector3 = Vector3.ZERO
 
 func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) -> void:
 	_nav_region = nav_region
@@ -264,6 +268,13 @@ func _run_construction() -> void:
 	var wanted: BuildingStats = null
 	if _power_shortfall() > 0:
 		wanted = POWER_PLANT
+	elif _expansion_is_urgent():
+		## Expanding used to sit behind the whole build order, so it only
+		## happened once the tech tree was finished - about seven minutes
+		## in, by which point the home field was gone and income had
+		## already fallen to nothing. When the ore at home runs out,
+		## reaching more of it IS the economy, and it outranks a Radar.
+		pass
 	else:
 		var counts: Dictionary = {}
 		for building in get_tree().get_nodes_in_group(_own_buildings()):
@@ -283,6 +294,30 @@ func _run_construction() -> void:
 		var site := _expansion_site()
 		if site != Vector3.ZERO and GameState.try_spend_for(is_player, FORWARD_POST.cost):
 			_place_at(FORWARD_POST, site)
+			_expansion_at = site
+			_rebuild_cooldown = _tuning()[3]
+			return
+
+	## The refinery out at the expansion. Without it the post is a flag on
+	## an ore field: measured over a full match, income kept decaying
+	## after the home field ran dry because every load still had to be
+	## driven all the way back to base.
+	if wanted == null and _needs_expansion_refinery():
+		if economy.can_afford(REFINERY.cost, AIEconomy.Priority.ECONOMY) \
+			and GameState.try_spend_for(is_player, REFINERY.cost):
+			_place_at(REFINERY, _expansion_refinery_site())
+			_rebuild_cooldown = _tuning()[3]
+			return
+
+	## An expansion that has been shot at gets a gun. It is the softest
+	## thing the commander owns and the furthest from help.
+	if wanted == null and _expansion_threatened() \
+		and _tower_near(_expansion_anchor()) == null \
+		and TechTree.is_available(MG_TOWER, is_player):
+		if economy.can_afford(MG_TOWER.cost, AIEconomy.Priority.DEFENCE) \
+			and GameState.try_spend_for(is_player, MG_TOWER.cost):
+			_place_at(MG_TOWER, _expansion_anchor()
+				+ Vector3(randf_range(-7.0, 7.0), 0.0, randf_range(-7.0, 7.0)))
 			_rebuild_cooldown = _tuning()[3]
 			return
 
@@ -330,6 +365,72 @@ func _should_expand() -> bool:
 		if is_instance_valid(field) and field.global_position.distance_to(base_position) < 60.0:
 			home_remaining += field.remaining
 	return home_remaining < 9000.0 or economy.income_per_minute < 2500.0
+
+## True when the commander is running out of ore it can reach. Distinct
+## from _should_expand(), which also covers merely wanting more income:
+## this is the case that must not wait for a build order to finish.
+func _expansion_is_urgent() -> bool:
+	if not _should_expand():
+		return false
+	var home_remaining: float = 0.0
+	for field in get_tree().get_nodes_in_group("resource_nodes"):
+		if is_instance_valid(field) \
+			and field.global_position.distance_to(base_position) < 60.0:
+			home_remaining += field.remaining
+	return home_remaining < 6000.0 or economy.average_round_trip() > 40.0
+
+## Where the forward base actually is, whether this commander placed it
+## this match or is resuming one.
+func _expansion_anchor() -> Vector3:
+	var post := _own("Forward Command Post")
+	if post != null:
+		return post.global_position
+	return _expansion_at
+
+func _needs_expansion_refinery() -> bool:
+	var anchor := _expansion_anchor()
+	if anchor == Vector3.ZERO or _own("Forward Command Post") == null:
+		return false
+	for refinery in economy.refineries():
+		if refinery.global_position.distance_to(anchor) < 34.0:
+			return false
+	return true
+
+## Beside the post, nudged toward the ore it was built for, so harvesters
+## unload where they are digging.
+func _expansion_refinery_site() -> Vector3:
+	var anchor := _expansion_anchor()
+	var ore := Vector3.ZERO
+	var nearest: float = INF
+	for field in get_tree().get_nodes_in_group("resource_nodes"):
+		if not is_instance_valid(field):
+			continue
+		var distance: float = field.global_position.distance_to(anchor)
+		if distance < nearest:
+			nearest = distance
+			ore = field.global_position
+	if ore == Vector3.ZERO:
+		return anchor + Vector3(12.0, 0.0, 0.0)
+	return anchor + (ore - anchor).normalized() * 11.0
+
+func _expansion_threatened() -> bool:
+	var anchor := _expansion_anchor()
+	if anchor == Vector3.ZERO:
+		return false
+	for position in memory.recent_attack_positions:
+		if position.distance_to(anchor) < DEFEND_RADIUS:
+			return true
+	return false
+
+func _tower_near(point: Vector3) -> Node:
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
+		if not is_instance_valid(building) or building.stats == null:
+			continue
+		if building.stats.display_name != "Machine Gun Tower":
+			continue
+		if building.global_position.distance_to(point) < 30.0:
+			return building
+	return null
 
 func _expansion_site() -> Vector3:
 	var best := Vector3.ZERO
@@ -504,10 +605,16 @@ func _next_scout_target() -> Vector3:
 ## garrison; a real push pulls the standing army home.
 func _run_defence() -> void:
 	var threats: Array = []
+	## Both places worth defending: home, and the expansion, which is the
+	## softest thing the commander owns.
+	var anchor := _expansion_anchor()
 	for unit in get_tree().get_nodes_in_group(_foe_units()):
 		if not is_instance_valid(unit) or unit.stats == null:
 			continue
-		if unit.global_position.distance_to(base_position) > DEFEND_RADIUS:
+		var at_home: bool = unit.global_position.distance_to(base_position) <= DEFEND_RADIUS
+		var at_expansion: bool = anchor != Vector3.ZERO \
+			and unit.global_position.distance_to(anchor) <= DEFEND_RADIUS
+		if not at_home and not at_expansion:
 			continue
 		if not _visible_to_ai(unit.global_position):
 			continue
@@ -564,6 +671,22 @@ const ATTACK_CEILING: float = 9000.0
 ## point of readiness is how an army rots in its own base.
 const PATIENCE: float = 75.0
 
+## How much of an edge a commander wants before committing, by
+## difficulty. Separate from the group-size scale, which decides how big
+## a wave is: those are different questions and sharing one number made
+## HARD the least aggressive setting in the game. It demanded 1.35x the
+## enemy army for the margin and another 1.25x for difficulty - 1.69x
+## altogether - and in a twenty minute match against an equal it never
+## attacked at all, while EASY attacked twice.
+##
+## Inverted so it reads the way a player expects: EASY waits for
+## overwhelming force, HARD commits close to parity.
+const AGGRESSION: Dictionary = {
+	Difficulty.EASY: 1.35,
+	Difficulty.NORMAL: 1.0,
+	Difficulty.HARD: 0.85,
+}
+
 func desired_group_value() -> int:
 	var floor_value: float = ATTACK_FLOOR
 	if _match_time > 330.0:
@@ -573,7 +696,7 @@ func desired_group_value() -> int:
 
 	var needed: float = float(memory.seen_army_value()) * ATTACK_MARGIN
 	var target: float = clampf(maxf(needed, floor_value), ATTACK_FLOOR, ATTACK_CEILING)
-	return int(target * _tuning()[1])
+	return int(target * float(AGGRESSION.get(difficulty, 1.0)))
 
 func desired_group_size() -> int:
 	var base_size: float = 6.0
@@ -664,7 +787,7 @@ func _run_offense() -> void:
 	var value: int = _group_value(_reinforcements)
 	if value >= desired_group_value():
 		_ready_since = _ready_since if _ready_since > 0.0 else _match_time
-	elif value < ATTACK_FLOOR * _tuning()[1]:
+	elif value < ATTACK_FLOOR * float(AGGRESSION.get(difficulty, 1.0)):
 		## Dropped below a force worth sending at all; start the clock over.
 		_ready_since = 0.0
 

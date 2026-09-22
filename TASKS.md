@@ -1,3 +1,57 @@
+## Milestone 8 — closing items (done)
+
+### The expansion now earns its keep
+
+The commander built a Forward Command Post and then never put a refinery
+beside it, so the post was a flag on an ore field: every load still had
+to be driven home. Worse, expanding sat behind the entire eight-building
+order, so it only happened once the tech tree was finished - around seven
+minutes, by which point the home field was gone and income had already
+fallen to zero. When the ore at home runs out, reaching more of it IS the
+economy, and it now outranks a Radar.
+
+Measured over a 660s probe, before and after:
+
+    forward post built     t=420 (match end)   ->  t=180
+    refinery beside it     never               ->  t=420
+    round trip at t=480    73.9s               ->  15.5s
+    income t=360..660      0, 0                ->  4,199 .. 11,198 sustained
+    ore actually mined     34,900              ->  70,300
+
+The expansion is also defended now: it is included in the threat scan,
+and a tower goes up out there once it has been shot at.
+
+### Difficulty reads the way a player expects
+
+HARD was the least aggressive setting in the game. The attack bar was
+multiplied by difficulty's group-size scale, so HARD wanted 1.35x the
+enemy army for the margin and another 1.25x for difficulty - 1.69x
+altogether - and in a twenty minute match against an equal it never
+attacked once, while EASY attacked twice. Aggression is now its own
+number, inverted: EASY waits for overwhelming force, HARD commits near
+parity.
+
+Measured against a passive player, which is the least noisy board there
+is for comparing aggression:
+
+    EASY     peak army 5,200   first attack 2:37   victory 4:42
+    NORMAL   peak army 6,500   first attack 1:51   victory 5:22
+    HARD     peak army 8,700   first attack 1:49   victory 5:23
+
+Strength ladders cleanly and EASY visibly hesitates. Victory time is not
+a difficulty signal against a passive opponent - it is dominated by which
+opening was drawn, which is the same caveat recorded in Milestone 6.
+
+### The vertical slice flake was never timing
+
+"Main Battle Tank produced" failed about one run in eight and was twice
+written off as a wall-clock wait. It was not. The harness waited for the
+player's unit COUNT to change, so if a unit died in the same frame the
+tank spawned, the total was unchanged and the test concluded nothing had
+been built - the tank was there the whole time. Making the AI attack
+earlier made it frequent enough to catch. It now watches for the unit it
+asked for. 5/5.
+
 ## Milestone 11 — Feel and Audio (in progress)
 
 - [x] Weapon, impact and explosion SFX per class

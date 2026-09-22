@@ -30,6 +30,7 @@ var _was_committed: bool = false
 var _last_credits: int = 0
 var _snapshot_timer: float = 0.0
 var _start_player_buildings: int = 0
+var _first_attack: float = -1.0
 
 func _ready() -> void:
 	_main = get_parent()
@@ -40,14 +41,21 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	_director = _main.get_node("AIDirector")
-	_director.difficulty = AIDirector.Difficulty.NORMAL
+	## Difficulty from a user argument, so the ladder can be measured
+	## against an identical opponent: a passive player is the least noisy
+	## board there is, which makes it the right place to compare how soon
+	## and how hard each setting commits.
+	var level: int = AIDirector.Difficulty.NORMAL
+	for arg in OS.get_cmdline_user_args():
+		if arg.is_valid_int():
+			level = clampi(arg.to_int(), 0, 2)
+	_director.difficulty = level
 	_economy = _director.economy
 	_last_credits = GameState.enemy_credits
 	_start_player_buildings = get_tree().get_nodes_in_group("player_buildings").size()
 
-	print("PASSIVE| strategy=%s  player starts with %d buildings, %d units" % [
-		_director.strategy_name(), _start_player_buildings,
-		get_tree().get_nodes_in_group("player_units").size()])
+	print("PASSIVE| difficulty=%s strategy=%s" % [
+		["EASY", "NORMAL", "HARD"][_director.difficulty], _director.strategy_name()])
 
 	await _run()
 	get_tree().quit()
@@ -85,6 +93,8 @@ func _run() -> void:
 
 		if _director._attack_committed and not _was_committed:
 			_attacks += 1
+			if _first_attack < 0.0:
+				_first_attack = elapsed
 		elif _was_committed and not _director._attack_committed:
 			_retreats += 1
 		_was_committed = _director._attack_committed
@@ -113,6 +123,9 @@ func _run() -> void:
 	print("PASSIVE| peak refineries      %d" % _peak_refineries)
 	print("PASSIVE| total harvested      %d credits" % _total_income)
 	print("PASSIVE| total spent          %d credits" % _total_spend)
+	print("PASSIVE| first attack at      %s" % (
+		"%d:%02d" % [int(_first_attack) / 60, int(_first_attack) % 60]
+		if _first_attack >= 0.0 else "never"))
 	print("PASSIVE| attacks committed    %d" % _attacks)
 	print("PASSIVE| retreats             %d" % _retreats)
 	print("PASSIVE| player structures destroyed %d of %d" % [
