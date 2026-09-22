@@ -203,8 +203,14 @@ func _build_selection_ring() -> void:
 	selection_ring.mesh = ring
 	selection_ring.position = Vector3(0, 0.05, 0)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.2, 1.0, 0.3)
+	## Harvesters read amber so a player scanning a selection can tell at
+	## a glance whether they just grabbed their economy along with their
+	## army - which is the mistake this ring exists to prevent.
+	material.albedo_color = Color(0.88, 0.65, 0.24) if (stats and stats.is_harvester) \
+		else Color(0.23, 0.87, 0.35)
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	## Never swallowed by the ground it is lying on.
+	material.no_depth_test = true
 	selection_ring.material_override = material
 	selection_ring.visible = false
 	add_child(selection_ring)
@@ -224,7 +230,16 @@ func _build_health_bar() -> void:
 
 func set_selected(selected: bool) -> void:
 	if selection_ring:
+		var was: bool = selection_ring.visible
 		selection_ring.visible = selected
+		## A ring that simply appears is easy to miss in a crowd. A short
+		## pop is the acknowledgement - it only plays on the transition,
+		## so re-selecting the same units does not restart it.
+		if selected and not was:
+			selection_ring.scale = Vector3(1.45, 1.0, 1.45)
+			var tween := create_tween()
+			tween.tween_property(selection_ring, "scale", Vector3.ONE, 0.16) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if health_bar:
 		health_bar.set_selected(selected)
 

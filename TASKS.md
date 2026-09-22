@@ -3,7 +3,30 @@
 - [x] Weapon, impact and explosion SFX per class
 - [x] Build, ready, capture, sell and alert cues
 - [x] Ambient bed and calm/combat music states
-- [ ] Selection, marker and camera feel pass
+- [x] Selection, marker and camera feel pass
+
+Milestone 11 complete.
+
+### Feel
+
+Selection rings pop on the transition into selected rather than simply
+appearing, and harvesters ring amber - so a player scanning a selection
+can see at a glance whether they grabbed their economy along with their
+army, which is the mistake the ring exists to prevent.
+
+Explosions shake the camera, scaled by blast size and faded by distance,
+and only when the blast is within about 1.6 zoom lengths of what the
+player is looking at: on a 220m map most explosions are off screen, and
+a camera that rattles for those is noise. Shake is applied to the camera
+position and never to pan_target, so it cannot drag the battlefield.
+
+`feel_test` covers the observables: the ring appears, pops and settles;
+markers spawn and clear themselves; move and attack differ; a near blast
+shakes and a distant one does not; the shake settles to zero; and
+focusing eases rather than teleporting.
+
+Measured with audio and shake running: 59.8 / 60.0 / 56.9 FPS at
+40 / 80 / 120 units.
 
 22 sounds, synthesised by `tools/make_sfx.py` - written by Codex from an
 audio brief, per this project's split of asset work. Standard-library

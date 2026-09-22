@@ -37,6 +37,29 @@ var _touches: Dictionary = {}
 var _pinch_start_distance: float = -1.0
 var _pinch_start_zoom: float = 0.0
 
+## Ordnance shake. An explosion that moves nothing reads as a decal;
+## a little camera displacement is what makes it land as an event.
+## Decays fast on purpose - a lingering wobble on an RTS camera makes
+## the battlefield hard to read, which is the opposite of the point.
+const SHAKE_DECAY: float = 4.5
+const SHAKE_MAX: float = 1.1
+var _shake: float = 0.0
+var _shake_offset: Vector3 = Vector3.ZERO
+var _shake_rng := RandomNumberGenerator.new()
+
+## Only shakes for something the player can actually see. An explosion
+## across the map rattling the camera is noise, and on a 220m map most
+## explosions are off screen.
+func shake(strength: float, at: Vector3 = Vector3.INF) -> void:
+	if at != Vector3.INF:
+		var distance: float = Vector2(at.x, at.z).distance_to(
+			Vector2(_current_pan.x, _current_pan.z))
+		var reach: float = _current_zoom * 1.6
+		if distance > reach:
+			return
+		strength *= clampf(1.0 - distance / reach, 0.0, 1.0)
+	_shake = minf(_shake + strength, SHAKE_MAX)
+
 func _ready() -> void:
 	add_to_group("rts_camera")
 	_forward_flat = -Vector3(CAMERA_DIR.x, 0.0, CAMERA_DIR.z).normalized()
@@ -66,11 +89,27 @@ func _process(delta: float) -> void:
 	_current_pan = _current_pan.lerp(pan_target, t)
 	_current_zoom = lerp(_current_zoom, zoom_distance, t)
 
+	_tick_shake(delta)
 	_apply_transform()
 
 func _apply_transform() -> void:
-	global_position = _current_pan + CAMERA_DIR * _current_zoom
+	global_position = _current_pan + CAMERA_DIR * _current_zoom + _shake_offset
 	look_at(_current_pan, Vector3.UP)
+
+## Shake is applied to the camera position, never to pan_target, so it
+## cannot drift the battlefield the player is looking at.
+func _tick_shake(delta: float) -> void:
+	if _shake <= 0.001:
+		if _shake_offset != Vector3.ZERO:
+			_shake_offset = Vector3.ZERO
+		_shake = 0.0
+		return
+	_shake = maxf(0.0, _shake - SHAKE_DECAY * delta * maxf(_shake, 0.35))
+	var amount: float = _shake * 0.5
+	_shake_offset = Vector3(
+		_shake_rng.randf_range(-amount, amount),
+		_shake_rng.randf_range(-amount, amount) * 0.6,
+		_shake_rng.randf_range(-amount, amount))
 
 ## The camera is the lowest-priority consumer of a drag: once the
 ## selection layer has committed the gesture to a marquee, the

@@ -120,6 +120,7 @@ static func cannon_flash(context: Node, position: Vector3, direction: Vector3) -
 		direction.normalized(), 40.0)
 
 static func artillery_flash(context: Node, position: Vector3, direction: Vector3) -> void:
+	_shake(context, position, 0.10)
 	var root := _scene_root(context)
 	_burst(root, position, 10, FLASH_YELLOW, 1.0, 8.0, 0.2, 0.0, true,
 		direction.normalized(), 20.0)
@@ -140,11 +141,22 @@ static func shell_impact(context: Node, position: Vector3) -> void:
 # ---------------------------------------------------------- explosions
 
 static func explosion_small(context: Node, position: Vector3) -> void:
+	_shake(context, position, 0.18)
 	var root := _scene_root(context)
 	_burst(root, position, 12, FIRE_ORANGE, 1.3, 6.0, 0.45, -2.0, true, Vector3.UP, 80.0)
 	_burst(root, position, 10, SMOKE_GREY, 1.8, 2.5, 1.4, 0.8, false, Vector3.UP, 60.0)
 
+## Shakes whatever camera is watching, if it can see the blast.
+static func _shake(context: Node, position: Vector3, strength: float) -> void:
+	var tree := context.get_tree() if context != null and is_instance_valid(context) else null
+	if tree == null:
+		return
+	for camera in tree.get_nodes_in_group("rts_camera"):
+		if is_instance_valid(camera) and camera.has_method("shake"):
+			camera.shake(strength, position)
+
 static func explosion_large(context: Node, position: Vector3) -> void:
+	_shake(context, position, 0.55)
 	var root := _scene_root(context)
 	_burst(root, position + Vector3.UP * 0.5, 20, FLASH_YELLOW, 1.8, 9.0, 0.35, -1.0,
 		true, Vector3.UP, 85.0)
