@@ -76,7 +76,13 @@ func _ready() -> void:
 	_build_right_column()
 	_build_victory_overlay()
 	_build_setup_screen()
-	_build_intro()
+	## The intro is built when the match starts, NOT here. Built at _ready
+	## it was added after the setup screen and therefore drawn on top of
+	## it, while _build_setup_screen() pauses the tree - so its fade tween
+	## could never advance, and the START button sat invisible underneath
+	## an overlay that would never clear. The game could not be started by
+	## a player on any platform. Every harness hid it by calling
+	## _begin_match() directly.
 	_build_debug_overlay()
 
 	GameState.selection_changed.connect(_on_selection_changed)
@@ -626,6 +632,8 @@ func _begin_match() -> void:
 	MatchStats.reset()
 	_setup_overlay.visible = false
 	get_tree().paused = false
+	if _intro_overlay == null:
+		_build_intro()
 
 ## A short opening so the match does not begin in a silent sandbox.
 func _build_intro() -> void:

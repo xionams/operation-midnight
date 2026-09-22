@@ -14,3 +14,6 @@ data_*/
 # System/editor files
 .DS_Store
 Thumbs.db
+
+# Built APKs — large binaries, rebuildable from the preset
+build/
