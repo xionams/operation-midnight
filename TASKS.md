@@ -4,7 +4,27 @@
 - [x] Three maps that play differently by economy, not decoration
 - [x] Setup screen offers map and difficulty
 - [x] Save and resume a match, with autosave on backgrounding
-- [ ] Win / lose flow and after-action report polish
+- [x] Win / lose flow and after-action report
+
+Milestone 9 complete.
+
+### Match ending
+
+The report answers three questions instead of listing seven numbers:
+what you fielded, what it cost, and how the economy behaved. The
+exchange ratio ("2.0 : 1", or "2 for none") is the most descriptive line
+in it - it separates a win that cost nothing from one that nearly was
+not a win. Average income is derived from what was harvested over the
+match length.
+
+The battlefield pauses behind the report, the overlay processes while
+paused so its buttons still work, and there are two ways out: PLAY AGAIN
+on the same map and difficulty, or NEW SKIRMISH back to setup. The save
+is deleted when a match ends so RESUME never offers a finished game.
+
+`match_end_test` drives both endings for real rather than calling the
+overlay directly, and checks the numbers, the pause, both buttons and
+the cleared save.
 
 ### Save and resume
 

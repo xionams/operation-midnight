@@ -60,6 +60,7 @@ var _group_hold_time: float = 0.0
 var _victory_overlay: Control
 var _victory_label: Label
 var _report_label: RichTextLabel
+var _subtitle_label: Label
 var _intro_overlay: Control
 var _setup_overlay: Control
 var _difficulty_buttons: Dictionary = {}
@@ -548,10 +549,14 @@ func _build_victory_overlay() -> void:
 	_victory_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_victory_overlay.visible = false
 	_victory_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_victory_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_victory_overlay)
 
+	## Nearly opaque, and the same ground as the setup screen. At 0.72 the
+	## battlefield read straight through the report and the numbers sat on
+	## top of a building.
 	var background := ColorRect.new()
-	background.color = Color(0, 0, 0, 0.72)
+	background.color = Color(0.03, 0.05, 0.04, 0.94)
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_victory_overlay.add_child(background)
 
@@ -567,6 +572,11 @@ func _build_victory_overlay() -> void:
 	_victory_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_victory_label)
 
+	_subtitle_label = _label("", 16)
+	_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_subtitle_label.add_theme_color_override("font_color", Color(0.68, 0.72, 0.64))
+	column.add_child(_subtitle_label)
+
 	## After-action report: what the match actually cost, which is what
 	## makes an ending feel like a conclusion rather than a stop.
 	_report_label = RichTextLabel.new()
@@ -576,11 +586,41 @@ func _build_victory_overlay() -> void:
 	_report_label.add_theme_font_size_override("normal_font_size", 17)
 	column.add_child(_report_label)
 
-	var restart := Button.new()
-	restart.text = "Restart"
-	restart.custom_minimum_size = Vector2(200, 60)
-	restart.pressed.connect(func(): get_tree().reload_current_scene())
-	column.add_child(restart)
+	## Two ways out, because after a match people want one of exactly two
+	## things: the same fight again, or a different one.
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 12)
+	column.add_child(buttons)
+
+	var again := Button.new()
+	again.text = "PLAY AGAIN"
+	again.custom_minimum_size = Vector2(220, 56)
+	again.add_theme_font_size_override("font_size", 18)
+	again.pressed.connect(_play_again)
+	buttons.add_child(again)
+
+	var change := Button.new()
+	change.text = "NEW SKIRMISH"
+	change.custom_minimum_size = Vector2(220, 56)
+	change.add_theme_font_size_override("font_size", 18)
+	change.pressed.connect(_new_skirmish)
+	buttons.add_child(change)
+
+## Same map, same difficulty, straight back in.
+func _play_again() -> void:
+	GameState.skip_setup = true
+	GameState.pending_save = {}
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+## Back to the setup screen to pick a different battlefield.
+func _new_skirmish() -> void:
+	GameState.skip_setup = false
+	GameState.pending_save = {}
+	GameState.selected_map = null
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 ## Difficulty is chosen before anything happens. The tree is paused
 ## meanwhile, so the AI does not get a free head start while the player
@@ -850,11 +890,20 @@ func _on_match_ended(victory: bool) -> void:
 	SaveGame.delete()
 	var lines: Array = []
 	for entry in MatchStats.summary_lines():
-		lines.append("[color=#9aa48a]%-24s[/color]%s" % [entry[0], entry[1]])
+		if String(entry[0]).is_empty():
+			lines.append("")
+			continue
+		lines.append("[color=#9aa48a]%-22s[/color]%s" % [entry[0], entry[1]])
 	_report_label.text = "\n".join(lines)
 	_victory_label.text = "VICTORY" if victory else "DEFEAT"
-	_victory_label.add_theme_color_override("font_color", Color.GOLD if victory else Color.CRIMSON)
+	_victory_label.add_theme_color_override("font_color",
+		Color(0.88, 0.72, 0.30) if victory else Color(0.85, 0.24, 0.20))
+	_subtitle_label.text = "Command HQ destroyed in %s" % MatchStats.formatted_time() \
+		if victory else "Your Command HQ was lost after %s" % MatchStats.formatted_time()
 	_victory_overlay.visible = true
+	## The match is over, so nothing should still be shooting behind the
+	## report while the player reads it.
+	get_tree().paused = true
 
 # --------------------------------------------------------------- tick
 

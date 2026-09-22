@@ -59,16 +59,35 @@ func record_harvest(amount: int) -> void:
 func formatted_time() -> String:
 	return "%d:%02d" % [int(match_time) / 60, int(match_time) % 60]
 
+## Grouped into what the player did, what it cost, and how the economy
+## behaved - three questions, rather than seven numbers in a column.
+## A lone count says little; "12 lost, 19 destroyed" says how the match
+## actually went.
 func summary_lines() -> Array:
 	return [
 		["MATCH TIME", formatted_time()],
-		["UNITS PRODUCED", str(units_produced)],
-		["UNITS LOST", str(units_lost)],
-		["ENEMIES DESTROYED", str(enemies_destroyed)],
-		["BUILDINGS CONSTRUCTED", str(buildings_constructed)],
-		["BUILDINGS LOST", str(buildings_lost)],
-		["RESOURCES HARVESTED", _thousands(resources_harvested)],
+		["", ""],
+		["FORCES", "%d built  ·  %d lost" % [units_produced, units_lost]],
+		["ENEMY LOSSES", str(enemies_destroyed)],
+		["EXCHANGE", exchange_ratio()],
+		["", ""],
+		["BASE", "%d built  ·  %d lost" % [buildings_constructed, buildings_lost]],
+		["HARVESTED", _thousands(resources_harvested) + " credits"],
+		["AVERAGE INCOME", _thousands(income_per_minute()) + " / min"],
 	]
+
+## Units destroyed for each one lost. The single most descriptive number
+## in the report: it separates a win that cost nothing from a win that
+## nearly was not one.
+func exchange_ratio() -> String:
+	if units_lost <= 0:
+		return "%d for none" % enemies_destroyed if enemies_destroyed > 0 else "no fighting"
+	return "%.1f : 1" % (float(enemies_destroyed) / float(units_lost))
+
+func income_per_minute() -> int:
+	if match_time < 1.0:
+		return 0
+	return int(float(resources_harvested) / (match_time / 60.0))
 
 func _thousands(value: int) -> String:
 	var text: String = str(value)

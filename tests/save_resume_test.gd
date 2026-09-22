@@ -56,13 +56,16 @@ func _ready() -> void:
 	var scene := get_parent()
 
 	## Second pass: the scene was rebuilt from the save. The commander
-	## must be stopped BEFORE any frame runs - given one tick it queues a
+	## must not act before the comparison - given one tick it queues a
 	## harvester, and the 1,200 credits that costs look exactly like the
 	## save having lost them.
+	##
+	## It cannot simply be disabled here: this node is a CHILD of Main, so
+	## its _ready runs BEFORE Main._ready creates the AIDirector, and the
+	## lookup silently found nothing. Pausing the tree stops the director
+	## whatever order it is built in.
 	if not _resumed_state().is_empty():
-		var resumed_director = scene.get_node_or_null("AIDirector")
-		if resumed_director != null:
-			resumed_director.enabled = false
+		get_tree().paused = true
 		await get_tree().process_frame
 		await _verify(scene)
 		return
@@ -109,13 +112,10 @@ func _verify(scene: Node) -> void:
 	## runs, which is correct but would be measured as the save losing
 	## credits. Hold it still for the comparison, then let it go.
 	var director = scene.get_node_or_null("AIDirector")
-	var hud = scene.get_node_or_null("HUD")
-	if hud and hud.has_method("_begin_match"):
-		hud._begin_match()
-	get_tree().paused = false
-	await get_tree().process_frame
-	await get_tree().process_frame
-
+	_check("The commander exists after the reload", director != null)
+	if director != null:
+		director.enabled = false
+	## Still paused: measure the restored state before anything moves.
 	var after := _snapshot(scene)
 	print("TEST| after:  %s" % str(after))
 
@@ -139,9 +139,13 @@ func _verify(scene: Node) -> void:
 		absf(after["unit_health"] - before["unit_health"]) < before["unit_health"] * 0.02,
 		"(%.0f -> %.0f hp)" % [before["unit_health"], after["unit_health"]])
 
-	## And the resumed match must keep playing.
+	## And the resumed match must keep playing once it is let go.
+	var hud = scene.get_node_or_null("HUD")
+	if hud and hud.has_method("_begin_match"):
+		hud._begin_match()
 	if director != null:
 		director.enabled = true
+	get_tree().paused = false
 	await _wait(25.0)
 	_check("The resumed match keeps running",
 		get_tree().get_nodes_in_group("enemy_units").size() >= 1)
