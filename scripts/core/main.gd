@@ -93,10 +93,17 @@ func _ready() -> void:
 
 	_build_environment()
 	_build_level_and_ground()
-	_spawn_player_base()
-	_spawn_enemy_base()
-	_spawn_resource_fields()
-	_spawn_neutral_structure()
+	## A resumed match rebuilds its own entities. Spawning the default
+	## bases first and restoring on top would leave two of everything.
+	var save: Dictionary = GameState.pending_save
+	GameState.pending_save = {}
+	if save.is_empty():
+		_spawn_player_base()
+		_spawn_enemy_base()
+		_spawn_resource_fields()
+		_spawn_neutral_structure()
+	else:
+		_restore_from(save)
 	_spawn_terrain_blockers()
 	## OM_NO_SCENERY skips the decoration pass; see UnitBase._build_visual.
 	if OS.get_environment("OM_NO_SCENERY").is_empty():
@@ -122,6 +129,15 @@ func _ready() -> void:
 	add_child(objectives)
 
 	_build_ai_director()
+	if not _restoring.is_empty():
+		var ai: Dictionary = _restoring.get("ai", {})
+		var director = get_node_or_null("AIDirector")
+		if director != null and not ai.is_empty():
+			director.difficulty = int(ai.get("difficulty", director.difficulty))
+			director.strategy = int(ai.get("strategy", director.strategy))
+			director._build_slot = int(ai.get("build_slot", 0))
+			director._match_time = float(ai.get("match_time", 0.0))
+		_restoring = {}
 
 	var overlay := DebugOverlay.new()
 	overlay.name = "DebugOverlay"
@@ -269,6 +285,31 @@ func _attach_enemy_ai(unit: Node) -> void:
 ## Ore comes from the map: x and z position the field, y is how much it
 ## holds. How much sits at home versus in the open is the main thing that
 ## makes one battlefield play differently from another.
+## Rebuilds a saved match. The AI director does not exist yet at this
+## point in _ready, so its own state is restored once it does.
+var _restoring: Dictionary = {}
+
+func _restore_from(save: Dictionary) -> void:
+	_restoring = save
+	GameState.restoring = true
+	SaveGame.restore(self, save,
+		func(stats, is_player, position): return _spawn_unit(stats.unit_scene, stats, is_player, position),
+		func(stats, is_player, position, neutral): return _spawn_saved_building(stats, is_player, position, neutral),
+		func(position, amount): _spawn_resource_node(position, amount))
+	## Queued after the refineries' own deferred calls, so the flag is
+	## still set when they check it.
+	GameState.call_deferred("finish_restore")
+
+func _spawn_saved_building(stats: BuildingStats, is_player: bool, position: Vector3,
+		neutral: bool) -> Node:
+	var building = stats.scene.instantiate()
+	building.stats = stats
+	building.is_player_faction = is_player
+	building.is_neutral = neutral
+	_nav_region.add_child(building)
+	building.global_position = position
+	return building
+
 func _spawn_resource_fields() -> void:
 	for field in map.resource_fields:
 		_spawn_resource_node(Vector3(field.x, 0.0, field.z), field.y)

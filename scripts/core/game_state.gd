@@ -32,6 +32,16 @@ var selected_map: Resource = null
 ## Set when the setup screen has already been answered, so the reload
 ## that applies the choice does not ask again.
 var skip_setup: bool = false
+## A match being resumed. main.gd consumes this while building the level
+## and spawns from it instead of laying out a fresh skirmish.
+var pending_save: Dictionary = {}
+## True while a saved match is being rebuilt. Anything that hands out a
+## freebie on construction has to sit still: the save already contains
+## whatever that freebie produced the first time.
+var restoring: bool = false
+
+func finish_restore() -> void:
+	restoring = false
 
 func _ready() -> void:
 	var economy: EconomyConfig = load("res://config/economy/default_economy.tres")

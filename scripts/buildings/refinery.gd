@@ -15,7 +15,9 @@ func _ready() -> void:
 	## The first refinery arrives with a harvester. Paying 2000 for a
 	## building that then does nothing until a further 1200 is spent
 	## stalls the opening badly; every later refinery is bought bare.
-	if first:
+	## Not when rebuilding a saved match: that harvester already exists in
+	## the save, and handing out another one duplicates it on every load.
+	if first and not GameState.restoring:
 		_spawn_free_harvester.call_deferred()
 
 func _spawn_free_harvester() -> void:

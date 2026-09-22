@@ -60,6 +60,18 @@ func configure(map_size: float) -> void:
 	_fog_image.fill(Color(0, 0, 0))
 	_fog_texture = ImageTexture.create_from_image(_fog_image)
 
+## Saving a match has to carry what the player has discovered; without
+## it a resumed game hands back a map they already explored.
+func export_explored() -> PackedByteArray:
+	return _explored.duplicate()
+
+func import_explored(data: PackedByteArray) -> void:
+	if data.size() != _explored.size():
+		push_warning("Fog snapshot is the wrong size for this map; ignoring")
+		return
+	_explored = data.duplicate()
+	update_now()
+
 func get_texture() -> ImageTexture:
 	return _fog_texture
 

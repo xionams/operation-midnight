@@ -99,6 +99,10 @@ func _ready() -> void:
 	## _begin_match() directly.
 	_build_debug_overlay()
 
+	## A phone takes the game away without warning - a call, the screen
+	## locking, the task switcher. Save on the way out so the match is
+	## still there afterwards.
+	get_tree().auto_accept_quit = false
 	GameState.selection_changed.connect(_on_selection_changed)
 	GameState.match_ended.connect(_on_match_ended)
 	EventBus.building_captured.connect(_on_building_captured)
@@ -654,6 +658,16 @@ func _build_setup_screen() -> void:
 		row.add_child(button)
 		_difficulty_buttons[entry[1]] = button
 
+	## A saved match is offered first, because someone who was
+	## interrupted mid-game wants that far more than a new one.
+	if SaveGame.has_save():
+		var resume := Button.new()
+		resume.text = "RESUME OPERATION"
+		resume.custom_minimum_size = Vector2(280, 56)
+		resume.add_theme_font_size_override("font_size", 20)
+		resume.pressed.connect(_resume_match)
+		column.add_child(resume)
+
 	var start := Button.new()
 	start.text = "START OPERATION"
 	start.custom_minimum_size = Vector2(280, 56)
@@ -662,6 +676,22 @@ func _build_setup_screen() -> void:
 	column.add_child(start)
 
 	get_tree().paused = true
+
+## Loads the saved match and rebuilds the battlefield from it.
+func _resume_match() -> void:
+	var data := SaveGame.load_data()
+	if data.is_empty():
+		## The file is gone or from an older build; fall through to a new
+		## match rather than leaving a dead button on screen.
+		_begin_match()
+		return
+	var map_path: String = String(data.get("map", ""))
+	if not map_path.is_empty() and ResourceLoader.exists(map_path):
+		GameState.selected_map = load(map_path)
+	GameState.pending_save = data
+	GameState.skip_setup = true
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 func _choose_map(definition: Resource) -> void:
 	_chosen_map = definition
@@ -796,7 +826,28 @@ func _on_building_infiltrated(building: Node, effect: String) -> void:
 	var display: String = building.stats.display_name if building.stats else "Structure"
 	_flash_event("Spy in %s — %s" % [display, effect], Color.GOLD)
 
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_GO_BACK_REQUEST, \
+		NOTIFICATION_WM_CLOSE_REQUEST:
+			_autosave()
+			if what == NOTIFICATION_WM_CLOSE_REQUEST:
+				get_tree().quit()
+
+## Only mid-match state is worth keeping: saving a finished or
+## unstarted match would offer the player a resume that goes nowhere.
+func _autosave() -> void:
+	if get_tree() == null or get_tree().paused:
+		return
+	if GameState.match_state != GameState.MatchState.PLAYING:
+		return
+	var scene := get_tree().current_scene
+	if scene != null and scene.get("map") != null:
+		SaveGame.save(scene)
+
 func _on_match_ended(victory: bool) -> void:
+	## The match is over; a save of it would only mislead.
+	SaveGame.delete()
 	var lines: Array = []
 	for entry in MatchStats.summary_lines():
 		lines.append("[color=#9aa48a]%-24s[/color]%s" % [entry[0], entry[1]])

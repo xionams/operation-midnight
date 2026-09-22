@@ -1,3 +1,38 @@
+## Milestone 9 — Match Shape (in progress)
+
+- [x] MapDefinition resource; the layout is data, not constants
+- [x] Three maps that play differently by economy, not decoration
+- [x] Setup screen offers map and difficulty
+- [x] Save and resume a match, with autosave on backgrounding
+- [ ] Win / lose flow and after-action report polish
+
+### Save and resume
+
+`SaveGame` stores what cannot be derived - credits, units with health,
+veterancy and cargo, buildings with health and rally points, ore left in
+each field, the explored fog, match statistics and the AI's strategy -
+and rebuilds a match from it. Anything derivable (navmesh, scenery,
+selection rings) comes back through the normal spawn path.
+
+Autosaves when Android takes the game away (APPLICATION_PAUSED, back
+button, window close) and offers RESUME OPERATION on the setup screen.
+The save is deleted when a match ends, so the button never offers a
+resume that goes nowhere.
+
+Round trip verified 15/15: same units, buildings, neutrals and fields;
+credits, ore, explored cells and unit damage all preserved; the resumed
+match keeps playing.
+
+Three defects the round trip found:
+- The first refinery hands out a free harvester. On resume that
+  duplicated one the save already contained, every single load.
+- The commander resumes and spends immediately, which is correct but
+  was being measured as the save losing 1,200 credits. The test now
+  holds it still for the comparison rather than the game being changed
+  to suit the test.
+- Two earlier attempts at the map harness measured the wrong thing; see
+  the Milestone 9 notes in the commit history.
+
 ## Milestone 7 — Android Beachhead (partly blocked)
 
 Renderer switched Forward Plus -> Mobile with a full test pass; Android
