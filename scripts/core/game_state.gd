@@ -25,6 +25,14 @@ var match_state: MatchState = MatchState.PLAYING
 var _player_refineries: Array = []
 var _enemy_refineries: Array = []
 
+## Chosen on the skirmish setup screen. Read by main.gd when the scene
+## builds, which is why picking a map reloads the scene rather than
+## editing a battlefield that already exists.
+var selected_map: Resource = null
+## Set when the setup screen has already been answered, so the reload
+## that applies the choice does not ask again.
+var skip_setup: bool = false
+
 func _ready() -> void:
 	var economy: EconomyConfig = load("res://config/economy/default_economy.tres")
 	if economy:

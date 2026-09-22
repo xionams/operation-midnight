@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MapDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/map_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Cold Corridor"
+description = "Bases at opposite ends of a long lane. Home ore is generous, so economies build up before they meet - and there is only one way through."
+size = 220.0
+player_base = Vector3(-84, 0, 0)
+enemy_base = Vector3(84, 0, 0)
+start_reveal_radius = 36.0
+resource_fields = Array[Vector3]([Vector3(-62, 22000, -20), Vector3(-62, 12000, 24), Vector3(62, 22000, 20), Vector3(62, 12000, -24), Vector3(0, 20000, -34), Vector3(0, 20000, 34)])
+civilian_positions = Array[Vector3]([Vector3(-24, 0, 0), Vector3(24, 0, 0), Vector3(0, 0, 14), Vector3(0, 0, -14)])
+comms_outpost = Vector3(0, 0, 0)
+repair_depot = Vector3(-34, 0, 44)
+supply_depot = Vector3(34, 0, -44)
+blockers = Array[Vector3]([Vector3(-20, 0, 52), Vector3(44, 7, 12), Vector3(20, 0, -52), Vector3(44, 7, 12), Vector3(-20, 0, -52), Vector3(44, 7, 12), Vector3(20, 0, 52), Vector3(44, 7, 12), Vector3(-44, 0, 26), Vector3(12, 7, 30), Vector3(44, 0, -26), Vector3(12, 7, 30), Vector3(-44, 0, -26), Vector3(12, 7, 30), Vector3(44, 0, 26), Vector3(12, 7, 30)])

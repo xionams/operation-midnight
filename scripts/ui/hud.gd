@@ -68,6 +68,15 @@ var _debug_panel: Label
 var _ai_econ_panel: Label
 var _debug_visible: bool = false
 
+const MAPS: Array[String] = [
+	"res://config/maps/ridgeline.tres",
+	"res://config/maps/dry_basin.tres",
+	"res://config/maps/cold_corridor.tres",
+]
+var _map_buttons: Dictionary = {}
+var _map_blurb: Label
+var _chosen_map: Resource = null
+
 func _ready() -> void:
 	layer = 10
 	_build_top_bar()
@@ -75,7 +84,12 @@ func _ready() -> void:
 	_build_selection_panel()
 	_build_right_column()
 	_build_victory_overlay()
-	_build_setup_screen()
+	## A reload carrying a map choice has already been through setup.
+	if GameState.skip_setup:
+		GameState.skip_setup = false
+		call_deferred("_begin_match")
+	else:
+		_build_setup_screen()
 	## The intro is built when the match starts, NOT here. Built at _ready
 	## it was added after the setup screen and therefore drawn on top of
 	## it, while _build_setup_screen() pauses the tree - so its fade tween
@@ -595,6 +609,35 @@ func _build_setup_screen() -> void:
 	subtitle.add_theme_color_override("font_color", Color(0.7, 0.74, 0.62))
 	column.add_child(subtitle)
 
+	var map_row := HBoxContainer.new()
+	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	map_row.add_theme_constant_override("separation", 10)
+	column.add_child(map_row)
+	for path in MAPS:
+		var definition: Resource = load(path)
+		if definition == null:
+			continue
+		if _chosen_map == null:
+			_chosen_map = definition
+		var button := Button.new()
+		button.text = definition.display_name
+		button.toggle_mode = true
+		button.custom_minimum_size = Vector2(164, TOUCH_MIN)
+		button.button_pressed = definition == _chosen_map
+		button.pressed.connect(func(): _choose_map(definition))
+		map_row.add_child(button)
+		_map_buttons[definition] = button
+
+	## Describe a map by what it does to the economy, not by adjective:
+	## how much ore sits at home decides whether you can turtle.
+	_map_blurb = _label("", 14)
+	_map_blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_map_blurb.custom_minimum_size = Vector2(540, 56)
+	_map_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_map_blurb.add_theme_color_override("font_color", Color(0.62, 0.66, 0.58))
+	column.add_child(_map_blurb)
+	_refresh_map_blurb()
+
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
@@ -620,6 +663,20 @@ func _build_setup_screen() -> void:
 
 	get_tree().paused = true
 
+func _choose_map(definition: Resource) -> void:
+	_chosen_map = definition
+	for key in _map_buttons:
+		_map_buttons[key].set_pressed_no_signal(key == definition)
+	_refresh_map_blurb()
+
+func _refresh_map_blurb() -> void:
+	if _map_blurb == null or _chosen_map == null:
+		return
+	_map_blurb.text = "%s\nHome ore %s  ·  contested %s" % [
+		_chosen_map.description,
+		_thousands(_chosen_map.home_ore_for(_chosen_map.player_base)),
+		_thousands(_chosen_map.contested_ore())]
+
 func _choose_difficulty(value: int) -> void:
 	_chosen_difficulty = value
 	for key in _difficulty_buttons:
@@ -629,8 +686,24 @@ func _begin_match() -> void:
 	var director = get_tree().current_scene.get_node_or_null("AIDirector")
 	if director:
 		director.difficulty = _chosen_difficulty
+	## Picking a different battlefield means rebuilding it, so the choice
+	## is stored and the scene reloaded; the reload skips setup. Compared
+	## against the map actually built, not against GameState - otherwise
+	## keeping the default still triggers a pointless reload.
+	var built: Resource = null
+	var scene := get_tree().current_scene
+	if scene != null and "map" in scene:
+		built = scene.map
+	if _chosen_map != null and _chosen_map != built:
+		GameState.selected_map = _chosen_map
+		GameState.skip_setup = true
+		get_tree().paused = false
+		get_tree().reload_current_scene()
+		return
+
 	MatchStats.reset()
-	_setup_overlay.visible = false
+	if _setup_overlay != null:
+		_setup_overlay.visible = false
 	get_tree().paused = false
 	if _intro_overlay == null:
 		_build_intro()

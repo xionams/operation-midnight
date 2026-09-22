@@ -38,8 +38,15 @@ const CIVILIAN_POSITIONS: Array[Vector3] = [
 const RIFLE_SOLDIER_SCENE: PackedScene = preload("res://scenes/units/rifle_soldier.tscn")
 const ECONOMY_CONFIG: EconomyConfig = preload("res://config/economy/default_economy.tres")
 
+const DEFAULT_MAP: MapDefinition = preload("res://config/maps/ridgeline.tres")
+
 @export var map_size: float = 220.0
 @export var bounds_margin: float = 6.0
+
+## The battlefield being played. Set by the skirmish setup screen through
+## GameState; falls back to Ridgeline, which is the layout this project
+## had when the positions below were constants.
+var map: MapDefinition = DEFAULT_MAP
 
 ## Layout is deliberately spread across the full battlefield: nothing but
 ## the player's own corner is within opening vision, so every resource
@@ -75,6 +82,9 @@ var _bounds_min: Vector2
 var _bounds_max: Vector2
 
 func _ready() -> void:
+	if GameState.selected_map != null:
+		map = GameState.selected_map
+	map_size = map.size
 	var half_size: float = map_size / 2.0 - bounds_margin
 	_bounds_min = Vector2(-half_size, -half_size)
 	_bounds_max = Vector2(half_size, half_size)
@@ -95,12 +105,12 @@ func _ready() -> void:
 
 	## Seed the player's own ground as explored, then run one vision pass
 	## so the opening frame is correct before the first fog tick.
-	FogOfWar.reveal_area(PLAYER_BASE_POS, START_REVEAL_RADIUS)
+	FogOfWar.reveal_area(map.player_base, map.start_reveal_radius)
 	FogOfWar.update_now()
 
 	var camera := _build_camera()
 	camera.zoom_distance = 38.0
-	camera.focus_on(PLAYER_BASE_POS)
+	camera.focus_on(map.player_base)
 
 	_construction = ConstructionQueue.new()
 	_construction.name = "ConstructionQueue"
@@ -224,23 +234,23 @@ func _spawn_unit(scene: PackedScene, stats: UnitStats, is_player: bool, pos: Vec
 	return unit
 
 func _spawn_player_base() -> void:
-	_spawn_building(COMMAND_HQ_SCENE, COMMAND_HQ_STATS, true, PLAYER_BASE_POS)
-	_spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, true, PLAYER_BASE_POS + Vector3(9, 0, 0))
-	_spawn_unit(SCOUT_VEHICLE_SCENE, SCOUT_VEHICLE_STATS, true, PLAYER_BASE_POS + Vector3(0, 0, 9))
+	_spawn_building(COMMAND_HQ_SCENE, COMMAND_HQ_STATS, true, map.player_base)
+	_spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, true, map.player_base + Vector3(9, 0, 0))
+	_spawn_unit(SCOUT_VEHICLE_SCENE, SCOUT_VEHICLE_STATS, true, map.player_base + Vector3(0, 0, 9))
 
 func _spawn_enemy_base() -> void:
-	_spawn_building(COMMAND_HQ_SCENE, COMMAND_HQ_STATS, false, ENEMY_BASE_POS)
+	_spawn_building(COMMAND_HQ_SCENE, COMMAND_HQ_STATS, false, map.enemy_base)
 	## A second enemy structure gives Engineers something worth capturing
 	## and Spies something worth infiltrating, rather than a base whose
 	## only building is the one that ends the match.
-	_spawn_building(BARRACKS_SCENE, BARRACKS_STATS, false, ENEMY_BASE_POS + Vector3(-14, 0, 6))
-	var enemy_a := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, ENEMY_BASE_POS + Vector3(-9, 0, 0))
+	_spawn_building(BARRACKS_SCENE, BARRACKS_STATS, false, map.enemy_base + Vector3(-14, 0, 6))
+	var enemy_a := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, map.enemy_base + Vector3(-9, 0, 0))
 	_attach_enemy_ai(enemy_a)
-	var enemy_b := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, ENEMY_BASE_POS + Vector3(0, 0, -9))
+	var enemy_b := _spawn_unit(ASSAULT_VEHICLE_SCENE, ASSAULT_VEHICLE_STATS, false, map.enemy_base + Vector3(0, 0, -9))
 	_attach_enemy_ai(enemy_b)
 	## Infantry on defence, so an unescorted Engineer or Spy is a real
 	## risk rather than a guaranteed win.
-	var guard := _spawn_unit(RIFLE_SOLDIER_SCENE, SOLDIER_STATS, false, ENEMY_BASE_POS + Vector3(-12, 0, 3))
+	var guard := _spawn_unit(RIFLE_SOLDIER_SCENE, SOLDIER_STATS, false, map.enemy_base + Vector3(-12, 0, 3))
 	_attach_enemy_ai(guard)
 
 ## The enemy commander runs the same economy and production the player
@@ -249,29 +259,28 @@ func _build_ai_director() -> void:
 	var director := AIDirector.new()
 	director.name = "AIDirector"
 	add_child(director)
-	director.setup(_nav_region, _level, ENEMY_BASE_POS, PLAYER_BASE_POS)
+	director.setup(_nav_region, _level, map.enemy_base, map.player_base)
 
 func _attach_enemy_ai(unit: Node) -> void:
 	var ai := EnemyAIController.new()
 	ai.name = "AI"
 	unit.add_child(ai)
 
+## Ore comes from the map: x and z position the field, y is how much it
+## holds. How much sits at home versus in the open is the main thing that
+## makes one battlefield play differently from another.
 func _spawn_resource_fields() -> void:
-	## Home fields sustain an opening; the central field is worth twice as
-	## much and sits in the open, so expanding is a real decision.
-	_spawn_resource_node(RESOURCE_NODE_A_POS, 16000.0)
-	_spawn_resource_node(RESOURCE_NODE_B_POS, 20000.0)
-	_spawn_resource_node(RESOURCE_NODE_ENEMY_POS, 16000.0)
-	_spawn_resource_node(RESOURCE_NODE_CENTRAL_POS, 28000.0)
+	for field in map.resource_fields:
+		_spawn_resource_node(Vector3(field.x, 0.0, field.z), field.y)
 
 ## Genuinely neutral map control: nobody owns these until an Engineer
 ## walks in. Each pays a different benefit, so which one is worth the
 ## detour depends on how the match is going.
 func _spawn_neutral_structure() -> void:
-	_spawn_strategic(COMMS_OUTPOST_STATS, COMMS_OUTPOST_POS, StrategicStructure.Benefit.VISION)
-	_spawn_strategic(REPAIR_DEPOT_STATS, REPAIR_DEPOT_POS, StrategicStructure.Benefit.REPAIR)
-	_spawn_strategic(SUPPLY_DEPOT_STATS, SUPPLY_DEPOT_POS, StrategicStructure.Benefit.SUPPLY)
-	for position in CIVILIAN_POSITIONS:
+	_spawn_strategic(COMMS_OUTPOST_STATS, map.comms_outpost, StrategicStructure.Benefit.VISION)
+	_spawn_strategic(REPAIR_DEPOT_STATS, map.repair_depot, StrategicStructure.Benefit.REPAIR)
+	_spawn_strategic(SUPPLY_DEPOT_STATS, map.supply_depot, StrategicStructure.Benefit.SUPPLY)
+	for position in map.civilian_positions:
 		var civilian = CIVILIAN_STATS.scene.instantiate()
 		civilian.stats = CIVILIAN_STATS
 		civilian.is_neutral = true
@@ -297,23 +306,39 @@ func _dress_battlefield() -> void:
 	_scenery.map_size = map_size
 	_level.add_child(_scenery)
 
-	for field in [RESOURCE_NODE_A_POS, RESOURCE_NODE_B_POS,
-			RESOURCE_NODE_CENTRAL_POS, RESOURCE_NODE_ENEMY_POS]:
-		_scenery._exclude(field, 11.0)
-	for position in CIVILIAN_POSITIONS:
+	for field in map.resource_fields:
+		_scenery._exclude(Vector3(field.x, 0.0, field.z), 11.0)
+	for position in map.civilian_positions:
 		_scenery._exclude(position, 9.0)
-	for position in [COMMS_OUTPOST_POS, REPAIR_DEPOT_POS, SUPPLY_DEPOT_POS]:
+	for position in [map.comms_outpost, map.repair_depot, map.supply_depot]:
 		_scenery._exclude(position, 9.0)
 	for entry in _blocker_layout():
 		_scenery.dress_blocker(entry[0], entry[1])
 
-	_scenery.decorate_base(PLAYER_BASE_POS, true)
-	_scenery.decorate_base(ENEMY_BASE_POS, false)
-	_scenery.lay_road(PLAYER_BASE_POS + Vector3(14, 0, -14), RESOURCE_NODE_CENTRAL_POS)
-	_scenery.lay_road(RESOURCE_NODE_CENTRAL_POS, ENEMY_BASE_POS + Vector3(-14, 0, 14))
+	_scenery.decorate_base(map.player_base, true)
+	_scenery.decorate_base(map.enemy_base, false)
+	## The road runs base to base through whatever sits in the middle, so
+	## the route most fighting happens along is legible on any layout.
+	var midpoint: Vector3 = (map.player_base + map.enemy_base) * 0.5
+	if not map.resource_fields.is_empty():
+		var best: Vector3 = midpoint
+		var nearest: float = INF
+		for field in map.resource_fields:
+			var point := Vector3(field.x, 0.0, field.z)
+			if point.distance_to(midpoint) < nearest:
+				nearest = point.distance_to(midpoint)
+				best = point
+		midpoint = best
+	var to_mid: Vector3 = (midpoint - map.player_base).normalized() * 20.0
+	var from_mid: Vector3 = (midpoint - map.enemy_base).normalized() * 20.0
+	_scenery.lay_road(map.player_base + to_mid, midpoint)
+	_scenery.lay_road(midpoint, map.enemy_base + from_mid)
 	_scenery.scatter(map_size, 90)
 
 func _blocker_layout() -> Array:
+	return map.blocker_pairs()
+
+func _unused_blocker_layout() -> Array:
 	return [
 		[Vector3(-34, 0, 30), Vector3(30, 7, 10)],
 		[Vector3(-4, 0, 40), Vector3(10, 7, 34)],

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MapDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/map_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Dry Basin"
+description = "Thin ore at home and a huge deposit in the open centre. Whoever turtles runs dry first, so the fight starts early and happens in the middle."
+size = 220.0
+player_base = Vector3(-80, 0, -70)
+enemy_base = Vector3(80, 0, 70)
+start_reveal_radius = 34.0
+resource_fields = Array[Vector3]([Vector3(-60, 9000, -44), Vector3(60, 9000, 44), Vector3(0, 34000, 0), Vector3(-52, 14000, 40), Vector3(52, 14000, -40)])
+civilian_positions = Array[Vector3]([Vector3(-20, 0, -8), Vector3(20, 0, 8), Vector3(-6, 0, 36), Vector3(6, 0, -36)])
+comms_outpost = Vector3(0, 0, 40)
+repair_depot = Vector3(0, 0, -40)
+supply_depot = Vector3(-40, 0, 6)
+blockers = Array[Vector3]([Vector3(-30, 0, -40), Vector3(28, 7, 10), Vector3(30, 0, 40), Vector3(28, 7, 10), Vector3(-46, 0, 8), Vector3(10, 7, 34), Vector3(46, 0, -8), Vector3(10, 7, 34), Vector3(0, 0, 74), Vector3(50, 7, 10), Vector3(0, 0, -74), Vector3(50, 7, 10), Vector3(-76, 0, 20), Vector3(10, 7, 26), Vector3(76, 0, -20), Vector3(10, 7, 26)])
