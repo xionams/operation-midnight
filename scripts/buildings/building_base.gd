@@ -283,7 +283,7 @@ func _refresh_damage_plume(stage: int) -> void:
 func _on_died() -> void:
 	VFX.explosion_large(self, global_position + Vector3.UP)
 	MatchStats.record_building_death(is_player_faction and not is_neutral)
-	AudioDirector.play("explosion")
+	AudioDirector.play("explosion_large")
 	_unregister_power()
 	died.emit(self)
 	EventBus.building_destroyed.emit(self)

@@ -557,6 +557,7 @@ func _on_died() -> void:
 	## at a glance how much they just lost.
 	if stats != null and not stats.is_infantry:
 		VFX.vehicle_wreck(self, global_position)
+		AudioDirector.play("explosion_small")
 	else:
 		VFX.impact(self, global_position + Vector3.UP * 0.6)
 	MatchStats.record_unit_death(is_player_faction)

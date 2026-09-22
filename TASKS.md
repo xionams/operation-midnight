@@ -1,3 +1,30 @@
+## Milestone 11 — Feel and Audio (in progress)
+
+- [x] Weapon, impact and explosion SFX per class
+- [x] Build, ready, capture, sell and alert cues
+- [x] Ambient bed and calm/combat music states
+- [ ] Selection, marker and camera feel pass
+
+22 sounds, synthesised by `tools/make_sfx.py` - written by Codex from an
+audio brief, per this project's split of asset work. Standard-library
+Python only, deterministic, so the whole set regenerates from source
+rather than being binary blobs nobody can change.
+
+Weapons choose their own report from what the weapon IS - splash,
+anti-armour, damage, rate of fire - so a new weapon gets a sensible
+sound without a per-unit table. Rocket is checked before the damage
+threshold, because an AT launcher hits hard enough to be mistaken for a
+tank gun and the launch whoosh is its whole character.
+
+Music is two beds cross-fading on whether anyone has fired in the last
+nine seconds, over an ambient wind layer, all three silenced under the
+after-action report.
+
+`audio_test` asserts which stream each cue resolves to and drives the
+music state machine, rather than checking that nothing threw: 19 of 19
+cues authored, four distinct weapon reports, beds looping, combat rising
+and settling. Verified running on Android through OpenSLES.
+
 ## Milestone 9 — Match Shape (in progress)
 
 - [x] MapDefinition resource; the layout is data, not constants

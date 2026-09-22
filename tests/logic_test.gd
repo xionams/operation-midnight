@@ -86,6 +86,17 @@ func _run() -> void:
 	var soldier = _spawn_unit(SOLDIER, SOLDIER_STATS, false, Vector3(-20, 0, 0))
 	var tank = _spawn_unit(TANK, TANK_STATS, true, Vector3(-26, 0, 0))
 	await get_tree().process_frame
+	## These two are fixtures for the damage table, not combatants. Left
+	## armed they acquire each other and fire on their own, and whichever
+	## shot lands first puts the weapon on cooldown so the deliberate
+	## fire_at below silently does nothing - the check then reads as
+	## "cannon does no damage to infantry". Disarm them so the only shots
+	## are the ones this test asks for.
+	for fixture in [soldier, tank]:
+		var attacker = fixture.get_node_or_null("AttackerComponent")
+		if attacker != null:
+			attacker.queue_free()
+	await get_tree().process_frame
 	_check("Infantry carries INFANTRY armor",
 		soldier.get_node("HealthComponent").armor_type == Armor.Type.INFANTRY)
 	_check("Assault Vehicle carries MEDIUM armor",

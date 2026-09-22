@@ -56,9 +56,10 @@ func fire_at(target: Node3D, from_position: Vector3) -> void:
 			if veterancy:
 				veterancy.award_damage(dealt)
 
-	AudioDirector.play("attack")
+	AudioDirector.play_weapon(stats)
 	_spawn_tracer(from_position, target.global_position)
 	_spawn_fire_effects(from_position, target.global_position)
+	AudioDirector.play_impact(stats)
 
 ## Presentation only. The scale of the effect follows the weapon's own
 ## numbers rather than a per-unit switch, so a new weapon gets a sensible
