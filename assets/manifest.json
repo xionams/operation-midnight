@@ -4,9 +4,9 @@
   "style_block": "Near-future military RTS asset, stylized realistic low-poly, dark serious atmosphere, modern military (NOT sci-fi). Desaturated palette: gunmetal #3A3F45, steel #4A5058, olive drab #4A5138, concrete #8A8579, rust #6E4A2E. Flat matte painted metal. Boxy chamfered industrial shape language with an exaggerated readable silhouette. Single cold low dusk sun. Top-down isometric RTS camera ~38m out, optimized for Android.",
   "generated_by": "tools/build_manifest.py",
   "totals": {
-    "assets": 111,
+    "assets": 112,
     "by_type": {
-      "model_environment": 15,
+      "model_environment": 16,
       "model_unit": 10,
       "model_building": 16,
       "icon": 49,
@@ -14,13 +14,13 @@
       "texture_concept": 6
     },
     "by_status": {
-      "greybox": 41,
+      "greybox": 42,
       "placeholder-final": 49,
       "final-placeholder": 15,
       "generated": 6
     },
-    "integrated": 105,
-    "model_triangles": 7448
+    "integrated": 106,
+    "model_triangles": 8756
   },
   "assets": [
     {
@@ -102,7 +102,7 @@
         "y": 0.0,
         "z": 0.4
       },
-      "triangles": 188,
+      "triangles": 348,
       "triangle_budget": 400,
       "description": "Anti-Armor Squad: shoulder launcher and pack",
       "status": "greybox",
@@ -164,10 +164,10 @@
       },
       "declared_overhang_m": {
         "x": 0.0,
-        "y": 1.1,
+        "y": 2.6,
         "z": 0.0
       },
-      "triangles": 284,
+      "triangles": 340,
       "triangle_budget": 800,
       "description": "Barracks: pitched-roof hall with sandbag frontage",
       "status": "greybox",
@@ -248,10 +248,10 @@
       },
       "declared_overhang_m": {
         "x": 0.0,
-        "y": 1.1,
+        "y": 2.2,
         "z": 0.0
       },
-      "triangles": 292,
+      "triangles": 380,
       "triangle_budget": 1800,
       "description": "Command Headquarters: stepped bunker, comms mast, vehicle entrance",
       "status": "greybox",
@@ -373,7 +373,7 @@
         "depth": 0.9
       },
       "declared_overhang_m": null,
-      "triangles": 144,
+      "triangles": 304,
       "triangle_budget": 400,
       "description": "Combat Engineer: hard hat and toolbox, unarmed",
       "status": "greybox",
@@ -392,7 +392,7 @@
         "depth": 6.5
       },
       "declared_overhang_m": null,
-      "triangles": 240,
+      "triangles": 284,
       "triangle_budget": 800,
       "description": "Forward Command Post: stacked prefab containers and mast",
       "status": "greybox",
@@ -541,7 +541,7 @@
         "y": 0.6,
         "z": 0.1
       },
-      "triangles": 332,
+      "triangles": 376,
       "triangle_budget": 800,
       "description": "Power Plant: twin cooling towers and pipe runs",
       "status": "greybox",
@@ -564,7 +564,7 @@
         "y": 0.1,
         "z": 0.0
       },
-      "triangles": 232,
+      "triangles": 276,
       "triangle_budget": 800,
       "description": "Radar Center: tilted dish on a tower block",
       "status": "greybox",
@@ -584,10 +584,10 @@
       },
       "declared_overhang_m": {
         "x": 0.0,
-        "y": 0.5,
+        "y": 1.7,
         "z": 0.1
       },
-      "triangles": 228,
+      "triangles": 272,
       "triangle_budget": 1800,
       "description": "Resource Refinery: ore hopper, silo, harvester unloading bay",
       "status": "greybox",
@@ -610,7 +610,7 @@
         "y": 0.2,
         "z": 0.0
       },
-      "triangles": 164,
+      "triangles": 208,
       "triangle_budget": 800,
       "description": "Repair Depot: open canopy with overhead hoist",
       "status": "greybox",
@@ -629,7 +629,7 @@
         "depth": 0.9
       },
       "declared_overhang_m": null,
-      "triangles": 144,
+      "triangles": 304,
       "triangle_budget": 400,
       "description": "Rifle Squad: standard infantry with carbine",
       "status": "greybox",
@@ -747,7 +747,7 @@
         "depth": 0.9
       },
       "declared_overhang_m": null,
-      "triangles": 144,
+      "triangles": 304,
       "triangle_budget": 400,
       "description": "Spy: no helmet, no weapon, carries a case",
       "status": "greybox",
@@ -766,7 +766,7 @@
         "depth": 6
       },
       "declared_overhang_m": null,
-      "triangles": 244,
+      "triangles": 288,
       "triangle_budget": 800,
       "description": "Supply Depot: covered stores, crates and drums",
       "status": "greybox",
@@ -786,10 +786,10 @@
       },
       "declared_overhang_m": {
         "x": 0.0,
-        "y": 0.8,
+        "y": 1.4,
         "z": 0.1
       },
-      "triangles": 184,
+      "triangles": 228,
       "triangle_budget": 1800,
       "description": "Technology Center: glazed upper floor and antenna array",
       "status": "greybox",
@@ -837,6 +837,25 @@
       "integrated": true
     },
     {
+      "id": "vehicle_wreck",
+      "type": "model_environment",
+      "filename": "assets/models/vehicle_wreck.glb",
+      "dimensions_m": {
+        "width": 3.4,
+        "height": 1.2,
+        "depth": 3.9
+      },
+      "declared_overhang_m": null,
+      "triangles": 172,
+      "triangle_budget": 250,
+      "description": "Burnt-out vehicle hull, generic to any armoured death",
+      "status": "greybox",
+      "source": "generated by tools/build_greyboxes.py from tools/asset_specs.py",
+      "prompt": null,
+      "integration": "spawned by scripts/core/scenery.gd",
+      "integrated": true
+    },
+    {
       "id": "wall",
       "type": "model_building",
       "filename": "assets/models/wall.glb",
@@ -866,10 +885,10 @@
       },
       "declared_overhang_m": {
         "x": 0.0,
-        "y": 0.7,
+        "y": 1.8,
         "z": 0.0
       },
-      "triangles": 280,
+      "triangles": 324,
       "triangle_budget": 1800,
       "description": "Vehicle Factory: shed with roll-up door and gantry crane",
       "status": "greybox",

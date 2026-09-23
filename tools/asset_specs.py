@@ -735,6 +735,32 @@ def _destroyed_building():
     return [("Body", m, (0, 0, 0))]
 
 
+def _vehicle_wreck():
+    """A burnt-out hull, and deliberately not a specific vehicle.
+
+    One wreck stands in for every vehicle in the game, so it has to read
+    as "something armoured died here" rather than as a particular tank -
+    a recognisable hull would look wrong under three quarters of the
+    deaths it marks. Low, broken-backed, and charred rather than painted:
+    no faction slot, because a wreck belongs to nobody.
+    """
+    m = Mesh()
+    # Chassis, slumped and slightly askew.
+    box(m, "Dark", (2.0, 0.42, 3.0), (0, 0.24, 0), rot_y=0.10, chamfer=0.1)
+    # Collapsed tracks either side, one thrown off.
+    box(m, "Dark", (0.44, 0.30, 2.7), (-0.86, 0.15, 0.06), rot_y=0.10, chamfer=0.06)
+    box(m, "Dark", (0.42, 0.22, 1.6), (1.05, 0.11, -0.55), rot_y=0.42, chamfer=0.06)
+    # What is left of the upper hull, blown open and tipped.
+    box(m, "Concrete_Dark", (1.35, 0.44, 1.5), (-0.08, 0.62, 0.18), rot_y=-0.18, chamfer=0.12)
+    wedge(m, "Concrete_Dark", (1.2, 0.34, 0.9), (0.1, 0.92, -0.35), rot_y=-0.18)
+    # A barrel or strut, bent and dropped clear.
+    cylinder(m, "Metal", 0.09, 1.7, (0.75, 0.30, 0.95), segments=6, axis="z", rot_y=0.55)
+    # Scattered plate.
+    for i, (dx, dz, r) in enumerate(((-1.35, 0.9, 0.7), (1.3, 1.25, 1.9), (-0.4, -1.75, 0.3))):
+        box(m, "Dark", (0.6, 0.12, 0.5), (dx, 0.06, dz), rot_y=r, chamfer=0.04)
+    return [("Body", m, (0, 0, 0))]
+
+
 def _antenna_mast():
     m = Mesh()
     box(m, "Concrete", (0.9, 0.3, 0.9), (0, 0.15, 0), chamfer=0.06)
@@ -782,6 +808,8 @@ asset("tree_bare", "environment", (1.4, 2.9, 1.4), _tree_bare, "Bare winter tree
 asset("debris_pile", "environment", (2.4, 0.5, 2.0), _debris_pile, "Rubble and rebar", 250)
 asset("destroyed_building", "environment", (4.4, 2.1, 4.4), _destroyed_building,
       "Destroyed structure shell", 250)
+asset("vehicle_wreck", "environment", (3.4, 1.2, 3.9), _vehicle_wreck,
+      "Burnt-out vehicle hull, generic to any armoured death", 250)
 asset("antenna_mast", "environment", (0.9, 5.1, 0.9), _antenna_mast,
       "Lattice antenna mast prop", 250)
 asset("road_segment", "environment", (8.0, 0.1, 8.0), _road_segment,

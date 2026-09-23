@@ -5,7 +5,15 @@
 - [x] Infantry rebuilt for a top-down silhouette
 - [x] Destruction states - structures leave ruins
 - [x] Remaining icons into the top bar
-- [ ] Vehicle wrecks (no model yet; smoke covers it for now)
+- [x] Vehicle wrecks
+
+Milestone 10 complete.
+
+One wreck model stands in for every vehicle in the game, so it reads as
+"something armoured died here" rather than as a particular tank - a
+recognisable hull would look wrong under three quarters of the deaths it
+marks. Charred rather than painted, with no faction slot: a wreck belongs
+to nobody.
 
 ### Turrets
 

@@ -97,6 +97,41 @@ func _ready() -> void:
 				Vector2(stood_at.x, stood_at.z)) < 2.0)
 		_check("The ruin sits on the ground", absf(wreck.global_position.y) < 0.2)
 
+	# --- vehicles leave hulls too ---
+	var hulls_before: int = get_tree().get_nodes_in_group("wreckage").size()
+	var doomed = _spawn("res://scenes/units/assault_vehicle.tscn",
+		"res://config/units/assault_vehicle.tres", true, Vector3(-80, 0, 90))
+	await _wait(0.3)
+	var died_at: Vector3 = doomed.global_position
+	doomed.get_node("HealthComponent").take_damage(999999.0)
+	await _wait(0.5)
+	_check("A destroyed vehicle leaves a hull",
+		get_tree().get_nodes_in_group("wreckage").size() > hulls_before,
+		"(%d)" % get_tree().get_nodes_in_group("wreckage").size())
+	var hull = get_tree().get_nodes_in_group("wreckage").back()
+	_check("The hull lies where the vehicle died",
+		Vector2(hull.global_position.x, hull.global_position.z).distance_to(
+			Vector2(died_at.x, died_at.z)) < 2.0)
+
+	## Infantry do not leave a vehicle hull.
+	var before_infantry: int = get_tree().get_nodes_in_group("wreckage").size()
+	var soldier = _spawn("res://scenes/units/rifle_soldier.tscn",
+		"res://config/units/rifle_soldier.tres", true, Vector3(-84, 0, 90))
+	await _wait(0.3)
+	soldier.get_node("HealthComponent").take_damage(999999.0)
+	await _wait(0.5)
+	_check("Infantry leave no hull behind",
+		get_tree().get_nodes_in_group("wreckage").size() == before_infantry)
+
+	## Wreckage is capped so a long match cannot bury the map in it.
+	for i in range(Wreckage.MAX_WRECKS + 6):
+		Wreckage.spawn_vehicle(self, Vector3(-90 + i, 0, 95))
+	await _wait(0.4)
+	_check("Wreckage is capped",
+		get_tree().get_nodes_in_group("wreckage").size() <= Wreckage.MAX_WRECKS,
+		"(%d of max %d)" % [get_tree().get_nodes_in_group("wreckage").size(),
+			Wreckage.MAX_WRECKS])
+
 	# --- the HUD uses the icons that were drawn for it ---
 	for icon in ["ui_credits", "ui_power", "ui_unit_cap"]:
 		_check("Icon '%s' loads" % icon, Icons.get_icon(icon) != null)

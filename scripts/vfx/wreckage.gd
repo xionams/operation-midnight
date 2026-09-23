@@ -12,6 +12,7 @@ extends Node3D
 ## gap that only shows up when someone goes looking.
 
 const MODEL: PackedScene = preload("res://assets/models/destroyed_building.glb")
+const VEHICLE_MODEL: PackedScene = preload("res://assets/models/vehicle_wreck.glb")
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 
 ## Rubble persists for the match rather than fading, but not without
@@ -19,7 +20,14 @@ const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 ## until they cost more than the buildings did.
 const MAX_WRECKS: int = 24
 
-static func spawn(context: Node, position: Vector3, footprint: float) -> void:
+## A dead vehicle leaves a hull. Same budget as a structure ruin, and
+## the same cap covers both - a battlefield strewn with a hundred wrecks
+## costs more than the units did.
+static func spawn_vehicle(context: Node, position: Vector3) -> void:
+	spawn(context, position, 0.0, VEHICLE_MODEL, 1.0)
+
+static func spawn(context: Node, position: Vector3, footprint: float,
+		model_scene: PackedScene = null, fixed_scale: float = 0.0) -> void:
 	if context == null or not is_instance_valid(context):
 		return
 	var tree := context.get_tree()
@@ -38,11 +46,12 @@ static func spawn(context: Node, position: Vector3, footprint: float) -> void:
 	wreck.global_position = Vector3(position.x, 0.0, position.z)
 	wreck.rotation.y = randf_range(0.0, TAU)
 
-	var model := MODEL.instantiate()
+	var model := (model_scene if model_scene != null else MODEL).instantiate()
 	wreck.add_child(model)
 	## The model is built for a 4.4m shell; scale it to whatever stood
 	## here so a Command HQ does not leave the same pile as a wall.
-	var scale: float = clampf(footprint / 4.4, 0.55, 2.1)
+	var scale: float = fixed_scale if fixed_scale > 0.0 \
+		else clampf(footprint / 4.4, 0.55, 2.1)
 	model.scale = Vector3(scale, clampf(scale * 0.85, 0.5, 1.6), scale)
 	wreck._fog_paint(model, tree)
 
