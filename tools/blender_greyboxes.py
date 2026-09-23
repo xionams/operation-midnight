@@ -132,8 +132,11 @@ def build(asset_id, spec):
     for _, mesh_data, _ in nodes:
         for material_name in mesh_data.groups:
             rgba = asset_specs.MATERIAL_COLORS[material_name]
-            if material_name == "Hull" and asset_id in asset_specs.UNIT_HULL_OVERRIDE:
-                rgba = asset_specs.UNIT_HULL_OVERRIDE[asset_id]
+            if material_name == "Hull":
+                if asset_id in asset_specs.UNIT_HULL_OVERRIDE:
+                    rgba = asset_specs.UNIT_HULL_OVERRIDE[asset_id]
+                elif asset_id in asset_specs.BUILDING_HULL_OVERRIDE:
+                    rgba = asset_specs.BUILDING_HULL_OVERRIDE[asset_id]
             materials[material_name] = material_for(material_name, rgba)
 
     built = []

@@ -202,8 +202,20 @@ def build_normal(height, strength=2.0):
 SURFACE_SIZE = 512
 
 
+def _panel_rows(size, rng, min_extent, max_extent):
+    """Random spans that sum EXACTLY to size, so the result still tiles."""
+    spans = []
+    used = 0
+    while size - used > max_extent:
+        span = int(rng.integers(min_extent, max_extent))
+        spans.append(span)
+        used += span
+    spans.append(size - used)
+    return spans
+
+
 def build_surface(rng):
-    """Panel seams, grime and wear for every structure and vehicle.
+    """Panel plating, grime and wear for every structure and vehicle.
 
     ONE texture for the whole game, applied triplanar. The greyboxes have
     no UVs and unwrapping 42 models by hand to paint each one is not the
@@ -215,42 +227,60 @@ def build_surface(rng):
     material slot - Hull, Faction, Concrete - and darken its seams without
     touching its colour. Anything with hue in it would tint all of them.
 
+    Panels are laid as COURSES of varying height, each divided into cells
+    of varying width with its own horizontal offset. The first version
+    used two fixed periods and a max(), which is a perfect grid, and a
+    perfect grid on a building reads as bathroom tile - it was the single
+    most artificial thing on screen. Courses tile because each row's
+    widths sum exactly to the texture size, the same for the heights.
+
+    The real work is not the seams, it is that **every panel gets its own
+    slightly different value**. A large flat face made of one tone reads
+    as plastic however well it is lit; the same face broken into plates
+    that differ by a few percent reads as fabricated metal.
+
     Returns (rgb, height).
     """
     size = SURFACE_SIZE
-    axis = np.arange(size, dtype=np.float32)
-    xs = axis[None, :].repeat(size, axis=0)
-    ys = axis[:, None].repeat(size, axis=1)
+    value = np.ones((size, size), dtype=np.float32)
+    seam = np.zeros((size, size), dtype=np.float32)
 
-    ## Panel seams. Irregular spacing, because an even grid reads as
-    ## graph paper; these are plate joins, not a pattern.
-    seams = np.zeros((size, size), dtype=np.float32)
-    for coords in (xs, ys):
-        for period in (64.0, 128.0):
-            phase = rng.random() * period
-            d = np.abs(((coords + phase) % period) - period * 0.5)
-            ## A seam is a thin dark line with a soft shoulder.
-            seams = np.maximum(seams, np.clip(1.0 - d / 1.6, 0.0, 1.0))
+    rows = _panel_rows(size, rng, 48, 130)
+    y = 0
+    for height in rows:
+        ## Each course starts at its own offset, so vertical seams do not
+        ## line up from one row to the next - the giveaway of a grid.
+        offset = int(rng.integers(0, size))
+        widths = _panel_rows(size, rng, 40, 150)
+        x = 0
+        for width in widths:
+            ## Panels differ by a few percent, never more: this is
+            ## variation in the same painted surface, not a patchwork.
+            shade = float(rng.uniform(0.88, 1.0))
+            xs = (np.arange(x, x + width) + offset) % size
+            ys = np.arange(y, min(y + height, size))
+            value[np.ix_(ys, xs)] = shade
+            ## Seam down the left edge of each cell and along the course.
+            seam[np.ix_(ys, xs[:2])] = 1.0
+            x += width
+        seam[y:y + 2, :] = 1.0
+        y += height
 
-    ## Broad grime, so large faces are not one flat value.
+    ## Broad grime, so large faces are not one flat value even within a
+    ## panel, and fine wear across the whole sheet.
     grime = fbm(size, 4, 5, rng)
-    ## Fine wear along the grain of the panels.
     wear = fbm(size, 24, 3, rng)
 
-    ## Start just off white and take light away. Never add: this is a
-    ## multiplier, and values above 1 would brighten a material past the
-    ## colour the art direction assigned it.
-    value = np.full((size, size), 1.0, dtype=np.float32)
-    value -= 0.22 * seams
-    value -= 0.10 * (1.0 - grime)
-    value -= 0.06 * wear
+    value -= 0.18 * seam
+    value -= 0.09 * (1.0 - grime)
+    value -= 0.05 * wear
     value = np.clip(value, 0.0, 1.0)
 
     grey = value * 255.0
-    ## The height field for the normal map is the seam mask: the seams are
-    ## the only thing here that is actually geometry-like relief.
-    height = 1.0 - (0.8 * seams + 0.2 * wear)
-    return np.stack([grey, grey, grey], axis=-1), height
+    ## Only the seams are relief; panel shade differences are paint, not
+    ## geometry, and giving them a normal would emboss every plate.
+    height_field = 1.0 - (0.85 * seam + 0.15 * wear)
+    return np.stack([grey, grey, grey], axis=-1), height_field
 
 
 def main():

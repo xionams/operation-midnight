@@ -64,7 +64,7 @@ gameplay zoom and costs draw calls on Android.
 
 | Name | Roughness | Metallic | Notes |
 |---|---|---|---|
-| `Hull` | 0.75 | 0.0 | Painted metal. The default. |
+| `Hull` | 0.75 | 0.0 | Painted metal. The default, **recoloured per asset**. |
 | `Dark` | 0.85 | 0.0 | Recesses, tracks, tyres, shadow mass |
 | `Metal` | 0.45 | 0.8 | Bare/worn metal, barrels, pipes |
 | `Faction` | 0.60 | 0.0 | **Recoloured at runtime.** See §8 |
@@ -82,6 +82,19 @@ The original rule said "no normal maps, no textures, this is a deliberate
 ceiling". It was written when the alternative was hand-painting 42
 assets. It was also the single thing making the game read as untextured
 boxes, which is why it changed.
+
+**`Hull` is recoloured per asset**, from this same palette — see
+`UNIT_HULL_OVERRIDE` and `BUILDING_HULL_OVERRIDE` in
+`tools/asset_specs.py`. Every structure wearing one gunmetal made a base
+read as a single slate-grey mass: at gameplay zoom you could not tell a
+refinery from a barracks without reading its roof fitting, so silhouette
+was doing all the work alone. A refinery is ore-stained rust, a barracks
+olive, a tech centre pale concrete. The command HQ keeps gunmetal — it is
+the flagship, and the colour the rest of the base is read against.
+
+These are the existing palette entries redistributed, not new colours,
+and all muted: faction colour is the one thing on screen allowed to be
+saturated (§8).
 
 ---
 
@@ -240,9 +253,22 @@ by normal, which on box-shaped assets is very nearly a correct unwrap for
 free. Local-space, not world: world projection slides the seams across a
 tank as it drives, which reads as the hull being transparent.
 
-**Panel seams are 1–2m.** A first pass used 0.5m and read as brickwork.
-On this camera the failure mode of a detail texture is looking like
-masonry — if the seams resolve as a regular grid, they are too dense.
+**Panels are laid as irregular courses, never a grid.** Rows of varying
+height, each divided into cells of varying width with its own horizontal
+offset, so vertical seams do not line up between rows. The first version
+used two fixed periods and a `max()` — a perfect grid, which on a
+building reads as bathroom tile and was the most artificial thing on
+screen.
+
+**Every panel carries its own slightly different value** (0.88–1.0). This
+matters more than the seams: a large flat face of one tone reads as
+plastic however well it is lit, and the same face broken into plates
+differing by a few percent reads as fabricated metal. Only the seams get
+relief in the normal map — panel shade is paint, not geometry, and
+embossing every plate looks like quilting.
+
+Courses tile because each row's widths sum exactly to the texture size,
+and likewise the heights.
 
 Rocks, trees and sandbags stay flat: panel seams on a boulder look like a
 mistake, and they are small enough on screen that flat colour costs

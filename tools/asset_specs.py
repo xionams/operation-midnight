@@ -826,6 +826,30 @@ MATERIAL_COLORS = {
     "Olive": OLIVE, "Field_Green": FIELD_GREEN, "Foliage": FOLIAGE, "Bark": BARK,
 }
 
+# Every structure wearing GUNMETAL made a base read as one slate-grey
+# mass: at gameplay zoom you could not tell a refinery from a barracks
+# without reading its roof fitting. Each building type now carries its own
+# industrial identity, so the silhouette is not doing all the work alone.
+#
+# Kept inside the palette of section 2 - these are the existing structure
+# colours redistributed, not new ones - and deliberately muted, because
+# faction colour is the one thing on screen allowed to be saturated.
+BUILDING_HULL_OVERRIDE = {
+    "power_plant":       CONCRETE_DARK,   # civil infrastructure, poured
+    "refinery":          RUST,            # industrial, ore-stained
+    "barracks":          OLIVE,           # the one the infantry come from
+    "war_factory":       STEEL,           # heavy fabrication
+    "radar_center":      STEEL,
+    "tech_center":       CONCRETE,        # laboratory, palest of the set
+    "supply_depot":      SAND,
+    "repair_depot":      RUST,
+    "comms_outpost":     STEEL,
+    "forward_post":      OLIVE,
+    "civilian_structure": CONCRETE,
+    # command_hq keeps GUNMETAL: it is the flagship, and the colour the
+    # rest of the base is read against.
+}
+
 # Vehicles and infantry wear olive rather than structure gunmetal.
 UNIT_HULL_OVERRIDE = {
     "rifle_soldier": OLIVE, "at_squad": OLIVE, "engineer": OLIVE, "spy": STEEL,
