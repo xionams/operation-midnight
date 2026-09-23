@@ -57,23 +57,48 @@ func fire_at(target: Node3D, from_position: Vector3) -> void:
 				veterancy.award_damage(dealt)
 
 	AudioDirector.play_weapon(stats)
-	_spawn_tracer(from_position, target.global_position)
-	_spawn_fire_effects(from_position, target.global_position)
+	var impact_position: Vector3 = target.global_position
+	var travel: float = _spawn_tracer(from_position, impact_position)
+	_spawn_muzzle_effects(from_position, impact_position)
+	## The round is applied instantly - this is a hitscan weapon and the
+	## damage above has already landed. Only the PICTURE of the impact
+	## waits for the tracer to arrive, so the streak does not reach its
+	## target after the explosion it caused.
+	_delay(travel, func(): _spawn_impact_effects(impact_position))
 	AudioDirector.play_impact(stats)
+
+## Runs `action` after `seconds`, or immediately if that is negligible.
+## Guards on the weapon still existing: a tank that dies mid-flight must
+## not take its own impact effect with it, but it must also not call into
+## a freed object.
+func _delay(seconds: float, action: Callable) -> void:
+	if seconds <= 0.01:
+		action.call()
+		return
+	var tree := get_tree()
+	if tree == null:
+		action.call()
+		return
+	tree.create_timer(seconds).timeout.connect(func():
+		if is_instance_valid(self):
+			action.call())
 
 ## Presentation only. The scale of the effect follows the weapon's own
 ## numbers rather than a per-unit switch, so a new weapon gets a sensible
 ## flash for free and artillery never looks like a rifle.
-func _spawn_fire_effects(from_position: Vector3, impact_position: Vector3) -> void:
+func _spawn_muzzle_effects(from_position: Vector3, impact_position: Vector3) -> void:
 	var direction: Vector3 = (impact_position - from_position).normalized()
 	if stats.splash_radius > 0.0:
 		VFX.artillery_flash(self, from_position, direction)
-		VFX.shell_impact(self, impact_position)
 	elif stats.damage >= 60.0:
 		VFX.cannon_flash(self, from_position, direction)
-		VFX.shell_impact(self, impact_position)
 	else:
 		VFX.muzzle_flash(self, from_position, direction)
+
+func _spawn_impact_effects(impact_position: Vector3) -> void:
+	if stats.splash_radius > 0.0 or stats.damage >= 60.0:
+		VFX.shell_impact(self, impact_position)
+	else:
 		VFX.impact(self, impact_position)
 
 ## Explosive ordnance damages everything near the impact, friend or foe -
@@ -98,34 +123,92 @@ func _apply_splash(centre: Vector3, bonus: float, attacker: Node, veterancy: Vet
 			if veterancy and entity.get("is_player_faction") != attacker.get("is_player_faction"):
 				veterancy.award_damage(dealt)
 
-func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> void:
+## Metres per second the streak appears to travel. Not a ballistics
+## figure - the weapon is hitscan - just fast enough to read as a round
+## rather than as a beam, and slow enough that the eye catches it.
+## Faster and shorter-lived than the first cut. A streak that takes 0.30s
+## to cross the field is on screen twice as long as the old instant beam
+## was, and at 120 units in contact the concurrent tracer count is what
+## the frame budget actually notices: the first version cost ~6 FPS
+## against the beam it replaced. At 200 m/s it still reads as a travelling
+## round and the population halves.
+const TRACER_SPEED: float = 200.0
+const TRACER_LENGTH: float = 1.9
+const TRACER_MIN_TIME: float = 0.03
+const TRACER_MAX_TIME: float = 0.16
+
+## One mesh and one material per colour for the whole game.
+##
+## The old tracer built a fresh CylinderMesh AND a fresh
+## StandardMaterial3D for every shot fired, then tweened that material's
+## alpha - so nothing could be shared. At 120 units in contact that is
+## hundreds of throwaway resources a second. A streak of fixed length can
+## share both, and the node is scaled rather than the mesh rebuilt.
+static var _tracer_mesh: CylinderMesh = null
+static var _tracer_materials: Dictionary = {}
+
+static func _shared_mesh() -> CylinderMesh:
+	if _tracer_mesh == null:
+		_tracer_mesh = CylinderMesh.new()
+		_tracer_mesh.top_radius = 0.05
+		_tracer_mesh.bottom_radius = 0.05
+		_tracer_mesh.height = TRACER_LENGTH
+		_tracer_mesh.radial_segments = 6
+		_tracer_mesh.rings = 0
+	return _tracer_mesh
+
+static func _shared_material(color: Color) -> StandardMaterial3D:
+	var key: String = str(color)
+	if _tracer_materials.has(key):
+		return _tracer_materials[key]
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	## Additive, so rounds brighten what they cross and overlapping fire
+	## reads as heavier fire. Alpha blending made them look like grey
+	## sticks wherever two crossed.
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 2.0
+	_tracer_materials[key] = material
+	return material
+
+## Returns how long the streak takes to arrive, so the caller can hold the
+## impact effect until it does.
+func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> float:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null or tree.current_scene == null:
-		return
+		return 0.0
+	if not VFX.enabled:
+		return 0.0
 
-	var mid := (from_pos + to_pos) * 0.5
-	var dist := from_pos.distance_to(to_pos)
-	if dist < 0.01:
-		return
+	var distance := from_pos.distance_to(to_pos)
+	if distance < 0.01:
+		return 0.0
+	var travel: float = clampf(distance / TRACER_SPEED,
+		TRACER_MIN_TIME, TRACER_MAX_TIME)
 
 	var tracer := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.04
-	mesh.bottom_radius = 0.04
-	mesh.height = dist
-	tracer.mesh = mesh
-
-	var material := StandardMaterial3D.new()
-	material.albedo_color = stats.tracer_color
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	tracer.material_override = material
+	tracer.mesh = _shared_mesh()
+	tracer.material_override = _shared_material(stats.tracer_color)
+	## Heavier weapons throw a fatter round. Scaling the node rather than
+	## the mesh is what keeps the mesh shareable.
+	var girth: float = 1.0 if stats.damage < 60.0 else 1.8
+	tracer.scale = Vector3(girth, 1.0, girth)
+	tracer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	tree.current_scene.add_child(tracer)
-	tracer.global_position = mid
+	tracer.global_position = from_pos
 	tracer.look_at(to_pos, Vector3.UP)
 	tracer.rotate_object_local(Vector3.RIGHT, PI / 2.0)
 
+	## The streak TRAVELS. The previous version drew the whole line from
+	## muzzle to target in one frame and faded it, which reads as a laser
+	## however short the fade is - there was never a moment where the round
+	## was between the two.
 	var tween := tracer.create_tween()
-	tween.tween_property(material, "albedo_color:a", 0.0, 0.15)
+	tween.tween_property(tracer, "global_position", to_pos, travel)
 	tween.tween_callback(tracer.queue_free)
+	return travel

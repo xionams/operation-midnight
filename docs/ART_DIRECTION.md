@@ -408,6 +408,46 @@ shadow and floats off the surface it is meant to be part of.
 
 ---
 
+## 9e. Combat readability
+
+**Damage states.** A fight has to be readable without selecting anything.
+Thresholds are the same for units and structures — smoke below 60%
+health, fire as well below 30% — so "that one is in trouble" means one
+thing wherever the player looks. Repair clears it: a vehicle that keeps
+burning after being healed teaches players to distrust the effect.
+
+Infantry get none. A smoke column on a 1.7m figure reads as a bonfire,
+and at 120 units it would be the only thing on screen.
+
+Unit plumes are capped at 18 concurrently, like `Wreckage`'s 24 wrecks
+and `GroundMarks`' 96 marks. One particle system per damaged vehicle is
+worth having; the unbounded version is not.
+
+> `BuildingBase._refresh_damage_visual` returned early on a null `_body`,
+> which is the case for **every structure that uses a model** — so
+> structure damage states were dead from the moment models landed until
+> this pass. Any state that depends on the primitive stand-in's fields is
+> dead code in the shipping game.
+
+**Tracers travel.** The original drew a full-length cylinder from muzzle
+to target in a single frame and faded it. That reads as a laser however
+short the fade, because there is never a moment where the round is
+*between* the two. A short streak moving at 200 m/s reads as a round.
+
+The damage is still hitscan and lands instantly — only the *picture* of
+the impact waits for the streak to arrive, so a shell never explodes
+before its tracer reaches the target.
+
+**Concurrent tracer count is the frame budget's concern, not per-tracer
+cost.** A 0.30s flight time is twice the old beam's lifetime and cost ~6
+FPS at 120 units in contact. 200 m/s halves the population and returns
+almost all of it. One shared mesh and one shared material per tracer
+colour, with the node scaled rather than the mesh rebuilt — the old
+version allocated a fresh `CylinderMesh` *and* `StandardMaterial3D` for
+every shot fired.
+
+---
+
 ## 10. Readability rules by class
 
 ### Buildings

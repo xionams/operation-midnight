@@ -58,6 +58,22 @@ const STUCK_EPSILON: float = 0.4
 var _guard_origin: Vector3 = Vector3.ZERO
 var _guard_origin_set: bool = false
 var _acquire_timer: float = 0.0
+## -1 rather than 0, so a unit that spawns already damaged (a resumed
+## save, or a repaired-then-hurt vehicle) still runs the first refresh
+## instead of matching stage 0 and doing nothing.
+var _damage_stage: int = -1
+var _damage_plume: Node = null
+
+## A particle system per damaged vehicle costs about 5 FPS once a
+## 120-unit battle has hurt most of the field. Capped like Wreckage's 24
+## wrecks and GroundMarks' 96 marks are: the effect is worth having, the
+## unbounded version is not.
+##
+## First-come rather than nearest-camera, which is arbitrary but bounded
+## and costs nothing to evaluate. In practice the units that take damage
+## first are the ones in contact, which is where the player is looking.
+const MAX_DAMAGE_PLUMES: int = 18
+static var _active_plumes: int = 0
 var _stuck_timer: float = 0.0
 var _stuck_reference: Vector3 = Vector3.ZERO
 
@@ -496,7 +512,45 @@ func has_special_ability() -> bool:
 			return true
 	return false
 
+## A vehicle at 20% health looked exactly like one at full health, so the
+## only way to read a fight was to select things and watch health bars.
+## Buildings have smoked and burned since Milestone 6; units never did.
+##
+## Thresholds match BuildingBase deliberately - 60% and 30% - so "that one
+## is in trouble" means the same thing whatever the player is looking at.
+func _refresh_damage_visual() -> void:
+	if health == null:
+		return
+	var fraction: float = health.health_fraction()
+	var stage: int = 0 if fraction > 0.6 else (1 if fraction > 0.3 else 2)
+	if stage == _damage_stage:
+		return
+	_damage_stage = stage
+	if _damage_plume != null and is_instance_valid(_damage_plume):
+		_damage_plume.queue_free()
+		_damage_plume = null
+	if stage <= 0:
+		## Repaired back above the threshold: the smoke has to stop, or the
+		## player learns to distrust it.
+		return
+	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)
+	## Scaled well down from a structure's. Infantry get nothing at all -
+	## a man-sized smoke column on a 1.7m figure reads as a bonfire, and at
+	## 120 units on screen it would be the only thing visible.
+	if size.y < 1.2:
+		return
+	if _active_plumes >= MAX_DAMAGE_PLUMES:
+		return
+	_damage_plume = VFX.damage_plume(self, Vector3(0, size.y * 0.75, 0),
+		stage, 0.42)
+	if _damage_plume != null:
+		_active_plumes += 1
+		## Released on exit rather than by the code that frees it: a plume
+		## also dies with its unit, and that path does not come back here.
+		_damage_plume.tree_exited.connect(func(): _active_plumes -= 1)
+
 func _physics_process(delta: float) -> void:
+	_refresh_damage_visual()
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()

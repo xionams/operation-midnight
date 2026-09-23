@@ -183,19 +183,27 @@ static func vehicle_wreck(context: Node, position: Vector3) -> void:
 
 ## Continuous smoke/fire for a damaged structure. Returns the node so the
 ## caller can free it when the building is repaired.
-static func damage_plume(parent: Node, offset: Vector3, severity: int) -> CPUParticles3D:
+## `size` scales the whole effect. A structure's plume on a tank looks
+## like the tank is already dead; a tank's plume on a structure is not
+## visible at all. Same shape, different scale.
+static func damage_plume(parent: Node, offset: Vector3, severity: int,
+		size: float = 1.0) -> CPUParticles3D:
 	if parent == null or not is_instance_valid(parent):
+		return null
+	if not enabled:
 		return null
 	var particles := CPUParticles3D.new()
 	particles.amount = 6 if severity < 2 else 12
-	particles.lifetime = 1.8 if severity < 2 else 2.6
+	particles.lifetime = (1.8 if severity < 2 else 2.6) * size
 	particles.direction = Vector3.UP
 	particles.spread = 18.0
 	particles.initial_velocity_min = 0.8
 	particles.initial_velocity_max = 1.8
 	particles.gravity = Vector3(0.3, 0.9, 0.0)
-	particles.scale_amount_min = 0.6
-	particles.scale_amount_max = 1.4 if severity < 2 else 2.2
+	particles.initial_velocity_min *= size
+	particles.initial_velocity_max *= size
+	particles.scale_amount_min = 0.6 * size
+	particles.scale_amount_max = (1.4 if severity < 2 else 2.2) * size
 
 	var curve := Curve.new()
 	curve.add_point(Vector2(0.0, 0.3))
@@ -223,8 +231,8 @@ static func damage_plume(parent: Node, offset: Vector3, severity: int) -> CPUPar
 		fire.initial_velocity_min = 1.0
 		fire.initial_velocity_max = 2.2
 		fire.gravity = Vector3.ZERO
-		fire.scale_amount_min = 0.4
-		fire.scale_amount_max = 1.0
+		fire.scale_amount_min = 0.4 * size
+		fire.scale_amount_max = 1.0 * size
 		fire.scale_amount_curve = curve
 		fire.mesh = mesh
 		fire.material_override = _material(FIRE_ORANGE, true)

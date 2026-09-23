@@ -255,14 +255,21 @@ func _process(delta: float) -> void:
 ## Buildings show wear so a fight can be read at a glance without
 ## selecting anything: a scorch tint at 60% health, heavier at 30%.
 func _refresh_damage_visual() -> void:
-	if health == null or _body == null:
+	if health == null:
 		return
 	var fraction: float = health.health_fraction()
 	var stage: int = 0 if fraction > 0.6 else (1 if fraction > 0.3 else 2)
 	if stage == _damage_stage:
 		return
 	_damage_stage = stage
+	## The plume is the part that works for every structure. The tint below
+	## only ever applied to the primitive stand-in, because _body is left
+	## null whenever a model is used - so this whole function used to
+	## return at its first line for every real building in the game, and
+	## the damage states have been invisible since models were introduced.
 	_refresh_damage_plume(stage)
+	if _body == null:
+		return
 	var material := _body.material_override as StandardMaterial3D
 	if material == null:
 		return
