@@ -43,20 +43,38 @@ func _ready() -> void:
 
 	## The ring buffer is what bounds the cost. Overrun it and the count
 	## must stop rather than the instance list growing without limit.
-	for i in GroundMarks.MAX_MARKS + 40:
+	for i in GroundMarks.cap() + 40:
 		VFX.shell_impact(main, centre)
 	_check("Mark count is capped by the ring buffer",
-		GroundMarks.count() == GroundMarks.MAX_MARKS,
-		"(%d, cap %d)" % [GroundMarks.count(), GroundMarks.MAX_MARKS])
+		GroundMarks.count() == GroundMarks.cap(),
+		"(%d, cap %d)" % [GroundMarks.count(), GroundMarks.cap()])
 
-	## Marks are drawn by one MultiMesh however many there are; that is the
+	## Each layer is one MultiMesh however many marks it holds; that is the
 	## whole reason they can be permanent.
-	var node := main.get_node_or_null("GroundMarks")
-	_check("All marks share one MultiMesh", node is MultiMeshInstance3D)
-	if node is MultiMeshInstance3D:
-		_check("Instance count is fixed at the cap",
-			node.multimesh.instance_count == GroundMarks.MAX_MARKS,
-			"(%d)" % node.multimesh.instance_count)
+	var root := main.get_node_or_null("GroundMarks")
+	_check("Ground marks exist as a layered node", root != null)
+	if root != null:
+		var scorch := root.get_node_or_null(GroundMarks.SCORCH)
+		_check("Scorch layer is one MultiMesh", scorch is MultiMeshInstance3D)
+		if scorch is MultiMeshInstance3D:
+			_check("Scorch instance count is fixed at the cap",
+				scorch.multimesh.instance_count == GroundMarks.cap(),
+				"(%d)" % scorch.multimesh.instance_count)
+		_check("Track layer is its own MultiMesh",
+			root.get_node_or_null(GroundMarks.TRACK) is MultiMeshInstance3D)
+
+	## Ruts: laid by driving, and on their own buffer so a harvester's
+	## commute cannot erase the record of a battle.
+	var before: int = GroundMarks.count(GroundMarks.TRACK)
+	for i in 30:
+		GroundMarks.track(main, centre + Vector3(i * 1.4, 0, 0),
+			Vector3.FORWARD, 3.0, 2.4)
+	_check("Driving lays ruts",
+		GroundMarks.count(GroundMarks.TRACK) >= before + 30,
+		"(%d -> %d)" % [before, GroundMarks.count(GroundMarks.TRACK)])
+	_check("Ruts do not consume the scorch buffer",
+		GroundMarks.count(GroundMarks.SCORCH) == GroundMarks.cap(),
+		"(%d)" % GroundMarks.count(GroundMarks.SCORCH))
 
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
 	for f in _fails:

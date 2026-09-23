@@ -76,9 +76,13 @@ func _ready() -> void:
 	camera.fov = 55.0
 	camera.current = true
 
-	## Long enough for the intro overlay to have faded and the damage
-	## plumes to have built a column rather than a puff.
-	await _wait(4.0)
+	## Drive the line across the field first, so the ground carries ruts
+	## as well as craters by the time the shutter opens.
+	for unit in ours:
+		if is_instance_valid(unit) and unit.has_method("move_to"):
+			unit.move_to(centre + Vector3(rng.randf_range(4, 10), 0,
+				rng.randf_range(-8, -2)))
+	await _wait(6.0)
 
 	## Fire a volley so streaks are mid-flight when the shutter opens.
 	for unit in ours:
@@ -97,6 +101,8 @@ func _ready() -> void:
 	await RenderingServer.frame_post_draw
 	var image: Image = get_viewport().get_texture().get_image()
 	image.save_png("res://screenshots/battle.png")
-	print("BATTLE| marks on ground: %d" % GroundMarks.count())
+	print("BATTLE| scorch: %d  ruts: %d" % [
+		GroundMarks.count(GroundMarks.SCORCH),
+		GroundMarks.count(GroundMarks.TRACK)])
 	print("BATTLE| DONE")
 	get_tree().quit()

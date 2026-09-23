@@ -331,6 +331,56 @@ def build_scorch(rng):
     return np.concatenate([rgb, (alpha * 255.0)[:, :, None]], axis=-1)
 
 
+TRACK_SIZE = 128
+
+
+def build_track(rng):
+    """One stamp of vehicle tracks, laid repeatedly along a path.
+
+    The ground records explosions but not movement, so a battlefield
+    crossed by armour all match looked untouched between the craters.
+
+    Authored with +Y as the direction of travel. Alpha fades to nothing at
+    BOTH ends, which is what lets consecutive stamps overlap into a
+    continuous trail instead of a dashed line of rectangles - the same
+    failure the scorch quads had before their edges were softened.
+    """
+    size = TRACK_SIZE
+    axis = (np.arange(size, dtype=np.float32) + 0.5) / size
+    xs = axis[None, :].repeat(size, axis=0)
+    ys = axis[:, None].repeat(size, axis=1)
+
+    ## Two bands, one per track, at the quarter points.
+    half_width = 0.115
+    band = np.zeros((size, size), dtype=np.float32)
+    for centre in (0.27, 0.73):
+        d = np.abs(xs - centre)
+        band = np.maximum(band, np.clip(1.0 - d / half_width, 0.0, 1.0))
+    ## Square the profile off: a track is a flat imprint with a defined
+    ## edge, not a soft airbrushed stripe.
+    band = np.clip(band * 2.4, 0.0, 1.0)
+
+    ## Tread ribs across each band. Shallow: at this camera the ribs are
+    ## texture, not shape, and a deep modulation turned the rut into a
+    ## dashed line instead of a mark with tread in it.
+    ribs = 0.82 + 0.18 * np.sign(np.sin(ys * np.pi * 26.0))
+    ## Fade to nothing at both ends so stamps blend into each other.
+    ends = np.clip(np.sin(ys * np.pi), 0.0, 1.0) ** 0.6
+
+    grain = fbm(size, 10, 3, rng)
+    alpha = band * ribs * ends * (0.7 + 0.3 * grain)
+
+    ## Churned earth: darker and browner than the grass it cuts through.
+    ## A first pass at 62/52/40 with 0.85 alpha was almost invisible over
+    ## grass - a rut is exposed subsoil, and subsoil is much darker than
+    ## the surface it replaces.
+    rgb = np.empty((size, size, 3), dtype=np.float32)
+    rgb[:, :, 0] = 48.0
+    rgb[:, :, 1] = 39.0
+    rgb[:, :, 2] = 29.0
+    return np.concatenate([rgb, (alpha * 255.0)[:, :, None]], axis=-1)
+
+
 def main():
     out = os.path.abspath(OUT_DIR)
     os.makedirs(out, exist_ok=True)
@@ -342,13 +392,15 @@ def main():
     surface, surface_height = build_surface(rng)
     surface_normal = build_normal(surface_height, strength=3.0)
     scorch = build_scorch(rng)
+    track = build_track(rng)
 
     for name, image in [("ground_macro", macro),
                         ("ground_detail", detail),
                         ("ground_normal", normal),
                         ("surface_detail", surface),
                         ("surface_normal", surface_normal),
-                        ("scorch", scorch)]:
+                        ("scorch", scorch),
+                        ("track", track)]:
         path = os.path.join(out, name + ".png")
         size = write_png(path, image)
         print("wrote %-28s %4dx%-4d %6.1f KiB"

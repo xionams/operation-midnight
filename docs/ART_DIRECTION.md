@@ -397,9 +397,25 @@ ten minutes into a match the terrain looked exactly as it did at the
 start. A war game whose ground never records that anything happened reads
 as a diorama, however well it is lit.
 
-`scripts/vfx/ground_marks.gd` keeps scorch marks where things exploded:
-0.9m for a shell impact, 1.8m for a vehicle, 4.2m for a structure — so a
-razed base still reads as a razed base an hour later.
+`scripts/vfx/ground_marks.gd` keeps two layers:
+
+- **Scorch**, where things exploded: 0.9m for a shell impact, 1.8m for a
+  vehicle, 4.2m for a structure — so a razed base still reads as a razed
+  base an hour later.
+- **Ruts**, where armour drove. A stamp every 2.2m, laid 2.2× that long
+  so consecutive stamps overlap; the texture fades to nothing at both
+  ends, so the overlap is what carries the join. At 1.7× the trail read
+  as a dashed line. Ruts follow the direction actually *travelled*, not
+  the hull facing — a vehicle mid-turn leaves marks along its path, not
+  along wherever it happens to point.
+
+Infantry leave nothing: boots do not rut a field at this scale, and at
+120 units the trails would be the only thing on screen.
+
+Each layer has its own ring buffer, because they fill at completely
+different rates — a burn happens when something dies, a rut every couple
+of metres a vehicle drives. Sharing one buffer would let a single
+harvester's commute erase the record of a battle.
 
 - **They never fade.** A burn that tidies itself away after fifteen
   seconds is just another particle effect. The point is that the ground
@@ -407,9 +423,16 @@ razed base still reads as a razed base an hour later.
 - **One `MultiMesh` for every mark on the map**, so the whole record is
   one draw call rather than one per crater. That is what makes permanence
   affordable.
-- **A ring buffer caps it at 96.** The oldest mark is overwritten, which
-  bounds the cost exactly while leaving the places that saw the most
-  fighting the most marked.
+- **Ring buffers cap them**: 96 burns, 160 ruts. The oldest is
+  overwritten, which bounds the cost exactly while leaving the ground
+  that saw the most traffic the most marked.
+
+**The cap is a fill-rate decision, not a memory one.** Every mark is a
+large alpha-blended quad and the layer's AABB spans the map, so none are
+ever culled. The rut layer started at 420 and cost **10 FPS at 120
+units** — more than shadows, more than the entire effects layer. At 160,
+with the stamp spacing widened from 1.4m to 2.2m, it is free. Population
+is the only lever that matters for a decal layer.
 - **Each mark is randomly spun.** Without it a cluster reads as the same
   stamp repeated rather than as separate craters.
 - **They obey fog.** A mark is evidence something happened, so it must
@@ -431,6 +454,14 @@ still washed the ground. Whatever Godot's mul blending does with a white
 
 **Lit, not unshaded.** Unshaded soot stays bright inside a building's
 shadow and floats off the surface it is meant to be part of.
+
+**`Basis.scaled()` scales in WORLD axes, not local.** It scales the
+basis's rows, so a non-uniform scale applied that way ignores the mark's
+own rotation entirely — every rut came out `width` across world X and 1.0
+deep in world Z whatever direction it ran, which is a sliver. Compose
+with `Basis.from_scale()` on the right instead. The scorch layer never
+showed the bug because its scale is uniform, which is exactly the kind of
+thing that hides it until a second caller appears.
 
 ---
 

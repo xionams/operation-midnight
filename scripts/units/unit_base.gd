@@ -74,6 +74,18 @@ var _damage_plume: Node = null
 ## first are the ones in contact, which is where the player is looking.
 const MAX_DAMAGE_PLUMES: int = 18
 static var _active_plumes: int = 0
+
+## Metres between rut stamps. The stamp itself is laid longer than this so
+## consecutive ones overlap into a continuous trail rather than a dashed
+## line - the texture fades to nothing at both ends for the same reason.
+## 2.2m between stamps, not 1.4. Combined with the lower layer cap this
+## is what keeps the trail affordable: fewer, longer stamps cover the same
+## ground with less overdraw.
+const TRACK_STEP: float = 2.2
+## Infantry leave nothing. Boots do not rut a field at this scale, and at
+## 120 units the trails would be the only thing on screen.
+const TRACK_MIN_HEIGHT: float = 1.0
+var _last_track: Vector3 = Vector3.INF
 var _stuck_timer: float = 0.0
 var _stuck_reference: Vector3 = Vector3.ZERO
 
@@ -549,8 +561,33 @@ func _refresh_damage_visual() -> void:
 		## also dies with its unit, and that path does not come back here.
 		_damage_plume.tree_exited.connect(func(): _active_plumes -= 1)
 
+## Ruts behind anything on wheels or tracks. The ground kept a record of
+## explosions but not of movement, so a field that armour had crossed all
+## match looked untouched between the craters.
+func _lay_tracks() -> void:
+	if stats == null or stats.body_size.y < TRACK_MIN_HEIGHT:
+		return
+	if _last_track.is_finite() \
+		and global_position.distance_to(_last_track) < TRACK_STEP:
+		return
+	var heading: Vector3 = -global_transform.basis.z
+	if _last_track.is_finite():
+		## Prefer the direction actually travelled over the facing: a
+		## vehicle that is turning leaves ruts along its path, not along
+		## wherever its hull happens to point mid-turn.
+		var moved: Vector3 = global_position - _last_track
+		if moved.length_squared() > 0.01:
+			heading = moved
+	_last_track = global_position
+	## 2.2x the step, so consecutive stamps overlap by more than half
+	## their length. At 1.7x the trail read as a dotted line: the texture
+	## fades at both ends, so the overlap has to carry the join.
+	GroundMarks.track(self, global_position, heading,
+		stats.body_size.x * 0.92, TRACK_STEP * 2.2)
+
 func _physics_process(delta: float) -> void:
 	_refresh_damage_visual()
+	_lay_tracks()
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()
