@@ -1,3 +1,41 @@
+## Milestone 12 — Ship Readiness (in progress)
+
+- [x] APK size and what is actually in the package
+- [x] Launcher icon and store assets
+- [x] Signed release build, signature verified
+- [x] Crash/ANR pass on the emulator
+- [ ] Physical device pass (Vulkan path)
+- [ ] Battery/thermal pass (needs a device)
+
+### Size
+
+29 MB debug, 27 MB release. It is almost entirely engine -
+`libgodot_android.so` is 76 MB uncompressed against a largest game asset
+of 214 KB - so there is no texture budget problem to solve. Trimming it
+further would mean a custom engine build with modules stripped, which is
+not worth doing before the game has run on hardware.
+
+The package was shipping `assets/manifest.json` and would have shipped
+markdown; the exclude filter now covers dev files properly.
+
+### Signing
+
+Release keystore at `~/.android/operation-midnight-release.keystore`,
+4096-bit RSA, valid 10,000 days. Credentials are passed as environment
+variables rather than written into `export_presets.cfg`, because that
+file is committed and a password in version control is a password that
+has leaked. `*.keystore` and `*.jks` are gitignored.
+
+Signature verified with apksigner. The release package installs, launches
+and plays with zero crashes or ANRs.
+
+### The two things a device is still needed for
+
+Vulkan has never run on real hardware - every check has gone through the
+emulator, which can only present the OpenGL variant - and battery and
+thermal behaviour cannot be measured on an emulator at all. Both are
+recorded in `docs/RELEASING.md` rather than glossed.
+
 ## Milestone 10 — Second Art Pass (in progress)
 
 - [x] Turret pivots hooked to aiming

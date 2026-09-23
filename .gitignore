@@ -17,3 +17,7 @@ Thumbs.db
 
 # Built APKs — large binaries, rebuildable from the preset
 build/
+
+# Signing keys never belong in the repository
+*.keystore
+*.jks
