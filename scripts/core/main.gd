@@ -151,6 +151,13 @@ func _ready() -> void:
 
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 
+## The battlefield's surfacing. Only the ground plane gets these; the
+## scenery materials share the same shader but leave the samplers unset,
+## which the shader reads as "flat colour" - see its `textured` uniform.
+const GROUND_MACRO: Texture2D = preload("res://assets/textures/ground_macro.png")
+const GROUND_DETAIL: Texture2D = preload("res://assets/textures/ground_detail.png")
+const GROUND_NORMAL: Texture2D = preload("res://assets/textures/ground_normal.png")
+
 ## Terrain materials all share the one fog texture the visibility grid
 ## publishes, so the picture the player reads and the rules the game
 ## enforces come from the same source.
@@ -160,6 +167,24 @@ func _make_fog_material(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter("fog_tex", FogOfWar.get_texture())
 	material.set_shader_parameter("map_size", map_size)
 	material.set_shader_parameter("base_color", color)
+	return material
+
+## The ground, as opposed to the flat scenery that shares its shader.
+func _make_ground_material() -> ShaderMaterial:
+	## White, because the macro texture carries the terrain's colour now.
+	## The shader multiplies the two, so any tint left here would darken
+	## every region of the map by the old flat green.
+	if not ModelSurfacing.enabled():
+		return _make_fog_material(Color(0.24, 0.34, 0.2))
+	var material := _make_fog_material(Color(1, 1, 1))
+	material.set_shader_parameter("textured", 1.0)
+	material.set_shader_parameter("macro_tex", GROUND_MACRO)
+	material.set_shader_parameter("detail_tex", GROUND_DETAIL)
+	material.set_shader_parameter("normal_tex", GROUND_NORMAL)
+	## Tied to the map rather than fixed: the macro layer should read as
+	## a handful of regions across whatever size the map is, not as a
+	## pattern that gets denser on a bigger one.
+	material.set_shader_parameter("macro_scale", map_size * 0.44)
 	return material
 
 ## Shadows are the single biggest difference between "coloured boxes" and
@@ -302,7 +327,7 @@ func _build_level_and_ground() -> void:
 	# the void beyond it out of frame at the camera's shallowest angle.
 	plane.size = Vector2(map_size * 2.4, map_size * 2.4)
 	mesh_instance.mesh = plane
-	mesh_instance.material_override = _make_fog_material(Color(0.24, 0.34, 0.2))
+	mesh_instance.material_override = _make_ground_material()
 	ground.add_child(mesh_instance)
 
 	_nav_region.add_child(ground)

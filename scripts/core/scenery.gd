@@ -24,6 +24,19 @@ var map_size: float = 220.0
 ## and cost about 10 FPS at 120 units for no visual difference.
 var _fog_materials: Dictionary = {}
 
+## Built surfaces - poured concrete and asphalt - take the same panel and
+## grime sheet the structures wear, so a pad reads as something laid down
+## rather than as a hole cut in the grass. Rocks, trees and sandbags do
+## not: panel seams on a boulder look like a mistake, and they are small
+## enough on screen that flat colour costs nothing.
+const DETAILED_KINDS: Array = ["base_pad", "road"]
+const SURFACE_DETAIL: Texture2D = preload("res://assets/textures/surface_detail.png")
+const SURFACE_NORMAL: Texture2D = preload("res://assets/textures/surface_normal.png")
+## Metres per tile of that sheet. Wider than the structures use it: a pad
+## is a big continuous pour, and seams at the vehicle scale would read as
+## paving slabs.
+const DETAIL_SCALE: float = 12.0
+
 const MODELS: Dictionary = {
 	"base_pad": preload("res://assets/models/base_pad.glb"),
 	"road": preload("res://assets/models/road_segment.glb"),
@@ -53,7 +66,7 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 	node.rotation.y = rotation_y
 	if not is_equal_approx(scale, 1.0):
 		node.scale = Vector3.ONE * scale
-	_fog_paint(node)
+	_fog_paint(node, kind in DETAILED_KINDS)
 	return node
 
 ## Scenery has no collision, so it cannot use FogHideable the way units and
@@ -61,7 +74,7 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 ## surface is re-shaded with the terrain fog shader, carrying its own
 ## colour across. Without this, props would show through the shroud and
 ## hand the player a free map outline.
-func _fog_paint(node: Node3D) -> void:
+func _fog_paint(node: Node3D, detailed: bool = false) -> void:
 	var fog_texture: Texture2D = FogOfWar.get_texture()
 	for mesh_instance in node.find_children("*", "MeshInstance3D", true, false):
 		var mesh: Mesh = mesh_instance.mesh
@@ -71,10 +84,13 @@ func _fog_paint(node: Node3D) -> void:
 			var source := mesh.surface_get_material(surface) as StandardMaterial3D
 			var colour: Color = source.albedo_color if source != null else Color(0.5, 0.5, 0.5)
 			mesh_instance.set_surface_override_material(
-				surface, _fog_material(colour, fog_texture))
+				surface, _fog_material(colour, fog_texture, detailed))
 
-func _fog_material(colour: Color, fog_texture: Texture2D) -> ShaderMaterial:
-	var key: String = str(colour)
+func _fog_material(colour: Color, fog_texture: Texture2D,
+		detailed: bool = false) -> ShaderMaterial:
+	## Keyed on both, or the first pad to be built would hand its textured
+	## material to every rock that happens to share its grey.
+	var key: String = "%s|%s" % [colour, detailed]
 	if _fog_materials.has(key):
 		return _fog_materials[key]
 	var material := ShaderMaterial.new()
@@ -82,6 +98,14 @@ func _fog_material(colour: Color, fog_texture: Texture2D) -> ShaderMaterial:
 	material.set_shader_parameter("fog_tex", fog_texture)
 	material.set_shader_parameter("map_size", map_size)
 	material.set_shader_parameter("base_color", colour)
+	if detailed and ModelSurfacing.enabled():
+		## macro_tex is left at its default white, so the pad keeps its own
+		## colour and only picks up the grain and seams.
+		material.set_shader_parameter("textured", 1.0)
+		material.set_shader_parameter("detail_tex", SURFACE_DETAIL)
+		material.set_shader_parameter("normal_tex", SURFACE_NORMAL)
+		material.set_shader_parameter("detail_scale", DETAIL_SCALE)
+		material.set_shader_parameter("normal_strength", 0.35)
 	_fog_materials[key] = material
 	return material
 
