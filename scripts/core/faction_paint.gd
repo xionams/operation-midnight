@@ -32,8 +32,36 @@ static func _material(color: Color) -> StandardMaterial3D:
 	material.albedo_color = color
 	material.roughness = 0.6
 	material.metallic = 0.0
+	## This material replaces an imported one, so it has to opt into the
+	## baked occlusion the same way - otherwise the faction band is the one
+	## stripe on the model with no contact shading, which is conspicuous
+	## precisely because it is the part players look at.
+	material.vertex_color_use_as_albedo = true
 	_cache[key] = material
 	return material
+
+## Godot's glTF importer enables vertex_color_use_as_albedo on every
+## material in a file except the first one, so exactly one surface per
+## model - the first, which on a vehicle is the whole Hull - silently
+## discards the ambient occlusion baked into COLOR_0 by
+## tools/mesh_refine.py. Measured across all 42 models: 39 of 176
+## surfaces, always the first of its file.
+##
+## Fixed here rather than in the exporter because the glTF itself is
+## correct; and here rather than in a loader of its own because the only
+## models this matters for are units and structures, which is exactly the
+## set that passes through apply(). Scenery is drawn with the fog shader,
+## which writes ALBEDO itself and never reads vertex colour.
+static var _ao_fixed: Dictionary = {}
+
+static func _enable_baked_ao(mesh: Mesh) -> void:
+	if _ao_fixed.has(mesh.get_rid()):
+		return
+	_ao_fixed[mesh.get_rid()] = true
+	for surface in mesh.get_surface_count():
+		var material: Material = mesh.surface_get_material(surface)
+		if material is StandardMaterial3D:
+			material.vertex_color_use_as_albedo = true
 
 ## Walks a freshly instanced model and overrides every surface whose
 ## source material is named `Faction`.
@@ -43,6 +71,9 @@ static func apply(root: Node, color: Color) -> void:
 		var mesh: Mesh = node.mesh
 		if mesh == null:
 			continue
+		## Cheap after the first instance: the imported materials are one
+		## shared resource per model, not one per unit on the field.
+		_enable_baked_ao(mesh)
 		for surface in mesh.get_surface_count():
 			var source: Material = mesh.surface_get_material(surface)
 			if source != null and source.resource_name == SLOT:

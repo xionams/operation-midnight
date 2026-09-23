@@ -120,26 +120,59 @@ inaccuracy; readability wins.
 
 ## 6. Edge treatment
 
-- Chamfer large flat faces ~0.1m rather than leaving raw 90° edges —
-  catches the light and stops structures reading as untextured boxes.
+- Chamfer rather than leaving raw 90° edges — catches the light and
+  stops structures reading as untextured boxes.
 - No bevel small enough to vanish at gameplay zoom.
 - Hard normals everywhere except cylinders (vents, barrels, tanks).
 - Panel lines are **geometry or nothing** — never texture detail.
+
+Applied by `tools/mesh_refine.py`, not by hand. Width is 3% of each
+object's smallest extent, clamped to 10–100mm, because these assets span
+a 0.18m gun barrel and a 12m war factory and one fixed width cannot serve
+both. That puts a 5m structure at the 0.1m this section asks for. One
+segment, not two: a second segment doubles the added geometry for a
+rounding nobody resolves at a 14–45m camera.
+
+A first attempt used 1.2% clamped to 30mm and produced a bevel that was
+real in the mesh and invisible on screen — about one pixel at a 40m
+camera. If a chamfer cannot be seen at gameplay zoom it is pure cost;
+either widen it to the figure above or gate it out entirely.
+
+Assets under 2m in their largest dimension are **not bevelled at all** —
+that is the "vanishes at gameplay zoom" rule above, made numeric. It
+matters most for infantry, which are the one class that appears 120 at a
+time; bevelling them cost 3.8× the triangles for nothing visible.
+
+The same pass bakes ambient occlusion into vertex colours (`COLOR_0`),
+which is what darkens the contact where a turret meets a hull or a
+cooling tower meets a roof. Vertex colours rather than a texture: no UV
+atlas, no VRAM, and nothing to stream on a phone.
 
 ---
 
 ## 7. Lighting assumptions
 
-One `DirectionalLight3D`, rotation `(-55°, -35°, 0)`, energy ~1.15.
-Cold low sun, late dusk.
+One `DirectionalLight3D`, rotation `(-48°, -35°, 0)`, energy ~1.35, warm
+(`1.0, 0.957, 0.882`). Cold low sun, late dusk.
 
 - Assets are authored for **top-down-ish light**. Upward faces carry the
   read; vertical faces fall into shadow.
-- Shadows are currently **off** for mobile performance, so assets must
-  read by silhouette and material contrast alone, not cast shadow.
+- Shadows are **on**. 2048 map, single orthogonal split, 110m — which is
+  what RTSCamera can see at `max_zoom` 45 and no further. An asset may
+  now rely on cast shadow to sit on the ground rather than float.
+- Ambient comes from a `ProceduralSky`, so it has direction: up-facing
+  surfaces catch cool daylight, down-facing ones warm ground bounce. The
+  sky is never drawn — the background stays dark so fog of war keeps the
+  area past the map edge dark. It exists purely as a light source.
+- Filmic tonemapping, exposure 1.35.
 - Never bake lighting into base colour beyond gentle top-face lightening.
+  Baked *occlusion* is fine and expected — see section 6.
 - Emissive is the only self-lit element and is reserved for indicators,
   windows at night, and VFX.
+
+The sun angle was lowered from -55° when shadows were turned on: a high
+sun puts every shadow directly under its caster, which from this camera
+reads as no shadow at all.
 
 ---
 
@@ -269,6 +302,28 @@ is at its centre will float or sink and cannot be swapped in blind.
 Whole-screen target: a 120-unit battle plus two bases must stay under
 ~250k triangles. Greyboxes sit far under budget on purpose — the budget
 is headroom for the final art pass, not a target to fill now.
+
+After the bevel pass in `tools/mesh_refine.py` all 42 models total 25,768
+triangles (from 8,756, ×2.94). Per class, measured:
+
+| Asset | Tris | Class budget |
+|---|---|---|
+| Infantry (rifle, engineer, spy) | 304 | 400 |
+| AT squad | 348 | 400 |
+| Scout vehicle | 896 | 900 |
+| Main battle tank | 780 | 1,400 |
+| Harvester | 1,256 | 1,400 |
+| Assault vehicle | 1,252 | 900 ⚠ |
+| Artillery vehicle | 1,548 | 1,400 ⚠ |
+| Command HQ | 1,324 | 1,800 |
+| War factory | 1,132 | 1,800 |
+| Barracks | 1,212 | 1,800 |
+
+Two vehicles sit over their class budget and are knowingly left there:
+both are single-unit-cap or low-count units, the whole-screen figure is
+what actually constrains the frame, and the 120-unit stress test did not
+move when the triangle count tripled (51.4 FPS against 50.1 before) —
+this game is fill-rate bound, not vertex bound.
 
 No LODs at MVP. Revisit only if the 120-unit stress test regresses.
 

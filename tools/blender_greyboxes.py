@@ -32,9 +32,16 @@ except ImportError:  # pragma: no cover - only meaningful inside Blender
              "  blender --background --python tools/blender_greyboxes.py")
 
 import asset_specs  # noqa: E402
+import mesh_refine  # noqa: E402
 from glb import srgb_to_linear  # noqa: E402
 
 OUT_DIR = os.path.join(TOOLS, "..", "assets", "models")
+
+## Defaults for the refinement pass; --no-refine / --no-ao / --segments N
+## override them. See tools/mesh_refine.py for what each stage does.
+REFINE = True
+BAKE_AO = True
+BEVEL_SEGMENTS = 1
 
 
 def clear_scene():
@@ -64,6 +71,24 @@ def asset_specs_material_preset(name):
     return MATERIAL_PRESETS.get(name, (0.8, 0.0))
 
 
+def to_blender(position):
+    """Spec coordinates (Y-up, glTF convention) into Blender's Z-up space.
+
+    tools/asset_specs.py describes the world the way glTF and Godot do:
+    +Y is up. Blender's +Z is up. Feeding spec coordinates straight into
+    bmesh therefore lays every model on its side, and the glTF exporter's
+    export_yup then "converts" an orientation that was already correct,
+    landing the model a further 90 degrees out.
+
+    Nothing caught this for a whole commit because Godot had cached .scn
+    imports of the older files and never re-read the new .glb - the
+    validation test was measuring the previous models. Delete
+    .godot/imported before trusting an asset test.
+    """
+    x, y, z = position
+    return Vector((x, -z, y))
+
+
 def mesh_from_groups(object_name, mesh_data, materials):
     """Rebuild one of the spec's Mesh objects as real Blender geometry."""
     blender_mesh = bpy.data.meshes.new(object_name)
@@ -78,7 +103,7 @@ def mesh_from_groups(object_name, mesh_data, materials):
 
     for material_name, (positions, _normals, indices) in mesh_data.groups.items():
         index = slot_index[material_name]
-        verts = [bm.verts.new(Vector(p)) for p in positions]
+        verts = [bm.verts.new(to_blender(p)) for p in positions]
         bm.verts.index_update()
         for i in range(0, len(indices), 3):
             try:
@@ -111,10 +136,27 @@ def build(asset_id, spec):
                 rgba = asset_specs.UNIT_HULL_OVERRIDE[asset_id]
             materials[material_name] = material_for(material_name, rgba)
 
+    built = []
     for node_name, mesh_data, translation in nodes:
         obj = mesh_from_groups(node_name, mesh_data, materials)
         if translation and any(translation):
-            obj.location = Vector(translation)
+            obj.location = to_blender(translation)
+        built.append(obj)
+
+    before = after = 0
+    if REFINE:
+        ## Decided once for the whole asset; see mesh_refine.should_bevel.
+        bevel = mesh_refine.should_bevel(built)
+        for obj in built:
+            was, now = mesh_refine.refine(
+                obj, bevel=bevel, segments=BEVEL_SEGMENTS)
+            before += was
+            after += now
+        ## Baked after every object is in its final place, so the contact
+        ## shadow where a turret meets its hull is actually occluded by the
+        ## hull rather than by nothing.
+        if BAKE_AO:
+            mesh_refine.bake_ao(built)
 
     path = os.path.abspath(os.path.join(OUT_DIR, asset_id + ".glb"))
     bpy.ops.export_scene.gltf(
@@ -122,25 +164,46 @@ def build(asset_id, spec):
         export_format="GLB",
         export_apply=True,
         export_yup=True,
+        ## These models are flat-coloured per material slot and carry no
+        ## maps, so UVs are dead weight in every file. The AO bake rides in
+        ## COLOR_0; export_all_vertex_colors would add a second, unused set.
+        export_texcoords=False,
+        export_vertex_color='ACTIVE' if BAKE_AO else 'NONE',
+        export_all_vertex_colors=False,
     )
-    return path
+    return path, before, after
 
 
 def main():
+    global REFINE, BAKE_AO, BEVEL_SEGMENTS
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     only = None
     if "--only" in argv:
         only = argv[argv.index("--only") + 1]
+    ## The refinement pass is the expensive and the reversible part, so it
+    ## can be switched off to rebuild the plain greyboxes for comparison.
+    if "--no-refine" in argv:
+        REFINE = False
+    if "--no-ao" in argv:
+        BAKE_AO = False
+    if "--segments" in argv:
+        BEVEL_SEGMENTS = int(argv[argv.index("--segments") + 1])
 
     os.makedirs(OUT_DIR, exist_ok=True)
     count = 0
+    total_before = total_after = 0
     for asset_id, spec in sorted(asset_specs.ASSETS.items()):
         if only and asset_id != only:
             continue
-        build(asset_id, spec)
-        print("exported %s" % asset_id)
+        _, before, after = build(asset_id, spec)
+        total_before += before
+        total_after += after
+        print("exported %-24s %5d -> %5d tris%s"
+              % (asset_id, before, after, "" if after != before else "  (no bevel)"))
         count += 1
+    ratio = (total_after / total_before) if total_before else 1.0
     print("%d model(s) exported to assets/models" % count)
+    print("triangles %d -> %d  (x%.2f)" % (total_before, total_after, ratio))
 
 
 if __name__ == "__main__":
