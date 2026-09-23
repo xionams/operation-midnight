@@ -100,6 +100,28 @@ saturated (§8).
 
 ## 4. Shape language
 
+**Vehicles are recognised by their running gear.** `tracks()` is a band,
+four road wheels, a larger sprocket and idler at each end, and a fender
+overhanging the top. The wheels sit slightly proud so the sun picks out a
+row of highlights along the hull side — at 40m the individual wheels are
+not resolvable, but the *rhythm* is, and that rhythm is what says
+"tracked vehicle" rather than "box on the ground". Five wheels was tried;
+the fifth is not distinguishable, because the eye reads the rhythm, not
+the count.
+
+`wheels()` gives a lighter hub proud of a dark tyre — without it a wheel
+is a black disc and reads as a hole in the vehicle.
+
+`stowage()` straps crates and a rolled tarp to a hull. Clutter is what
+separates a vehicle in service from a showroom model, and it breaks the
+straight line of a deck seen from above, which is the view this game is
+played from.
+
+Asymmetry tells the player which way a turret faces when its gun points
+at the camera — hence the offset commander's cupola on the tank. A
+mantlet where the barrel meets the turret face stops the gun looking like
+a stick pushed into a box.
+
 **Height is what reads, not detail.** The structures already carried
 plenty of detail — gantry cranes, roll-up doors, vent banks, pipe runs —
 and almost none of it registered, because at the 14–45m camera a 0.3m
@@ -177,6 +199,10 @@ A first attempt used 1.2% clamped to 30mm and produced a bevel that was
 real in the mesh and invisible on screen — about one pixel at a 40m
 camera. If a chamfer cannot be seen at gameplay zoom it is pure cost;
 either widen it to the figure above or gate it out entirely.
+
+Only edges sharper than **65°** are bevelled, which is "hard normals
+everywhere except cylinders" made numeric: a box corner is 90° and
+bevels, a six-sided road wheel's side edges are 60° and do not.
 
 Assets under 2m in their largest dimension are **not bevelled at all** —
 that is the "vanishes at gameplay zoom" rule above, made numeric. It
@@ -532,27 +558,46 @@ Whole-screen target: a 120-unit battle plus two bases must stay under
 ~250k triangles. Greyboxes sit far under budget on purpose — the budget
 is headroom for the final art pass, not a target to fill now.
 
-After the bevel pass in `tools/mesh_refine.py` all 42 models total 25,768
-triangles (from 8,756, ×2.94). Per class, measured:
+After the bevel and running-gear passes, all 42 models total **26,194**
+triangles. Per class, measured:
 
-| Asset | Tris | Class budget |
-|---|---|---|
-| Infantry (rifle, engineer, spy) | 304 | 400 |
-| AT squad | 348 | 400 |
-| Scout vehicle | 896 | 900 |
-| Main battle tank | 780 | 1,400 |
-| Harvester | 1,256 | 1,400 |
-| Assault vehicle | 1,252 | 900 ⚠ |
-| Artillery vehicle | 1,548 | 1,400 ⚠ |
-| Command HQ | 1,324 | 1,800 |
-| War factory | 1,132 | 1,800 |
-| Barracks | 1,212 | 1,800 |
+| Asset | Tris | Class budget | |
+|---|---|---|---|
+| Infantry (rifle, engineer, spy) | 304 | 400 | ✓ |
+| AT squad | 348 | 400 | ✓ |
+| Scout vehicle | 856 | 900 | ✓ |
+| Harvester | 1,192 | 1,400 | ✓ |
+| Assault vehicle | 1,332 | 900 | ⚠ |
+| Main battle tank | 1,760 | 1,400 | ⚠ |
+| Artillery vehicle | 1,892 | 1,400 | ⚠ |
+| Command HQ | 1,148 | 1,800 | ✓ |
+| War factory | 1,404 | 1,800 | ✓ |
+| Barracks | 1,252 | 1,800 | ✓ |
+| Power plant | 1,312 | 1,800 | ✓ |
+| Refinery | 1,016 | 1,800 | ✓ |
 
-Two vehicles sit over their class budget and are knowingly left there:
-both are single-unit-cap or low-count units, the whole-screen figure is
-what actually constrains the frame, and the 120-unit stress test did not
-move when the triangle count tripled (51.4 FPS against 50.1 before) —
-this game is fill-rate bound, not vertex bound.
+**The three vehicles over budget are knowingly left there.** The class
+budgets were set before anything had been measured, and what has been
+measured since says they are the wrong constraint:
+
+- Triangle count is not what costs frames here. The models tripled in the
+  bevel pass and the 120-unit stress test did not move. The same test
+  loses ~9 FPS to the effects layer and ~5 to shadows — this game is fill
+  rate bound.
+- The whole-screen figure is the one that constrains a frame, and at 120
+  units of the heaviest vehicle plus two bases it is still inside ~250k.
+- Infantry, the one class that genuinely appears 120 at a time, is
+  comfortably under.
+
+Treat the per-class column as a smell test rather than a limit, and the
+120-unit stress test as the actual gate.
+
+**Bevelling cylinders is nearly pure waste.** The angle between adjacent
+side faces of an n-sided prism is 360/n — 60° for a six-sided road wheel,
+45° for an eight-sided barrel — so a 30° bevel limit chamfered every one
+of them, for a rounding well under a pixel. Raising the limit to 65°
+(§6) took the whole model set *down* from 27,496 to 26,194 triangles at
+the same time as the running gear was added.
 
 No LODs at MVP. Revisit only if the 120-unit stress test regresses.
 

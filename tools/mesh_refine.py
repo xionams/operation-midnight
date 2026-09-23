@@ -34,9 +34,20 @@ except ImportError:  # pragma: no cover - only meaningful inside Blender
     raise SystemExit("tools/mesh_refine.py must be imported inside Blender")
 
 
-## Radians. Only edges sharper than this are bevelled, so the flat
-## continuation across a subdivided face is left alone.
-BEVEL_ANGLE = math.radians(30.0)
+## Radians. Only edges sharper than this are bevelled.
+##
+## 65, not 30, and the difference is entirely about cylinders. The angle
+## between adjacent side faces of an n-sided prism is 360/n: 60 for a
+## six-sided wheel, 45 for an eight-sided barrel. At 30 every one of those
+## edges was bevelled, which triples a wheel's triangles to round over an
+## edge that is well under a pixel at gameplay zoom - the running gear
+## alone pushed the main battle tank from 780 to 2,408 triangles against a
+## 1,400 budget.
+##
+## At 65 a box corner (90) still bevels and a low-segment cylinder does
+## not, which is docs/ART_DIRECTION.md section 6's "hard normals
+## everywhere except cylinders" expressed as a number.
+BEVEL_ANGLE = math.radians(65.0)
 ## Above this angle a face boundary stays hard. Set to match BEVEL_ANGLE so
 ## the narrow bevel faces blend into their neighbours while the main faces
 ## of a box still meet at a crisp line.
