@@ -162,22 +162,96 @@ func _make_fog_material(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter("base_color", color)
 	return material
 
+## Shadows are the single biggest difference between "coloured boxes" and
+## "a battlefield", so they are on by default and OM_NO_SHADOWS exists to
+## measure what they cost rather than to hide them.
+static func shadows_enabled() -> bool:
+	return OS.get_environment("OM_NO_SHADOWS").is_empty()
+
 func _build_environment() -> void:
 	var light := DirectionalLight3D.new()
 	light.name = "SunLight"
-	light.rotation_degrees = Vector3(-55, -35, 0)
-	light.light_energy = 1.15
-	light.shadow_enabled = false
+	## Lowered from -55. A high sun puts every shadow directly under the
+	## thing casting it, which reads as no shadow at all from an RTS
+	## camera; at -48 a structure throws enough shadow to show its height.
+	light.rotation_degrees = Vector3(-48, -35, 0)
+	light.light_energy = 1.35
+	## Warm sun against cool sky ambient. Equal-temperature light on every
+	## face is what made the greyboxes read flat - the faces all resolved
+	## to the same grey no matter which way they pointed.
+	light.light_color = Color(1.0, 0.957, 0.882)
+	light.shadow_enabled = shadows_enabled()
+	## One orthogonal split rather than four. The camera holds a near
+	## constant height, so the extra cascades would spend fill rate
+	## resolving depth ranges this game never looks at.
+	light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	## RTSCamera tops out at max_zoom 45 and shows roughly 70m of ground,
+	## putting the furthest visible point under 90m away. 110 covers that
+	## with margin and nothing more: the shadow map's fixed resolution is
+	## spread across this distance, so every metre beyond what the camera
+	## can actually see is resolution taken away from what it can.
+	light.directional_shadow_max_distance = 110.0
+	light.directional_shadow_blend_splits = false
+	## Greyboxes are large flat faces meeting at right angles, which is
+	## the worst case for shadow acne. Normal bias does most of the work
+	## here; a larger depth bias would detach shadows from their casters.
+	light.shadow_bias = 0.04
+	light.shadow_normal_bias = 1.4
+	light.shadow_blur = 1.1
 	add_child(light)
 
 	var env_node := WorldEnvironment.new()
 	env_node.name = "WorldEnvironment"
 	var environment := Environment.new()
+
+	## A sky, purely so ambient light has a DIRECTION. With a flat ambient
+	## colour every surface received the same fill and the models lost
+	## their form; a sky means up-facing surfaces catch cool daylight and
+	## down-facing ones catch warm bounce off the ground, which separates
+	## a roof from a wall before the sun is even considered.
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.298, 0.427, 0.612)
+	sky_material.sky_horizon_color = Color(0.678, 0.729, 0.769)
+	sky_material.ground_bottom_color = Color(0.239, 0.243, 0.212)
+	sky_material.ground_horizon_color = Color(0.510, 0.502, 0.443)
+	sky_material.sky_energy_multiplier = 1.0
+	sky_material.ground_energy_multiplier = 1.0
+	## No sun disk: the camera never looks at the horizon, so it would only
+	## ever show up as a bright smear in the skirt beyond the map.
+	sky_material.sun_angle_max = 0.0
+	sky_material.sun_curve = 0.0
+
+	var sky := Sky.new()
+	sky.sky_material = sky_material
+	## The sky never changes during a match, so it is convolved once
+	## instead of every frame, and at the smallest radiance size that
+	## still gives smooth ambient - this is only ever a light source.
+	sky.process_mode = Sky.PROCESS_MODE_QUALITY
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
+	environment.sky = sky
+
+	## Background stays a flat colour. The sky is a light source here, not
+	## scenery: showing it would light up everything beyond the map edge,
+	## which is exactly the area fog of war is meant to keep dark.
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.55, 0.65, 0.78)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.6, 0.62, 0.68)
-	environment.ambient_light_energy = 0.65
+	environment.background_color = Color(0.086, 0.098, 0.110)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	## Sky ambient at 1.0 delivers markedly less fill than the flat grey it
+	## replaced, because it now falls off by surface direction instead of
+	## hitting everything equally. Raised so shaded faces stay readable -
+	## an RTS player has to identify a structure sitting in shadow.
+	environment.ambient_light_energy = 1.45
+
+	## Filmic rolls the highlights off instead of clipping them, so a lit
+	## concrete roof stops flattening into one white value. White is held
+	## at 1.0 because nothing in this game is deliberately over-exposed.
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	## Filmic compresses the mid-tones, which left the battlefield looking
+	## overcast; the exposure lift puts the lit ground back where it was
+	## while keeping the highlight rolloff that motivated the change.
+	environment.tonemap_exposure = 1.35
+	environment.tonemap_white = 1.0
+
 	env_node.environment = environment
 	add_child(env_node)
 

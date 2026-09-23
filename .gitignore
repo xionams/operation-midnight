@@ -21,3 +21,6 @@ build/
 # Signing keys never belong in the repository
 *.keystore
 *.jks
+
+# Blender/Python bytecode from the asset tools
+__pycache__/

@@ -81,3 +81,13 @@ renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
 textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=1
+
+; Shadow budget. This is fill-rate bound, not draw-call bound: at 120
+; units the 4096 default cost 9 FPS and 2048 costs 3, for shadows that
+; are soft enough that the resolution is not visible either way. 1024 was
+; measured too and is the floor - it puts acne stripes across the flat
+; concrete of a base pad, which no amount of bias tuning cleared.
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/size.mobile=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality.mobile=2

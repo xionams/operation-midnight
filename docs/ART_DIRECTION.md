@@ -288,7 +288,7 @@ No LODs at MVP. Revisit only if the 120-unit stress test regresses.
 
 ## 15. Performance switches
 
-Three environment variables turn off one visual layer each, so the cost
+Four environment variables turn off one visual layer each, so the cost
 of an art change can be measured rather than argued about:
 
 | Variable | Effect |
@@ -296,6 +296,19 @@ of an art change can be measured rather than argued about:
 | `OM_NO_MODELS` | Units and structures fall back to primitive stand-ins |
 | `OM_NO_SCENERY` | Skips pads, roads, rock faces and props |
 | `OM_NO_VFX` | Suppresses every particle effect |
+| `OM_NO_SHADOWS` | Sun casts no shadow |
+
+`OM_NO_SHADOWS` measured, at 2048 and a 110m shadow distance:
+
+| Units | Shadows on | Shadows off |
+|---|---|---|
+| 40 | 60.1 | 60.0 |
+| 80 | 60.1 | 60.1 |
+| 120 | 50.1 | 56.8 |
+
+Shadows are free until the unit count gets high, and the cost is fill
+rate rather than draw calls - dropping the map from 4096 to 2048
+recovered most of it while 1024 put acne stripes across the base pads.
 
 They exist because the first integration of this asset pass cost ~19 FPS
 at 120 units and two plausible-sounding explanations (particle count,
