@@ -137,6 +137,7 @@ static func shell_impact(context: Node, position: Vector3) -> void:
 	var root := _scene_root(context)
 	_burst(root, position, 8, FIRE_ORANGE, 0.8, 5.0, 0.3, -2.0, true, Vector3.UP, 60.0)
 	_burst(root, position, 10, DUST_TAN, 1.2, 3.0, 0.9, -1.5, false, Vector3.UP, 75.0)
+	GroundMarks.scorch(context, position, 0.9)
 
 # ---------------------------------------------------------- explosions
 
@@ -145,6 +146,7 @@ static func explosion_small(context: Node, position: Vector3) -> void:
 	var root := _scene_root(context)
 	_burst(root, position, 12, FIRE_ORANGE, 1.3, 6.0, 0.45, -2.0, true, Vector3.UP, 80.0)
 	_burst(root, position, 10, SMOKE_GREY, 1.8, 2.5, 1.4, 0.8, false, Vector3.UP, 60.0)
+	GroundMarks.scorch(context, position, 1.8)
 
 ## Shakes whatever camera is watching, if it can see the blast.
 static func _shake(context: Node, position: Vector3, strength: float) -> void:
@@ -165,6 +167,9 @@ static func explosion_large(context: Node, position: Vector3) -> void:
 	_burst(root, position + Vector3.UP, 16, SMOKE_GREY, 3.4, 3.0, 2.2, 1.2,
 		false, Vector3.UP, 55.0)
 	_burst(root, position, 10, DUST_TAN, 2.0, 4.5, 1.2, -1.0, false, Vector3.UP, 88.0)
+	## A structure going up leaves a burn the size of its footprint, which
+	## is what makes a razed base still read as a razed base an hour later.
+	GroundMarks.scorch(context, position, 4.2)
 
 ## A destroyed vehicle: fire, then a smoke column that outlives it, so a
 ## battlefield keeps a record of what happened where.

@@ -344,6 +344,50 @@ for a shadow the size of a leaf is not a trade worth making.
 
 ---
 
+## 9d. What the ground remembers
+
+Everything in the VFX layer is momentary — a flash, a plume, a shake — so
+ten minutes into a match the terrain looked exactly as it did at the
+start. A war game whose ground never records that anything happened reads
+as a diorama, however well it is lit.
+
+`scripts/vfx/ground_marks.gd` keeps scorch marks where things exploded:
+0.9m for a shell impact, 1.8m for a vehicle, 4.2m for a structure — so a
+razed base still reads as a razed base an hour later.
+
+- **They never fade.** A burn that tidies itself away after fifteen
+  seconds is just another particle effect. The point is that the ground
+  remembers.
+- **One `MultiMesh` for every mark on the map**, so the whole record is
+  one draw call rather than one per crater. That is what makes permanence
+  affordable.
+- **A ring buffer caps it at 96.** The oldest mark is overwritten, which
+  bounds the cost exactly while leaving the places that saw the most
+  fighting the most marked.
+- **Each mark is randomly spun.** Without it a cluster reads as the same
+  stamp repeated rather than as separate craters.
+- **They obey fog.** A mark is evidence something happened, so it must
+  respect the shroud exactly as the thing that made it does — otherwise a
+  burn glimpsed through the fog reports a battle the player has not
+  earned the right to know about.
+
+Flat quads rather than Godot `Decal` nodes: the terrain is a flat plane,
+so projection buys nothing and costs fill rate on a phone.
+
+Two things worth keeping in mind for any future ground decal:
+
+**Alpha blending, not `blend_mul`.** Multiply is the physically correct
+model — soot takes light away rather than replacing it, and it would let
+one texture read correctly on grass and on concrete. It rendered every
+mark as a visible dark rectangle: the transparent margin of each quad
+still washed the ground. Whatever Godot's mul blending does with a white
+`ALBEDO`, it is not "leave the destination alone".
+
+**Lit, not unshaded.** Unshaded soot stays bright inside a building's
+shadow and floats off the surface it is meant to be part of.
+
+---
+
 ## 10. Readability rules by class
 
 ### Buildings
@@ -475,7 +519,7 @@ of an art change can be measured rather than argued about:
 |---|---|
 | `OM_NO_MODELS` | Units and structures fall back to primitive stand-ins |
 | `OM_NO_SCENERY` | Skips pads, roads, rock faces and props |
-| `OM_NO_VFX` | Suppresses every particle effect |
+| `OM_NO_VFX` | Suppresses every particle effect, and ground marks |
 | `OM_NO_SHADOWS` | Sun casts no shadow |
 | `OM_NO_DETAIL` | No detail textures; flat colour per slot, as before §9 |
 

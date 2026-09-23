@@ -110,7 +110,7 @@ def blend(a, b, t):
 
 
 def write_png(path, rgb):
-    """Minimal 8-bit RGB PNG writer.
+    """Minimal 8-bit PNG writer. RGB, or RGBA when given four channels.
 
     Written by hand rather than through an image library so the bytes are
     exactly the authored sRGB values - no colour management, no gamma
@@ -119,7 +119,9 @@ def write_png(path, rgb):
     easy to ship.
     """
     data = np.clip(rgb, 0, 255).astype(np.uint8)
-    height, width, _ = data.shape
+    height, width, channels = data.shape
+    ## 2 = truecolour, 6 = truecolour with alpha.
+    colour_type = 6 if channels == 4 else 2
     raw = b"".join(b"\x00" + data[y].tobytes() for y in range(height))
 
     def chunk(tag, payload):
@@ -127,7 +129,8 @@ def write_png(path, rgb):
                 + struct.pack(">I", zlib.crc32(tag + payload) & 0xffffffff))
 
     png = b"\x89PNG\r\n\x1a\n"
-    png += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    png += chunk(b"IHDR",
+                 struct.pack(">IIBBBBB", width, height, 8, colour_type, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(raw, 9))
     png += chunk(b"IEND", b"")
     with open(path, "wb") as handle:
@@ -283,6 +286,51 @@ def build_surface(rng):
     return np.stack([grey, grey, grey], axis=-1), height_field
 
 
+SCORCH_SIZE = 256
+
+
+def build_scorch(rng):
+    """A burn mark for the ground where something exploded.
+
+    RGBA, because this is laid over terrain rather than replacing it: the
+    alpha carries the shape and the colour carries the soot. A hard circle
+    would read as a sticker, so the radius itself is modulated by noise -
+    the edge of a real burn is ragged, and the ragged edge is most of what
+    sells it.
+    """
+    size = SCORCH_SIZE
+    axis = (np.arange(size, dtype=np.float32) + 0.5) / size * 2.0 - 1.0
+    xs = axis[None, :].repeat(size, axis=0)
+    ys = axis[:, None].repeat(size, axis=1)
+    radius = np.sqrt(xs * xs + ys * ys)
+    angle = np.arctan2(ys, xs)
+
+    ## Wobble the edge. Three harmonics is enough to stop it reading as a
+    ## circle without turning it into a star.
+    wobble = (0.10 * np.sin(angle * 3.0 + rng.uniform(0, 6.28))
+              + 0.06 * np.sin(angle * 5.0 + rng.uniform(0, 6.28))
+              + 0.04 * np.sin(angle * 9.0 + rng.uniform(0, 6.28)))
+    edge = 1.0 + wobble
+
+    alpha = np.clip((edge - radius) / 0.55, 0.0, 1.0)
+    ## Denser at the centre, so the mark has a core rather than being an
+    ## even wash.
+    alpha = alpha ** 1.6
+    ## Break it up with noise so the soot is patchy, not airbrushed.
+    grain = fbm(size, 6, 4, rng)
+    alpha *= 0.45 + 0.55 * grain
+    alpha[radius > edge] = 0.0
+
+    ## Soot is not black - it is very dark brown, and slightly warmer at
+    ## the rim where the burn ran out of heat.
+    core = np.array([26.0, 22.0, 20.0], dtype=np.float32)
+    rim = np.array([58.0, 46.0, 36.0], dtype=np.float32)
+    t = np.clip(radius / np.maximum(edge, 1e-3), 0.0, 1.0)[:, :, None]
+    rgb = core[None, None, :] + (rim - core)[None, None, :] * t
+
+    return np.concatenate([rgb, (alpha * 255.0)[:, :, None]], axis=-1)
+
+
 def main():
     out = os.path.abspath(OUT_DIR)
     os.makedirs(out, exist_ok=True)
@@ -293,12 +341,14 @@ def main():
     normal = build_normal(height)
     surface, surface_height = build_surface(rng)
     surface_normal = build_normal(surface_height, strength=3.0)
+    scorch = build_scorch(rng)
 
     for name, image in [("ground_macro", macro),
                         ("ground_detail", detail),
                         ("ground_normal", normal),
                         ("surface_detail", surface),
-                        ("surface_normal", surface_normal)]:
+                        ("surface_normal", surface_normal),
+                        ("scorch", scorch)]:
         path = os.path.join(out, name + ".png")
         size = write_png(path, image)
         print("wrote %-28s %4dx%-4d %6.1f KiB"
