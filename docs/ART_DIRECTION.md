@@ -250,6 +250,74 @@ nothing. Only poured concrete and asphalt take the sheet.
 
 ---
 
+## 9b. Generated art vs third-party art
+
+The line is **gameplay-bearing vs scenery**, not "ours vs theirs".
+
+| | Source | Why |
+|---|---|---|
+| Units, structures, defences | Generated from `tools/asset_specs.py` | Carry the runtime-recoloured `Faction` slot (§8) and must match the `body_size` that selection rings, health bars and placement footprints derive from (§5) |
+| Trees, rocks, cliffs, bushes, grass, logs, fences | Kenney Nature Kit, CC0 | Carry no faction, block nothing the player reasons about, have no dimension contract with gameplay |
+| Military props — barriers, sandbags, drums, crates, debris, masts | Generated | Military dressing; reads as part of the same world as the structures |
+
+The spec language is boxes and cylinders. That is adequate for a war
+factory, whose real shape is close to a box. It is not adequate for a
+tree: ours was three stacked cylinders, and no lighting or texture pass
+makes a cone on a stick read as a tree.
+
+**Imported art is re-palettised, never used as shipped.** Kenney's kit is
+authored in a deliberate teal-and-coral scheme — its leaves are genuinely
+cyan, not a broken import. `Scenery.NATURE_PALETTE` maps it into §2's
+colours by **material name** (`leafsDark`, `woodBark`, `dirt`), so one
+small table re-skins the whole pack including anything added later. Doing
+it by colour would need an entry per shade and would silently miss any
+that did not match exactly.
+
+That remap is also what stops the props reading as off-the-shelf art
+sitting on our terrain. Flowers are the one exception that keeps its hue:
+they are the only saturated thing out there and are what stops a meadow
+being one green mass — muted, so they never compete with faction colour,
+which is the one thing on screen that has to win.
+
+Attribution and the full rationale: `assets/models/nature/CREDITS.md`.
+
+---
+
+## 9c. Density
+
+A map is dressed or it is empty, and no amount of lighting fixes empty.
+The first pass scattered **90 props across a 220m map** — one object per
+540m² — and read as a flat field with some cones in it.
+
+- **~520 scattered props**, placed in **clusters**, not evenly. Vegetation
+  grows in stands and rock gathers where rock is; placement picks centres
+  and spreads members around them with a normal distribution, so a stand
+  has a dense middle and thins at its edge.
+- Cluster types carry their own kind lists — `wood`, `copse`, `scree`,
+  `meadow`, `ruin` — so a place looks like somewhere rather than like a
+  random draw from every prop in the game.
+- **~6,200 ground-cover tufts** as `MultiMesh`. There was no grass
+  geometry in the project at all before this; "grass" was a colour in a
+  texture.
+
+Ground cover is chunked **12×12**, because Godot frustum-culls a
+MultiMesh by its whole bounding box and never per instance — one
+MultiMesh spanning the map would draw every tuft on it, including those
+behind the camera. At this chunk size roughly 4.3k triangles sit in each
+chunk and the camera holds only a few.
+
+Cover answers a different question to a prop: a tree must not grow inside
+another tree, but grass grows around the foot of one. Treating every prop
+as an obstacle rejected over half the tufts. `_is_clear_for_cover`
+respects only clearances of 4m or more — bases, roads, ore fields — and
+ignores the per-prop ones.
+
+Measured at 120 units: **49.2 FPS**, against 51.3 before the props and
+grass. Grass does not cast shadows; thousands of extra shadow-map draws
+for a shadow the size of a leaf is not a trade worth making.
+
+---
+
 ## 10. Readability rules by class
 
 ### Buildings

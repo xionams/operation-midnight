@@ -473,7 +473,13 @@ func _dress_battlefield() -> void:
 	var from_mid: Vector3 = (midpoint - map.enemy_base).normalized() * 20.0
 	_scenery.lay_road(map.player_base + to_mid, midpoint)
 	_scenery.lay_road(midpoint, map.enemy_base + from_mid)
-	_scenery.scatter(map_size, 90)
+	## Ninety props on a 220m map is one object per 540 square metres -
+	## visually, bare ground. Clustered now, so this is stands of trees and
+	## fields of rock rather than a lattice.
+	_scenery.scatter(map_size, 520)
+	## Laid last: it reads the same exclusion list the props just added to,
+	## so grass does not grow through anything already placed.
+	_scenery.lay_ground_cover(map_size)
 
 func _blocker_layout() -> Array:
 	return map.blocker_pairs()

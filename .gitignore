@@ -24,3 +24,7 @@ build/
 
 # Blender/Python bytecode from the asset tools
 __pycache__/
+
+# Codex scratch area and downloaded third-party packs; the curated
+# subset we actually ship lives in assets/models/nature/
+.codex-output/

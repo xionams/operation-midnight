@@ -38,19 +38,53 @@ const SURFACE_NORMAL: Texture2D = preload("res://assets/textures/surface_normal.
 const DETAIL_SCALE: float = 12.0
 
 const MODELS: Dictionary = {
+	## Ours: military, gameplay-adjacent, built from tools/asset_specs.py.
 	"base_pad": preload("res://assets/models/base_pad.glb"),
 	"road": preload("res://assets/models/road_segment.glb"),
-	"rock_small": preload("res://assets/models/rock_small.glb"),
-	"rock_large": preload("res://assets/models/rock_large.glb"),
-	"cliff": preload("res://assets/models/cliff_block.glb"),
-	"tree_pine": preload("res://assets/models/tree_pine.glb"),
-	"tree_bare": preload("res://assets/models/tree_bare.glb"),
+
 	"barrier": preload("res://assets/models/concrete_barrier.glb"),
 	"sandbags": preload("res://assets/models/sandbag_wall.glb"),
 	"drum": preload("res://assets/models/fuel_drum.glb"),
 	"crates": preload("res://assets/models/crate_stack.glb"),
 	"debris": preload("res://assets/models/debris_pile.glb"),
 	"mast": preload("res://assets/models/antenna_mast.glb"),
+
+	## Kenney's Nature Kit, CC0 - see assets/models/nature/CREDITS.md.
+	## Our generated tree was three stacked cylinders, because the spec
+	## language is boxes and cylinders. That is fine for a war factory and
+	## hopeless for a tree, and no lighting pass fixes a cone on a stick.
+	"tree_pine": preload("res://assets/models/nature/tree_pineTallA.glb"),
+	"tree_pine_b": preload("res://assets/models/nature/tree_pineTallB.glb"),
+	"tree_pine_c": preload("res://assets/models/nature/tree_pineDefaultA.glb"),
+	"tree_pine_d": preload("res://assets/models/nature/tree_pineDefaultB.glb"),
+	"tree_pine_e": preload("res://assets/models/nature/tree_pineRoundC.glb"),
+	"tree_small": preload("res://assets/models/nature/tree_pineSmallB.glb"),
+	"tree_oak": preload("res://assets/models/nature/tree_oak.glb"),
+	"tree_broad": preload("res://assets/models/nature/tree_default.glb"),
+	"tree_detailed": preload("res://assets/models/nature/tree_detailed.glb"),
+	"tree_bare": preload("res://assets/models/nature/stump_oldTall.glb"),
+	"stump": preload("res://assets/models/nature/stump_old.glb"),
+	"bush": preload("res://assets/models/nature/plant_bush.glb"),
+	"bush_large": preload("res://assets/models/nature/plant_bushLarge.glb"),
+	"bush_small": preload("res://assets/models/nature/plant_bushSmall.glb"),
+	"flower_red": preload("res://assets/models/nature/flower_redA.glb"),
+	"flower_yellow": preload("res://assets/models/nature/flower_yellowA.glb"),
+	"rock_small": preload("res://assets/models/nature/rock_smallA.glb"),
+	"rock_small_b": preload("res://assets/models/nature/rock_smallB.glb"),
+	"rock_flat": preload("res://assets/models/nature/rock_smallFlatA.glb"),
+	"rock_large": preload("res://assets/models/nature/rock_largeA.glb"),
+	"rock_large_b": preload("res://assets/models/nature/rock_largeB.glb"),
+	"log": preload("res://assets/models/nature/log.glb"),
+	"log_stack": preload("res://assets/models/nature/log_stack.glb"),
+	"fence": preload("res://assets/models/nature/fence_simple.glb"),
+	"fence_low": preload("res://assets/models/nature/fence_simpleLow.glb"),
+	## The blocker grid in dress_blocker steps every 4m, and this block is
+	## authored as a unit cube - at root_scale 4 it tiles that grid exactly,
+	## which our flat tan slab never did.
+	"cliff": preload("res://assets/models/nature/cliff_block_rock.glb"),
+	"cliff_slope": preload("res://assets/models/nature/cliff_blockSlope_rock.glb"),
+	"rock_large_c": preload("res://assets/models/nature/rock_largeD.glb"),
+	"rock_large_d": preload("res://assets/models/nature/rock_largeE.glb"),
 }
 
 ## Props are scattered anywhere except these: bases need clear ground to
@@ -69,6 +103,39 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 	_fog_paint(node, kind in DETAILED_KINDS)
 	return node
 
+## Kenney's Nature Kit is authored in a deliberate teal-and-coral palette
+## - its leaves are genuinely cyan, not a broken import. Handsome, and
+## nothing to do with this game, which docs/ART_DIRECTION.md section 2
+## sets in muted temperate greens and browns.
+##
+## Remapping by MATERIAL NAME rather than by colour: the kit names its
+## materials semantically (leafsDark, woodBark, dirt), so one small table
+## re-skins every model in the pack, including any added later. Doing it
+## by colour would need a fresh entry per shade and would silently miss
+## anything that did not match exactly.
+##
+## This is also what stops the props reading as off-the-shelf art sitting
+## on our terrain: they end up in our palette, not the pack's.
+const NATURE_PALETTE: Dictionary = {
+	"grass": Color(0.286, 0.404, 0.216),
+	"leafsGreen": Color(0.310, 0.427, 0.224),
+	"leafsDark": Color(0.212, 0.318, 0.180),
+	"woodBark": Color(0.353, 0.278, 0.204),
+	"woodBarkDark": Color(0.278, 0.220, 0.165),
+	"wood": Color(0.420, 0.333, 0.235),
+	"woodDark": Color(0.278, 0.224, 0.169),
+	"woodInner": Color(0.565, 0.478, 0.365),
+	"dirt": Color(0.345, 0.290, 0.216),
+	"_defaultMat": Color(0.451, 0.451, 0.427),
+	## Flowers keep their hue: they are the only saturated thing out there
+	## and they are what stops a meadow being one green mass. Muted down,
+	## so they never compete with the faction colours, which are the one
+	## thing on screen that has to win.
+	"colorRed": Color(0.545, 0.243, 0.235),
+	"colorYellow": Color(0.639, 0.510, 0.239),
+	"colorPurple": Color(0.404, 0.361, 0.545),
+}
+
 ## Scenery has no collision, so it cannot use FogHideable the way units and
 ## resource fields do - that needs a CollisionObject3D. Instead each
 ## surface is re-shaded with the terrain fog shader, carrying its own
@@ -83,6 +150,8 @@ func _fog_paint(node: Node3D, detailed: bool = false) -> void:
 		for surface in mesh.get_surface_count():
 			var source := mesh.surface_get_material(surface) as StandardMaterial3D
 			var colour: Color = source.albedo_color if source != null else Color(0.5, 0.5, 0.5)
+			if source != null and NATURE_PALETTE.has(source.resource_name):
+				colour = NATURE_PALETTE[source.resource_name]
 			mesh_instance.set_surface_override_material(
 				surface, _fog_material(colour, fog_texture, detailed))
 
@@ -111,6 +180,26 @@ func _fog_material(colour: Color, fog_texture: Texture2D,
 
 func _exclude(centre: Vector3, radius: float) -> void:
 	_exclusions.append([centre, radius * radius])
+
+## Ground cover answers a different question to a prop. A tree must not
+## grow inside another tree, but grass absolutely does grow around the
+## foot of one - and treating every prop as an obstacle rejected over half
+## the tufts, which is why the first pass laid 2,600 of them across 40,000
+## square metres and read as bare ground.
+##
+## So cover ignores the small per-prop clearances and respects only the
+## large ones: bases, roads and ore fields, the places where the ground is
+## meant to be visibly clear.
+const COVER_MIN_CLEARANCE: float = 4.0
+
+func _is_clear_for_cover(point: Vector3) -> bool:
+	var floor_sq: float = COVER_MIN_CLEARANCE * COVER_MIN_CLEARANCE
+	for entry in _exclusions:
+		if entry[1] < floor_sq:
+			continue
+		if point.distance_squared_to(entry[0]) < entry[1]:
+			return false
+	return true
 
 func _is_clear(point: Vector3) -> bool:
 	for entry in _exclusions:
@@ -146,24 +235,165 @@ func lay_road(from_point: Vector3, to_point: Vector3) -> void:
 		_spawn("road", point, angle)
 		_exclude(point, 7.0)
 
+## Props do not sit on an even lattice in the world, and an even scatter
+## is what made ninety of them read as "a field with some cones in it"
+## rather than as terrain. Vegetation grows in stands; rock gathers where
+## rock is. So placement picks a handful of centres and clusters around
+## them, and the kinds available depend on what the cluster IS.
+const CLUSTERS: Dictionary = {
+	"wood": ["tree_pine", "tree_pine_b", "tree_pine_c", "tree_pine_d",
+		"tree_pine_e", "tree_small", "tree_small", "bush", "bush_small",
+		"stump", "log"],
+	"copse": ["tree_oak", "tree_broad", "tree_detailed", "tree_small",
+		"bush_large", "bush", "flower_yellow", "log"],
+	"scree": ["rock_small", "rock_small_b", "rock_flat", "rock_flat",
+		"rock_large", "rock_large_b", "rock_large_c", "rock_large_d",
+		"bush_small"],
+	"meadow": ["bush_small", "bush", "flower_red", "flower_yellow",
+		"flower_red", "grass_prop", "tree_bare"],
+	"ruin": ["debris", "drum", "crates", "sandbags", "barrier", "log_stack",
+		"fence", "fence_low", "stump"],
+}
+## Roughly how far a cluster's members spread from its centre, in metres.
+const CLUSTER_SPREAD: Dictionary = {
+	"wood": 16.0, "copse": 11.0, "scree": 13.0, "meadow": 14.0, "ruin": 7.0,
+}
+
 func scatter(map_size: float, count: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	var half: float = map_size / 2.0 - 12.0
-	var kinds: Array = ["tree_pine", "tree_pine", "tree_bare", "rock_small",
-		"rock_small", "rock_large", "debris", "drum", "crates", "sandbags"]
+	var names: Array = CLUSTERS.keys()
 
 	var placed: int = 0
-	var attempts: int = 0
-	while placed < count and attempts < count * 12:
-		attempts += 1
-		var point := Vector3(rng.randf_range(-half, half), 0.0, rng.randf_range(-half, half))
-		if not _is_clear(point):
+	var guard: int = 0
+	while placed < count and guard < count * 20:
+		guard += 1
+		var centre := Vector3(
+			rng.randf_range(-half, half), 0.0, rng.randf_range(-half, half))
+		if not _is_clear(centre):
 			continue
-		var kind: String = kinds[rng.randi_range(0, kinds.size() - 1)]
-		_spawn(kind, point, rng.randf_range(0.0, TAU), rng.randf_range(0.85, 1.25))
-		_exclude(point, 5.0)
-		placed += 1
+		var kind: String = names[rng.randi_range(0, names.size() - 1)]
+		var members: Array = CLUSTERS[kind]
+		var spread: float = CLUSTER_SPREAD[kind]
+		var size: int = rng.randi_range(4, 11)
+		for i in size:
+			if placed >= count:
+				break
+			## Biased toward the centre, so a stand has a dense middle and
+			## thins at its edge instead of being a disc of even density.
+			var offset := Vector3(rng.randfn(0.0, spread * 0.5), 0.0,
+				rng.randfn(0.0, spread * 0.5))
+			var point: Vector3 = centre + offset
+			if absf(point.x) > half or absf(point.z) > half:
+				continue
+			if not _is_clear(point):
+				continue
+			var model: String = members[rng.randi_range(0, members.size() - 1)]
+			if model == "grass_prop":
+				model = "bush_small"
+			_spawn(model, point, rng.randf_range(0.0, TAU),
+				rng.randf_range(0.75, 1.35))
+			## Much tighter than the old 5m: these are meant to crowd.
+			_exclude(point, 1.6)
+			placed += 1
+
+## --- Ground cover -----------------------------------------------------
+##
+## The single largest reason the battlefield read as a prototype: there
+## was no grass anywhere in the project. "Grass" was a colour in a
+## texture, and a flat plane with ninety props on it looks flat however
+## well it is lit or surfaced.
+##
+## Thousands of tufts, drawn as MultiMesh so the whole field costs a
+## handful of draw calls rather than thousands of nodes.
+const COVER_MODEL: PackedScene = preload("res://assets/models/nature/grass.glb")
+const COVER_MODEL_ALT: PackedScene = preload("res://assets/models/nature/grass_leafs.glb")
+
+## Split into a grid, because Godot frustum-culls a MultiMesh by its whole
+## bounding box and never per instance. One MultiMesh spanning the map
+## would draw every tuft on it including the ones behind the camera; at
+## this chunk count the camera holds only a few at a time.
+## 12x12 rather than 8x8: the chunk is the culling unit, so smaller
+## chunks mean less grass drawn for ground the camera cannot see.
+const COVER_CHUNKS: int = 12
+const COVER_PER_CHUNK: int = 78
+
+var _cover_root: Node3D
+
+func lay_ground_cover(map_size: float) -> void:
+	if not ModelSurfacing.enabled():
+		return
+	var meshes: Array = [_mesh_of(COVER_MODEL), _mesh_of(COVER_MODEL_ALT)]
+	var scales: Array = [_scale_of(COVER_MODEL), _scale_of(COVER_MODEL_ALT)]
+	if meshes[0] == null:
+		return
+
+	_cover_root = Node3D.new()
+	_cover_root.name = "GroundCover"
+	add_child(_cover_root)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEED ^ 0x5EED
+	var half: float = map_size / 2.0 - 10.0
+	var span: float = (half * 2.0) / float(COVER_CHUNKS)
+	var fog_texture: Texture2D = FogOfWar.get_texture()
+
+	for cx in COVER_CHUNKS:
+		for cz in COVER_CHUNKS:
+			var origin := Vector3(-half + cx * span, 0.0, -half + cz * span)
+			var pick: int = (cx + cz) % meshes.size()
+			var transforms: Array = []
+			for i in COVER_PER_CHUNK:
+				var point := origin + Vector3(
+					rng.randf_range(0.0, span), 0.0, rng.randf_range(0.0, span))
+				if not _is_clear_for_cover(point):
+					continue
+				var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
+				var size: float = scales[pick] * rng.randf_range(0.8, 1.6)
+				transforms.append(Transform3D(basis.scaled(Vector3.ONE * size), point))
+			if transforms.is_empty():
+				continue
+
+			var multi := MultiMesh.new()
+			multi.transform_format = MultiMesh.TRANSFORM_3D
+			multi.mesh = meshes[pick]
+			multi.instance_count = transforms.size()
+			for i in transforms.size():
+				multi.set_instance_transform(i, transforms[i])
+
+			var node := MultiMeshInstance3D.new()
+			node.multimesh = multi
+			## Grass casting shadows is thousands of extra draws into the
+			## shadow map for a shadow the size of a leaf.
+			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			## Same green the pack's own `grass` slot is remapped to, so a
+			## tuft of ground cover and a scattered bush are the same plant.
+			node.material_override = _fog_material(
+				NATURE_PALETTE["grass"], fog_texture)
+			_cover_root.add_child(node)
+
+## The kit is authored at roughly 1 unit per tile, so each model carries a
+## root_scale in its .import. MultiMesh takes the Mesh alone and would
+## drop that, so it is read back off the instanced node and folded into
+## every instance transform instead.
+func _mesh_of(scene: PackedScene) -> Mesh:
+	var node: Node3D = scene.instantiate()
+	var mesh: Mesh = null
+	for instance in node.find_children("*", "MeshInstance3D", true, false):
+		mesh = instance.mesh
+		break
+	node.queue_free()
+	return mesh
+
+func _scale_of(scene: PackedScene) -> float:
+	var node: Node3D = scene.instantiate()
+	var size: float = node.scale.x
+	for instance in node.find_children("*", "MeshInstance3D", true, false):
+		size *= instance.scale.x
+		break
+	node.queue_free()
+	return size
 
 ## Terrain blockers keep their collision box and get a rock face instead
 ## of a grey cube. Purely a swap of what is drawn.
@@ -176,7 +406,10 @@ func dress_blocker(position: Vector3, size: Vector3) -> void:
 		for cz in range(rows):
 			var point := position + Vector3(
 				(cx - (columns - 1) / 2.0) * 4.0, 0.0, (cz - (rows - 1) / 2.0) * 4.0)
-			var node := _spawn("cliff", point, rng.randf_range(0.0, TAU),
-				rng.randf_range(0.95, 1.15))
+			## A little slope mixed in, so an outcrop is not a wall of
+			## identical cubes.
+			var kind: String = "cliff_slope" if rng.randf() < 0.3 else "cliff"
+			var node := _spawn(kind, point, snappedf(
+				rng.randf_range(0.0, TAU), TAU / 4.0), rng.randf_range(0.98, 1.12))
 			node.position.y = -0.4
 	_exclude(position, maxf(size.x, size.z) * 0.6)
