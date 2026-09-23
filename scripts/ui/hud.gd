@@ -39,6 +39,7 @@ var _low_power_label: Label
 var _category: String = "BUILDINGS"
 var _item_list: VBoxContainer
 var _item_rows: Dictionary = {}
+var _category_tabs: Dictionary = {}
 
 var _info_panel: RichTextLabel
 var _building_actions: HBoxContainer
@@ -80,10 +81,8 @@ var _chosen_map: Resource = null
 
 func _ready() -> void:
 	layer = 10
-	_build_top_bar()
-	_build_production_panel()
-	_build_selection_panel()
-	_build_right_column()
+	_build_sidebar()
+	_build_overlays()
 	_build_victory_overlay()
 	## A reload carrying a map choice has already been through setup.
 	if GameState.skip_setup:
@@ -152,42 +151,262 @@ func _readout(icon_name: String, label: Label, tooltip: String) -> Control:
 	group.add_child(label)
 	return group
 
+## The sidebar, in the shape every commander of this kind of game
+## already knows: radar at the top, money under it, the build catalogue
+## in the middle, orders at the bottom, and the battlefield filling
+## everything to the left of it.
+##
+## The previous layout scattered those four things into four corners -
+## money along the top, catalogue on the right, orders bottom left, radar
+## bottom right - so reading the game meant sweeping the whole screen.
+## Collecting them into one column is most of what makes this readable.
+const SIDEBAR_W: float = 302.0
+const CARD_H: float = 64.0
+
+## Panel chrome. Flat fills with a light top edge and a dark bottom edge
+## read as bevelled metal without a single texture.
+func _plate(fill: Color, light: Color, dark: Color, border: int = 2) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_width_top = border
+	box.border_width_left = border
+	box.border_width_right = border
+	box.border_width_bottom = border
+	## A light top/left edge and a dark bottom/right edge is what makes a
+	## flat fill read as a raised plate.
+	box.border_color = dark
+	box.shadow_color = Color(0, 0, 0, 0.35)
+	box.content_margin_left = 8
+	box.content_margin_right = 8
+	box.content_margin_top = 6
+	box.content_margin_bottom = 6
+	return box
+
 func _build_top_bar() -> void:
-	var bar := PanelContainer.new()
-	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_left = MARGIN
-	bar.offset_top = MARGIN * 0.5
-	bar.offset_right = -MARGIN
-	bar.offset_bottom = MARGIN * 0.5 + 46
-	add_child(bar)
+	## The old top bar is gone; its readouts live in the sidebar now.
+	## Kept as a hook so the build order in _ready reads unchanged.
+	pass
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 26)
-	bar.add_child(row)
+## Every button in the sidebar wears the same plate, so the panel reads
+## as one machine rather than as a stack of default widgets.
+func _style_button(button: Button) -> void:
+	var normal := _plate(Color(0.145, 0.160, 0.178), Color(0.30, 0.33, 0.36),
+		Color(0.05, 0.06, 0.07), 2)
+	var hover := _plate(Color(0.200, 0.220, 0.240), Color(0.42, 0.45, 0.48),
+		Color(0.06, 0.07, 0.08), 2)
+	var pressed := _plate(Color(0.235, 0.190, 0.090), Color(0.55, 0.45, 0.20),
+		Color(0.08, 0.06, 0.03), 2)
+	var disabled := _plate(Color(0.098, 0.106, 0.118), Color(0.18, 0.19, 0.21),
+		Color(0.05, 0.05, 0.06), 2)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_stylebox_override("disabled", disabled)
+	button.add_theme_color_override("font_color", Color(0.86, 0.88, 0.86))
+	button.add_theme_color_override("font_disabled_color", Color(0.45, 0.46, 0.48))
 
-	## Icons carry the meaning and the number carries the value, so the
-	## bar can drop the words. These three icons were drawn in the art
-	## pass and then sat unused while the bar spelled everything out.
-	_credits_label = _label("0", 20)
-	_power_label = _label("0 / 0", 20)
-	_population_label = _label("0 / 0", 20)
-	_low_power_label = _label("LOW POWER", 20)
-	_low_power_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.2))
+func _build_sidebar() -> void:
+	var frame := PanelContainer.new()
+	frame.name = "Sidebar"
+	frame.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	frame.offset_left = -SIDEBAR_W
+	frame.offset_top = 0
+	frame.offset_right = 0
+	frame.offset_bottom = 0
+	frame.add_theme_stylebox_override("panel",
+		_plate(Color(0.086, 0.098, 0.110), Color(0.25, 0.27, 0.30),
+			Color(0.04, 0.05, 0.06), 2))
+	add_child(frame)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 6)
+	frame.add_child(column)
+
+	# --- radar ---
+	var radar_frame := PanelContainer.new()
+	radar_frame.add_theme_stylebox_override("panel",
+		_plate(Color(0.05, 0.06, 0.07), Color(0.2, 0.22, 0.25),
+			Color(0.03, 0.03, 0.04), 2))
+	column.add_child(radar_frame)
+	var radar_centre := CenterContainer.new()
+	radar_frame.add_child(radar_centre)
+	_minimap = Minimap.new()
+	_minimap.name = "Minimap"
+	radar_centre.add_child(_minimap)
+
+	# --- money, power, population ---
+	var readouts := VBoxContainer.new()
+	readouts.add_theme_constant_override("separation", 2)
+	column.add_child(readouts)
+
+	_credits_label = _label("0", 26)
+	_credits_label.add_theme_color_override("font_color", Color(0.88, 0.72, 0.30))
+	_credits_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var money := PanelContainer.new()
+	money.add_theme_stylebox_override("panel",
+		_plate(Color(0.04, 0.05, 0.05), Color(0.2, 0.22, 0.25),
+			Color(0.02, 0.03, 0.03), 2))
+	var money_row := HBoxContainer.new()
+	money_row.add_theme_constant_override("separation", 8)
+	var coin := TextureRect.new()
+	coin.texture = Icons.get_icon("ui_credits")
+	coin.custom_minimum_size = Vector2(24, 24)
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	money_row.add_child(coin)
+	_credits_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	money_row.add_child(_credits_label)
+	money.add_child(money_row)
+	readouts.add_child(money)
+
+	var meters := HBoxContainer.new()
+	meters.add_theme_constant_override("separation", 6)
+	readouts.add_child(meters)
+	_power_label = _label("0 / 0", 15)
+	_population_label = _label("0 / 0", 15)
+	meters.add_child(_readout("ui_power", _power_label, "Power"))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meters.add_child(gap)
+	meters.add_child(_readout("ui_unit_cap", _population_label, "Units"))
+
+	_low_power_label = _label("LOW POWER", 15)
+	_low_power_label.add_theme_color_override("font_color", Color(0.85, 0.24, 0.20))
+	_low_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_low_power_label.visible = false
-	row.add_child(_readout("ui_credits", _credits_label, "Credits"))
-	row.add_child(_readout("ui_power", _power_label, "Power"))
-	row.add_child(_readout("ui_unit_cap", _population_label, "Units"))
-	row.add_child(_low_power_label)
+	readouts.add_child(_low_power_label)
 
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
+	# --- category tabs ---
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 3)
+	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_child(tabs)
+	for category in BuildCatalog.categories():
+		var tab := Button.new()
+		tab.tooltip_text = category
+		tab.toggle_mode = true
+		tab.button_pressed = category == _category
+		tab.custom_minimum_size = Vector2(68, TOUCH_MIN * 0.82)
+		var tab_icon := Icons.for_category(category)
+		if tab_icon != null:
+			tab.icon = tab_icon
+			tab.expand_icon = true
+		else:
+			tab.text = category.substr(0, 4)
+		_style_button(tab)
+		tab.pressed.connect(func(): _set_category(category))
+		tabs.add_child(tab)
+		_category_tabs[category] = tab
+
+	# --- the catalogue, as cards ---
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## The catalogue takes whatever is left after the controls below it,
+	## with a floor of two cards. A floor of four looked better on a
+	## desktop window and pushed the order buttons off the bottom of a
+	## 720p phone screen, which is the size that actually matters.
+	scroll.custom_minimum_size = Vector2(0, CARD_H * 2)
+	scroll.add_theme_stylebox_override("panel",
+		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
+			Color(0.03, 0.04, 0.04), 1))
+	column.add_child(scroll)
+	_item_list = VBoxContainer.new()
+	_item_list.add_theme_constant_override("separation", 3)
+	_item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_item_list)
+
+	# --- what is being built right now ---
+	_construction_panel = VBoxContainer.new()
+	_construction_panel.add_theme_constant_override("separation", 2)
+	_construction_panel.visible = false
+	column.add_child(_construction_panel)
+	_construction_label = _label("", 13)
+	_construction_panel.add_child(_construction_label)
+	_construction_bar = ProgressBar.new()
+	_construction_bar.max_value = 1.0
+	_construction_bar.show_percentage = false
+	_construction_bar.custom_minimum_size = Vector2(0, 12)
+	_construction_panel.add_child(_construction_bar)
+	var cancel := Button.new()
+	cancel.text = "Cancel (75% refund)"
+	cancel.add_theme_font_size_override("font_size", 12)
+	_style_button(cancel)
+	cancel.pressed.connect(_on_cancel_construction)
+	_construction_panel.add_child(cancel)
+
+	# --- selection, then orders ---
+	_info_panel = RichTextLabel.new()
+	_info_panel.bbcode_enabled = true
+	_info_panel.fit_content = true
+	_info_panel.custom_minimum_size = Vector2(0, 50)
+	_info_panel.add_theme_font_size_override("normal_font_size", 13)
+	var info_frame := PanelContainer.new()
+	info_frame.add_theme_stylebox_override("panel",
+		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
+			Color(0.03, 0.04, 0.04), 1))
+	info_frame.add_child(_info_panel)
+	column.add_child(info_frame)
+
+	_build_order_controls(column)
+	## Nothing populated the catalogue after the old production panel was
+	## replaced, so the sidebar came up with an empty middle.
+	_set_category(_category)
+
+func _build_order_controls(column: VBoxContainer) -> void:
+	var orders := GridContainer.new()
+	orders.columns = 3
+	orders.add_theme_constant_override("h_separation", 3)
+	orders.add_theme_constant_override("v_separation", 3)
+	column.add_child(orders)
+	_attack_move_button = _order_button(orders, "Atk Move",
+		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed),
+		"cmd_attack_move")
+	_order_button(orders, "Stop", func(): SelectionManager.command_stop(), "cmd_stop")
+	_order_button(orders, "Guard", func(): SelectionManager.command_guard(), "cmd_guard")
+	_order_button(orders, "Patrol", func(): SelectionManager.arm_patrol(), "cmd_patrol")
+	_order_button(orders, "Hold",
+		func(): SelectionManager.set_stance(UnitBase.Stance.HOLD), "cmd_hold")
+	_order_button(orders, "Aggro",
+		func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE), "cmd_aggro")
+
+	_building_actions = HBoxContainer.new()
+	_building_actions.add_theme_constant_override("separation", 3)
+	_building_actions.visible = false
+	column.add_child(_building_actions)
+	_order_button(_building_actions, "Sell", _on_sell_pressed, "cmd_sell")
+	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair")
+	_order_button(_building_actions, "Rally",
+		func(): SelectionManager.arm_rally_point(), "cmd_move")
+
+	var groups := HBoxContainer.new()
+	groups.add_theme_constant_override("separation", 3)
+	column.add_child(groups)
+	for index in [1, 2, 3]:
+		var button := Button.new()
+		button.text = str(index)
+		button.custom_minimum_size = Vector2(TOUCH_MIN, TOUCH_MIN * 0.8)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 13)
+		_style_button(button)
+		button.button_down.connect(func(): _begin_group_hold(index))
+		button.button_up.connect(func(): _end_group_hold(index))
+		groups.add_child(button)
 
 	var debug_toggle := Button.new()
 	debug_toggle.text = "Debug"
-	debug_toggle.custom_minimum_size = Vector2(80, TOUCH_MIN * 0.86)
-	debug_toggle.pressed.connect(_toggle_debug)
-	row.add_child(debug_toggle)
+	debug_toggle.custom_minimum_size = Vector2(0, TOUCH_MIN * 0.72)
+	debug_toggle.add_theme_font_size_override("font_size", 12)
+	_style_button(debug_toggle)
+	debug_toggle.pressed.connect(func():
+		_debug_visible = not _debug_visible
+		_debug_panel.visible = _debug_visible
+		_ai_econ_panel.visible = _debug_visible
+		if debug_overlay != null:
+			debug_overlay.enabled = _debug_visible)
+	column.add_child(debug_toggle)
 
 func _refresh_top() -> void:
 	_credits_label.text = "%s" % _thousands(GameState.credits)
@@ -212,71 +431,35 @@ func _thousands(value: int) -> String:
 
 # --------------------------------------------------- production panel
 
-func _build_production_panel() -> void:
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	panel.offset_left = -(PANEL_W + MARGIN)
-	panel.offset_top = -(MARGIN + Minimap.SIZE + 300)
-	panel.offset_right = -MARGIN
-	panel.offset_bottom = -(MARGIN + Minimap.SIZE + 10)
-	add_child(panel)
-
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 4)
-	panel.add_child(column)
-
-	var tabs := HBoxContainer.new()
-	tabs.add_theme_constant_override("separation", 2)
-	column.add_child(tabs)
-	for category in BuildCatalog.categories():
-		var tab := Button.new()
-		tab.text = category.substr(0, 4)
-		tab.tooltip_text = category
-		var tab_icon := Icons.for_category(category)
-		if tab_icon != null:
-			tab.icon = tab_icon
-			tab.expand_icon = true
-		tab.custom_minimum_size = Vector2(64, TOUCH_MIN * 0.86)
-		tab.add_theme_font_size_override("font_size", 12)
-		tab.pressed.connect(func(): _set_category(category))
-		tabs.add_child(tab)
-
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(PANEL_W - 16, 236)
-	column.add_child(scroll)
-
-	_item_list = VBoxContainer.new()
-	_item_list.add_theme_constant_override("separation", 3)
-	_item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_item_list)
-
-	_set_category("BUILDINGS")
-
 func _set_category(category: String) -> void:
 	_category = category
+	for key in _category_tabs:
+		_category_tabs[key].set_pressed_no_signal(key == category)
 	for child in _item_list.get_children():
 		child.queue_free()
 	_item_rows.clear()
 
+	## A card rather than a row of text: the icon is what a player learns
+	## to hit, and the cost is what they check. The name still leads the
+	## button text so anything searching by name keeps working.
 	for stats in BuildCatalog.items(category):
 		var row := Button.new()
-		row.custom_minimum_size = Vector2(PANEL_W - 30, ITEM_H)
-		row.add_theme_font_size_override("font_size", 13)
+		row.custom_minimum_size = Vector2(0, CARD_H)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.clip_text = true
-		var row_icon := Icons.for_name(stats.display_name)
-		if row_icon != null:
-			row.icon = row_icon
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.add_theme_font_size_override("font_size", 13)
+		row.add_theme_constant_override("h_separation", 10)
+		var icon := Icons.for_name(stats.display_name)
+		if icon != null:
+			row.icon = icon
 			row.expand_icon = true
-			row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			row.add_theme_constant_override("h_separation", 8)
+		_style_button(row)
 		row.pressed.connect(func(): _on_item_pressed(stats))
 		_item_list.add_child(row)
 		_item_rows[stats] = row
 	_refresh_items()
 
-## Locked items stay listed with the reason, so the tech tree teaches
-## itself instead of hiding progression behind an empty panel.
 func _refresh_items() -> void:
 	for stats in _item_rows:
 		var row: Button = _item_rows[stats]
@@ -284,13 +467,17 @@ func _refresh_items() -> void:
 			continue
 		var missing: Array = TechTree.missing_prerequisites(stats, true)
 		if missing.is_empty():
-			row.text = "%s\n$%d   %ds" % [stats.display_name, stats.cost, int(round(stats.build_time))]
-			row.disabled = GameState.credits < stats.cost
-			row.modulate = Color(1, 1, 1)
+			row.text = "%s\n$%s   %ds" % [stats.display_name, _thousands(stats.cost),
+				int(round(stats.build_time))]
+			var affordable: bool = GameState.credits >= stats.cost
+			row.disabled = not affordable
+			## Dim rather than hide what is merely unaffordable: knowing
+			## what you are saving toward is half of an RTS build order.
+			row.modulate = Color(1, 1, 1) if affordable else Color(0.72, 0.70, 0.66)
 		else:
-			row.text = "%s\nRequires: %s" % [stats.display_name, ", ".join(missing)]
+			row.text = "%s\nNeeds %s" % [stats.display_name, ", ".join(missing)]
 			row.disabled = true
-			row.modulate = Color(0.62, 0.62, 0.68)
+			row.modulate = Color(0.52, 0.52, 0.58)
 
 func _on_item_pressed(stats) -> void:
 	if stats is BuildingStats:
@@ -320,65 +507,6 @@ func _on_construction_ready(stats: BuildingStats) -> void:
 
 # ---------------------------------------------------- selection panel
 
-func _build_selection_panel() -> void:
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	panel.offset_left = MARGIN
-	panel.offset_top = -(MARGIN + 306)
-	panel.offset_right = MARGIN + PANEL_W
-	panel.offset_bottom = -MARGIN
-	add_child(panel)
-
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
-	panel.add_child(column)
-
-	_info_panel = RichTextLabel.new()
-	_info_panel.bbcode_enabled = true
-	_info_panel.fit_content = true
-	_info_panel.custom_minimum_size = Vector2(PANEL_W - 24, 104)
-	_info_panel.add_theme_font_size_override("normal_font_size", 14)
-	column.add_child(_info_panel)
-
-	var orders := HBoxContainer.new()
-	orders.add_theme_constant_override("separation", 3)
-	column.add_child(orders)
-	_attack_move_button = _order_button(orders, "Atk Move",
-		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed),
-		"cmd_attack_move")
-	_order_button(orders, "Stop", func(): SelectionManager.command_stop(), "cmd_stop")
-	_order_button(orders, "Guard", func(): SelectionManager.command_guard(), "cmd_guard")
-
-	var stance_row := HBoxContainer.new()
-	stance_row.add_theme_constant_override("separation", 3)
-	column.add_child(stance_row)
-	_order_button(stance_row, "Patrol", func(): SelectionManager.arm_patrol(), "cmd_patrol")
-	_order_button(stance_row, "Hold",
-		func(): SelectionManager.set_stance(UnitBase.Stance.HOLD), "cmd_hold")
-	_order_button(stance_row, "Aggro",
-		func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE), "cmd_aggro")
-
-	var groups := HBoxContainer.new()
-	groups.add_theme_constant_override("separation", 3)
-	column.add_child(groups)
-	for index in [1, 2, 3]:
-		var button := Button.new()
-		button.text = str(index)
-		button.custom_minimum_size = Vector2(TOUCH_MIN, TOUCH_MIN)
-		button.add_theme_font_size_override("font_size", 13)
-		button.button_down.connect(func(): _begin_group_hold(index))
-		button.button_up.connect(func(): _end_group_hold(index))
-		groups.add_child(button)
-
-	_building_actions = HBoxContainer.new()
-	_building_actions.add_theme_constant_override("separation", 3)
-	_building_actions.visible = false
-	column.add_child(_building_actions)
-	_order_button(_building_actions, "Sell", _on_sell_pressed, "cmd_sell")
-	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair")
-	_order_button(_building_actions, "Rally",
-		func(): SelectionManager.arm_rally_point(), "cmd_move")
-
 func _order_button(parent: Control, text: String, handler: Callable,
 		icon_name: String = "") -> Button:
 	var button := Button.new()
@@ -390,6 +518,7 @@ func _order_button(parent: Control, text: String, handler: Callable,
 		button.icon = icon
 		button.expand_icon = true
 		button.add_theme_constant_override("h_separation", 4)
+	_style_button(button)
 	button.pressed.connect(handler)
 	parent.add_child(button)
 	return button
@@ -487,54 +616,24 @@ func _describe_one(entity) -> String:
 
 # ------------------------------------------------------ right column
 
-func _build_right_column() -> void:
-	_minimap = Minimap.new()
-	_minimap.name = "Minimap"
-	_minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_minimap.offset_left = -(Minimap.SIZE + MARGIN)
-	_minimap.offset_top = -(Minimap.SIZE + MARGIN)
-	_minimap.offset_right = -MARGIN
-	_minimap.offset_bottom = -MARGIN
-	add_child(_minimap)
-
-	_construction_panel = VBoxContainer.new()
-	_construction_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_construction_panel.offset_left = -(PANEL_W + MARGIN)
-	_construction_panel.offset_top = MARGIN + 54
-	_construction_panel.offset_right = -MARGIN
-	_construction_panel.offset_bottom = MARGIN + 140
-	_construction_panel.visible = false
-	add_child(_construction_panel)
-
-	_construction_label = _label("", 14)
-	_construction_panel.add_child(_construction_label)
-	_construction_bar = ProgressBar.new()
-	_construction_bar.max_value = 1.0
-	_construction_bar.show_percentage = false
-	_construction_bar.custom_minimum_size = Vector2(PANEL_W, 14)
-	_construction_panel.add_child(_construction_bar)
-	var cancel := Button.new()
-	cancel.text = "Cancel (75% refund)"
-	cancel.add_theme_font_size_override("font_size", 12)
-	cancel.pressed.connect(_on_cancel_construction)
-	_construction_panel.add_child(cancel)
-
+## Everything that sits over the battlefield rather than in the sidebar.
+func _build_overlays() -> void:
 	_objective_label = RichTextLabel.new()
 	_objective_label.bbcode_enabled = true
 	_objective_label.fit_content = true
 	_objective_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_objective_label.offset_left = MARGIN
-	_objective_label.offset_top = MARGIN + 54
-	_objective_label.offset_right = MARGIN + 300
-	_objective_label.offset_bottom = MARGIN + 190
+	_objective_label.offset_top = MARGIN
+	_objective_label.offset_right = MARGIN + 320
+	_objective_label.offset_bottom = MARGIN + 150
 	_objective_label.add_theme_font_size_override("normal_font_size", 14)
 	add_child(_objective_label)
 
 	_production_label = _label("", 15)
 	_production_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_production_label.offset_left = -200
+	_production_label.offset_left = -240
 	_production_label.offset_top = -40
-	_production_label.offset_right = 200
+	_production_label.offset_right = 160
 	_production_label.offset_bottom = -14
 	_production_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_production_label.visible = false
@@ -542,10 +641,10 @@ func _build_right_column() -> void:
 
 	_event_label = _label("", 18)
 	_event_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_event_label.offset_left = -280
-	_event_label.offset_top = 62
-	_event_label.offset_right = 280
-	_event_label.offset_bottom = 92
+	_event_label.offset_left = -300
+	_event_label.offset_top = 20
+	_event_label.offset_right = 140
+	_event_label.offset_bottom = 50
 	_event_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_event_label.visible = false
 	add_child(_event_label)

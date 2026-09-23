@@ -92,9 +92,16 @@ func _run() -> void:
 	## fire_at below silently does nothing - the check then reads as
 	## "cannon does no damage to infantry". Disarm them so the only shots
 	## are the ones this test asks for.
+	## queue_free is deferred, so the component could still take a shot in
+	## the frame before it disappeared - which put the weapon on cooldown
+	## and made the deliberate fire_at below silently do nothing. Stop it
+	## processing synchronously instead, and clear the cooldown right
+	## before each shot so the only thing that can fire is this test.
 	for fixture in [soldier, tank]:
 		var attacker = fixture.get_node_or_null("AttackerComponent")
 		if attacker != null:
+			attacker.set_physics_process(false)
+			attacker.set_process(false)
 			attacker.queue_free()
 	await get_tree().process_frame
 	_check("Infantry carries INFANTRY armor",
@@ -104,6 +111,7 @@ func _run() -> void:
 		"(%s)" % Armor.type_name(tank.get_node("HealthComponent").armor_type))
 
 	var tank_hp_before: float = tank.get_node("HealthComponent").current_health
+	soldier.get_node("Weapon")._cooldown_remaining = 0.0
 	soldier.get_node("Weapon").fire_at(tank, soldier.global_position)
 	var tank_lost: float = tank_hp_before - tank.get_node("HealthComponent").current_health
 	_check("Rifle fire on a tank is nearly harmless",
@@ -111,6 +119,7 @@ func _run() -> void:
 		"(lost %.1f of %.0f)" % [tank_lost, RIFLE.damage])
 
 	var sol_hp_before: float = soldier.get_node("HealthComponent").current_health
+	tank.get_node("Weapon")._cooldown_remaining = 0.0
 	tank.get_node("Weapon").fire_at(soldier, tank.global_position)
 	var sol_lost: float = sol_hp_before - soldier.get_node("HealthComponent").current_health
 	_check("Cannon fire on infantry is reduced",
