@@ -35,6 +35,7 @@ const REPAIR_CREDITS_PER_HP: float = 0.5
 var _body: MeshInstance3D
 ## The instanced greybox, kept so capture can repaint its faction slot.
 var _visual_root: Node = null
+var turret_aim: TurretAim = null
 var _damage_stage: int = -1
 var _damage_plume: Node = null
 
@@ -100,6 +101,9 @@ func _build_visual() -> void:
 		add_child(visual)
 		_visual_root = visual
 		FactionPaint.apply(visual, _faction_color())
+		## Models built with a Turret node aim it; everything else
+		## simply has no turret to turn.
+		turret_aim = TurretAim.attach(self, visual)
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -282,6 +286,10 @@ func _refresh_damage_plume(stage: int) -> void:
 
 func _on_died() -> void:
 	VFX.explosion_large(self, global_position + Vector3.UP)
+	## Leave the ruin behind. A razed base that reverts to bare grass
+	## erases the record of the match that happened on it.
+	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
+	Wreckage.spawn(self, global_position, maxf(size.x, size.z))
 	MatchStats.record_building_death(is_player_faction and not is_neutral)
 	AudioDirector.play("explosion_large")
 	_unregister_power()

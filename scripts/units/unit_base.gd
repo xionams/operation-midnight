@@ -18,6 +18,7 @@ var nav_agent: NavigationAgent3D
 var selection_ring: MeshInstance3D
 var health_bar: HealthBar
 var veterancy: VeterancyComponent
+var turret_aim: TurretAim = null
 
 ## Current order, exposed so the HUD and debug overlay can report what a
 ## unit believes it is doing.
@@ -169,6 +170,9 @@ func _build_visual() -> void:
 		## The model carries its own faction markings in a named material
 		## slot, so it needs painting rather than a separate indicator box.
 		FactionPaint.apply(visual, FactionPaint.color_for(is_player_faction))
+		## Models built with a Turret node aim it; everything else
+		## simply has no turret to turn.
+		turret_aim = TurretAim.attach(self, visual)
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)

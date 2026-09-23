@@ -1,3 +1,45 @@
+## Milestone 10 — Second Art Pass (in progress)
+
+- [x] Turret pivots hooked to aiming
+- [x] Buildings: real verticality and a roof that reads
+- [x] Infantry rebuilt for a top-down silhouette
+- [x] Destruction states - structures leave ruins
+- [x] Remaining icons into the top bar
+- [ ] Vehicle wrecks (no model yet; smoke covers it for now)
+
+### Turrets
+
+The greyboxes were built with the turret as a separate node pivoting on
+Y precisely so this could exist later, and nothing read it - tanks fired
+from a barrel welded facing forward. `TurretAim` attaches itself only
+when a model actually has a `Turret` node, so callers need no special
+case and a harvester simply has nothing to turn. It aims in the hull's
+frame, so a vehicle turning does not drag its aim around with it.
+
+### Making a base read from above
+
+Height alone did not fix it. The camera is steep, so the roof is most of
+what is visible, and with walls and roof sharing one gunmetal a base read
+as a single flat shape with faction stripes floating on it. A concrete
+roof deck on every structure was worth more than all the added height -
+and the first attempt, one step lighter in steel, was invisible under
+this lighting.
+
+Infantry are rebuilt around what the camera can see: shoulders wider
+than the hips, a helmet that overhangs and separates from them, and a
+brim so it casts its own edge. Legs are shaped only enough to carry the
+stance.
+
+### Ruins
+
+`destroyed_building.glb` existed since the first art pass and nothing
+ever spawned it. Structures now leave a ruin scaled to what stood there,
+fogged like the ground so a ruin the player has never seen does not mark
+their map, and capped at 24 so a long match cannot accumulate more
+wreckage than the buildings cost.
+
+41 models, 8,584 triangles. 59.8 / 60.0 / 57.2 FPS at 40 / 80 / 120.
+
 ## Milestone 8 — closing items (done)
 
 ### The expansion now earns its keep

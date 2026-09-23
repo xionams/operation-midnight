@@ -133,6 +133,25 @@ class SelectionBoxOverlay extends Control:
 
 # ------------------------------------------------------------- top bar
 
+## An icon beside its number. Falls back to the label alone if the icon
+## is missing, so the bar is never blank.
+func _readout(icon_name: String, label: Label, tooltip: String) -> Control:
+	var icon := Icons.get_icon(icon_name)
+	if icon == null:
+		return label
+	var group := HBoxContainer.new()
+	group.add_theme_constant_override("separation", 7)
+	group.tooltip_text = tooltip
+	var picture := TextureRect.new()
+	picture.texture = icon
+	picture.custom_minimum_size = Vector2(26, 26)
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	group.add_child(picture)
+	group.add_child(label)
+	return group
+
 func _build_top_bar() -> void:
 	var bar := PanelContainer.new()
 	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -143,18 +162,21 @@ func _build_top_bar() -> void:
 	add_child(bar)
 
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 30)
+	row.add_theme_constant_override("separation", 26)
 	bar.add_child(row)
 
-	_credits_label = _label("Credits: 0", 20)
-	_power_label = _label("Power: 0 / 0", 20)
-	_population_label = _label("Units: 0 / 0", 20)
+	## Icons carry the meaning and the number carries the value, so the
+	## bar can drop the words. These three icons were drawn in the art
+	## pass and then sat unused while the bar spelled everything out.
+	_credits_label = _label("0", 20)
+	_power_label = _label("0 / 0", 20)
+	_population_label = _label("0 / 0", 20)
 	_low_power_label = _label("LOW POWER", 20)
 	_low_power_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.2))
 	_low_power_label.visible = false
-	row.add_child(_credits_label)
-	row.add_child(_power_label)
-	row.add_child(_population_label)
+	row.add_child(_readout("ui_credits", _credits_label, "Credits"))
+	row.add_child(_readout("ui_power", _power_label, "Power"))
+	row.add_child(_readout("ui_unit_cap", _population_label, "Units"))
 	row.add_child(_low_power_label)
 
 	var spacer := Control.new()
@@ -168,13 +190,13 @@ func _build_top_bar() -> void:
 	row.add_child(debug_toggle)
 
 func _refresh_top() -> void:
-	_credits_label.text = "Credits: %s" % _thousands(GameState.credits)
-	_power_label.text = "Power: %d / %d" % [GameState.power_consumed, GameState.power_generated]
+	_credits_label.text = "%s" % _thousands(GameState.credits)
+	_power_label.text = "%d / %d" % [GameState.power_consumed, GameState.power_generated]
 	var low: bool = GameState.is_low_power(true)
 	_power_label.add_theme_color_override("font_color",
 		Color(1.0, 0.4, 0.25) if low else Color.WHITE)
 	_low_power_label.visible = low
-	_population_label.text = "Units: %d / %d" % [
+	_population_label.text = "%d / %d" % [
 		TechTree.population_used(true), TechTree.population_cap(true)]
 
 func _thousands(value: int) -> String:

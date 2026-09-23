@@ -44,6 +44,26 @@ def asset(asset_id, cls, size, builder, description, tri_budget):
 
 # ------------------------------------------------------- shared motifs
 
+def roof_deck(mesh, width, height, depth, inset=0.9):
+    """A lighter deck on top of a structure's main mass.
+
+    From a steep camera the roof is most of what is visible, and with
+    walls and roof sharing one colour a base read as a single flat tone
+    with faction stripes floating on it. A deck one step lighter than the
+    hull gives every structure a top plane that separates it from its
+    neighbour, which is cheaper and far more effective than more height.
+    """
+    ## Concrete, not steel: one step of gunmetal was invisible under this
+    ## lighting. A roof needs a real tonal break from the walls or the
+    ## whole base reads as one flat shape.
+    box(mesh, "Concrete_Dark", (width * inset, 0.14, depth * inset),
+        (0.0, height + 0.07, 0.0), chamfer=0.06)
+    ## A couple of seams so the deck is not a blank plate.
+    for i in (-1, 1):
+        box(mesh, "Dark", (width * inset * 0.94, 0.04, 0.09),
+            (0.0, height + 0.15, i * depth * inset * 0.26))
+
+
 def faction_band(mesh, width, height, depth, thickness=0.14):
     """A roof band across the front edge plus one flank stripe.
 
@@ -55,9 +75,9 @@ def faction_band(mesh, width, height, depth, thickness=0.14):
     together when it is tuned.
     """
     box(mesh, "Faction", (width * 0.70, thickness, depth * 0.085),
-        (0.0, height + thickness * 0.5, -depth * 0.33))
+        (0.0, height + 0.14 + thickness * 0.5, -depth * 0.33))
     box(mesh, "Faction", (width * 0.085, thickness, depth * 0.50),
-        (width * 0.36, height + thickness * 0.5, depth * 0.02))
+        (width * 0.36, height + 0.14 + thickness * 0.5, depth * 0.02))
 
 
 def roof_vents(mesh, count, width, height, depth, radius=0.28):
@@ -109,8 +129,11 @@ def _command_hq():
     m = Mesh()
     w, h, d = 9.0, 5.0, 9.0
     box(m, "Hull", (w, 3.4, d), (0, 1.7, 0), chamfer=0.22)
-    box(m, "Steel", (w * 0.62, 1.6, d * 0.62), (0, 4.2, 0.4), chamfer=0.18)
-    box(m, "Glass", (w * 0.58, 0.55, d * 0.10), (0, 4.3, -d * 0.30))
+    box(m, "Steel", (w * 0.52, 2.4, d * 0.52), (0, 4.6, 0.5), chamfer=0.18)
+    box(m, "Hull", (w * 0.30, 1.1, d * 0.30), (0, 6.3, 0.5), chamfer=0.12)
+    for sx in (-1, 1):
+        box(m, "Metal", (0.22, 2.0, 0.22), (sx * w * 0.22, 4.4, -d * 0.22))
+    box(m, "Glass", (w * 0.46, 0.65, d * 0.02), (0, 4.9, -d * 0.27))
     # Command mast at the rear, the tallest thing in any player base.
     cylinder(m, "Metal", 0.16, 3.4, (-w * 0.30, h - 0.7, d * 0.34), segments=8)
     box(m, "Metal", (1.5, 0.1, 0.1), (-w * 0.30, h + 0.6, d * 0.34))
@@ -121,6 +144,7 @@ def _command_hq():
     for side in (-1, 1):
         box(m, "Dark", (0.5, 2.0, 0.5), (side * w * 0.40, 1.0, -d * 0.40), chamfer=0.08)
     roof_vents(m, 3, w, 3.4, d * 0.7)
+    roof_deck(m, w, 3.4, d)
     faction_band(m, w, 3.4, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -138,6 +162,7 @@ def _power_plant():
         cylinder(m, "Metal", 0.14, w * 0.8, (0, 0.7 + i * 0.45, -d * 0.42),
                  segments=6, axis="x")
     box(m, "Dark", (1.4, 1.2, 0.3), (0, 0.6, -d / 2.0 + 0.08))
+    roof_deck(m, w, 2.4, d)
     faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -149,14 +174,15 @@ def _refinery():
     # The hopper is the dominant read.
     box(m, "Rust", (2.8, 1.9, 2.8), (-w * 0.14, 2.75, 0.7), chamfer=0.3)
     wedge(m, "Rust", (2.8, 1.0, 2.8), (-w * 0.14, 1.4, 0.7))
-    cylinder(m, "Metal", 1.0, 2.6, (w * 0.28, 2.2, -d * 0.16), segments=12)
-    cylinder(m, "Dark", 1.05, 0.18, (w * 0.28, 3.55, -d * 0.16), segments=12)
+    cylinder(m, "Metal", 1.0, 4.0, (w * 0.28, 2.9, -d * 0.16), segments=12)
+    cylinder(m, "Dark", 1.08, 0.2, (w * 0.28, 5.0, -d * 0.16), segments=12)
     # Unloading bay: harvesters drive in at -Z.
     box(m, "Concrete", (3.4, 0.16, 2.2), (0, 0.08, -d * 0.34))
     box(m, "Dark", (3.0, 1.5, 0.3), (0, 0.75, -d * 0.42))
     box(m, "Metal", (0.26, 0.26, 2.6), (-w * 0.14, 3.9, 0.7))
     for i in range(2):
         box(m, "Amber", (0.5, 0.3, 0.5), (-w * 0.14 + (i - 0.5) * 1.4, 3.85, 0.7))
+    roof_deck(m, w, 2.4, d)
     faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -165,13 +191,15 @@ def _barracks():
     m = Mesh()
     w, h, d = 6.0, 3.4, 6.0
     box(m, "Hull", (w, 2.6, d * 0.8), (0, 1.3, 0.3), chamfer=0.18)
-    wedge(m, "Hull", (w, 0.9, d * 0.8), (0, 3.05, 0.3))
+    wedge(m, "Hull", (w, 1.4, d * 0.8), (0, 3.3, 0.3))
     box(m, "Dark", (1.5, 1.6, 0.3), (0, 0.8, -d * 0.10))
     box(m, "Concrete", (w * 0.7, 0.16, 1.4), (0, 0.08, -d * 0.38))
     sandbags(m, -w * 0.30, -d * 0.40, 1.8)
     sandbags(m, w * 0.30, -d * 0.40, 1.8)
-    cylinder(m, "Metal", 0.1, 2.4, (w * 0.40, h - 0.2, d * 0.36), segments=6)
+    cylinder(m, "Metal", 0.11, 3.4, (w * 0.40, h + 0.5, d * 0.36), segments=6)
+    box(m, "Faction", (0.5, 0.34, 0.04), (w * 0.40 + 0.28, h + 1.7, d * 0.36))
     roof_vents(m, 2, w, 3.5, d * 0.5, radius=0.22)
+    roof_deck(m, w, 2.6, d)
     faction_band(m, w, 2.6, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -180,18 +208,19 @@ def _war_factory():
     m = Mesh()
     w, h, d = 9.0, 4.2, 9.0
     box(m, "Hull", (w, 3.2, d * 0.9), (0, 1.6, 0.2), chamfer=0.22)
-    wedge(m, "Steel", (w, 1.1, d * 0.9), (0, 3.75, 0.2))
+    wedge(m, "Steel", (w, 1.6, d * 0.9), (0, 4.0, 0.2))
     # Roll-up door, the width of a tank, facing -Z.
     box(m, "Dark", (4.0, 2.2, 0.35), (0, 1.1, -d * 0.42))
     for i in range(5):
         box(m, "Metal", (3.8, 0.12, 0.12), (0, 0.4 + i * 0.42, -d * 0.43))
     # Gantry crane across the roof.
     for side in (-1, 1):
-        box(m, "Metal", (0.3, 1.4, 0.3), (side * w * 0.38, 4.0, d * 0.22))
-    box(m, "Metal", (w * 0.85, 0.3, 0.4), (0, 4.6, d * 0.22))
-    box(m, "Dark", (0.6, 0.7, 0.6), (w * 0.12, 4.1, d * 0.22))
+        box(m, "Metal", (0.3, 2.2, 0.3), (side * w * 0.38, 4.5, d * 0.22))
+    box(m, "Metal", (w * 0.85, 0.34, 0.45), (0, 5.5, d * 0.22))
+    box(m, "Dark", (0.7, 0.9, 0.7), (w * 0.12, 4.9, d * 0.22))
     box(m, "Concrete", (5.2, 0.16, 2.0), (0, 0.08, -d * 0.39))
     roof_vents(m, 3, w, 4.2, d * 0.6)
+    roof_deck(m, w, 3.2, d)
     faction_band(m, w, 3.2, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -207,6 +236,7 @@ def _radar_center():
     cylinder(m, "Dark", 1.55, 0.16, (0, 5.86, 0.2), segments=14)
     box(m, "Metal", (0.14, 0.9, 0.14), (0, 6.1, 0.2))
     box(m, "Glass", (w * 0.5, 0.5, 0.1), (0, 1.5, -d * 0.45))
+    roof_deck(m, w, 2.6, d)
     faction_band(m, w, 2.6, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -215,7 +245,7 @@ def _tech_center():
     m = Mesh()
     w, h, d = 7.5, 5.0, 7.5
     box(m, "Hull", (w, 2.9, d), (0, 1.45, 0), chamfer=0.22)
-    box(m, "Steel", (w * 0.66, 1.6, d * 0.66), (0, 3.7, 0), chamfer=0.16)
+    box(m, "Steel", (w * 0.60, 2.3, d * 0.60), (0, 4.05, 0), chamfer=0.16)
     box(m, "Glass", (w * 0.62, 0.9, d * 0.02), (0, 3.75, -d * 0.33))
     box(m, "Glass", (w * 0.02, 0.9, d * 0.62), (-w * 0.33, 3.75, 0))
     # Antenna array at the rear.
@@ -225,6 +255,7 @@ def _tech_center():
                  segments=6)
     box(m, "Metal", (2.6, 0.1, 0.1), (0, 4.9, d * 0.30))
     box(m, "Dark", (1.6, 1.5, 0.3), (0, 0.75, -d / 2.0 + 0.08))
+    roof_deck(m, w, 2.9, d)
     faction_band(m, w, 2.9, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -243,6 +274,7 @@ def _forward_post():
     box(m, "Metal", (0.9, 0.08, 0.08), (-w * 0.32, 3.7, d * 0.28))
     sandbags(m, 0.0, -d * 0.44, 2.6)
     box(m, "Concrete", (w * 0.8, 0.14, d * 0.8), (0, 0.07, 0))
+    roof_deck(m, w, 2.5, d)
     faction_band(m, w, 2.5, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -330,6 +362,7 @@ def _repair_depot():
     box(m, "Metal", (0.3, 1.1, 0.3), (w * 0.22, 3.0, -d * 0.10))
     box(m, "Dark", (0.7, 0.5, 0.7), (w * 0.22, 2.3, -d * 0.10))
     crates(m, (-w * 0.30, 0.0, -d * 0.30), count=2, scale=0.8)
+    roof_deck(m, w, 1.6, d)
     faction_band(m, w, 1.6, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -344,6 +377,7 @@ def _supply_depot():
     crates(m, (w * 0.26, 0.0, -d * 0.18), count=2, scale=0.9)
     for i in range(2):
         cylinder(m, "Rust", 0.32, 0.9, (w * 0.36, 0.45, d * 0.02 - i * 0.75), segments=10)
+    roof_deck(m, w, 2.4, d)
     faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
 
@@ -402,16 +436,37 @@ asset("civilian_structure", "building", (5, 4.5, 5), _civilian_structure,
 # over accuracy here, as recorded in the art direction.
 
 def _infantry(weapon, bulk=1.0, helmet="Faction", pack=False, toolbox=False):
+    """One figure, built to read from directly above.
+
+    The camera sees the top of a soldier's helmet and shoulders and
+    almost nothing else, so that is where the silhouette work goes:
+    shoulders wider than the hips, a helmet that overhangs and separates
+    from them, and a weapon held across the body where it breaks the
+    outline. Legs are barely visible from up here and are shaped only
+    enough to carry the stance.
+    """
     def build():
         m = Mesh()
-        # Legs, slightly apart, with a forward lean so facing reads.
+        # Boots and legs, set apart and leaning forward into the advance.
         for sx in (-1, 1):
-            box(m, "Dark", (0.19 * bulk, 0.78, 0.22), (sx * 0.15, 0.39, 0.02), chamfer=0.04)
-        box(m, "Hull", (0.52 * bulk, 0.62, 0.30 * bulk), (0, 1.12, -0.03), chamfer=0.07)
-        box(m, "Dark", (0.54 * bulk, 0.16, 0.32 * bulk), (0, 0.86, -0.03), chamfer=0.04)
-        box(m, "Hull", (0.16, 0.16, 0.16), (0, 1.52, -0.04))
-        box(m, helmet, (0.34, 0.20, 0.36), (0, 1.66, -0.04), chamfer=0.07)
-        box(m, "Faction", (0.56 * bulk, 0.12, 0.16), (0, 1.38, -0.04))
+            box(m, "Dark", (0.19 * bulk, 0.60, 0.22), (sx * 0.15, 0.30, 0.04), chamfer=0.04)
+            box(m, "Dark", (0.21 * bulk, 0.12, 0.30), (sx * 0.15, 0.06, -0.02), chamfer=0.04)
+        # Hips, then a chest that is wider and deeper - from above the
+        # taper is what says which way this figure faces.
+        box(m, "Hull", (0.44 * bulk, 0.24, 0.26 * bulk), (0, 0.72, 0.01), chamfer=0.05)
+        box(m, "Hull", (0.52 * bulk, 0.50, 0.32 * bulk), (0, 1.12, -0.03), chamfer=0.07)
+        # Webbing across the chest, and shoulders that overhang it.
+        box(m, "Dark", (0.55 * bulk, 0.12, 0.34 * bulk), (0, 1.02, -0.03), chamfer=0.03)
+        for sx in (-1, 1):
+            box(m, "Hull", (0.16 * bulk, 0.18, 0.30 * bulk),
+                (sx * 0.30 * bulk, 1.28, -0.03), chamfer=0.06)
+            box(m, "Dark", (0.13 * bulk, 0.34, 0.15), (sx * 0.31 * bulk, 1.05, -0.08), chamfer=0.04)
+        box(m, "Hull", (0.16, 0.14, 0.16), (0, 1.48, -0.04))
+        # Helmet: wider than the head, and brimmed at the front so it
+        # casts its own edge instead of merging into the shoulders.
+        box(m, helmet, (0.36, 0.18, 0.34), (0, 1.63, -0.04), chamfer=0.08)
+        box(m, helmet, (0.34, 0.07, 0.12), (0, 1.57, -0.22), chamfer=0.03)
+        box(m, "Faction", (0.56 * bulk, 0.10, 0.15), (0, 1.35, -0.05))
         if pack:
             box(m, "Dark", (0.38, 0.46, 0.22), (0, 1.14, 0.22), chamfer=0.05)
         if toolbox:
@@ -758,13 +813,13 @@ UNIT_HULL_OVERRIDE = {
 # "vertical punctuation" and "exaggerated barrel" the art direction asks
 # for. Everything absent from this table must fit its footprint exactly.
 OVERHANG = {
-    "command_hq":        (0.0, 1.1, 0.0),   # comms mast
+    "command_hq":        (0.0, 2.2, 0.0),   # tower and comms mast
     "power_plant":       (0.0, 0.6, 0.1),   # cooling towers
-    "refinery":          (0.0, 0.5, 0.1),   # hopper and silo
-    "barracks":          (0.0, 1.1, 0.0),   # pitched roof and flag mast
-    "war_factory":       (0.0, 0.7, 0.0),   # gantry crane
+    "refinery":          (0.0, 1.7, 0.1),   # hopper and silo
+    "barracks":          (0.0, 2.6, 0.0),   # pitched roof and flag mast
+    "war_factory":       (0.0, 1.8, 0.0),   # gantry crane
     "radar_center":      (0.0, 0.1, 0.0),   # dish
-    "tech_center":       (0.0, 0.8, 0.1),   # antenna array
+    "tech_center":       (0.0, 1.4, 0.1),   # antenna array
     "comms_outpost":     (0.0, 0.5, 0.0),   # mast
     "civilian_structure": (0.0, 0.4, 0.0),  # chimney
     "repair_depot":      (0.0, 0.2, 0.0),   # overhead hoist
