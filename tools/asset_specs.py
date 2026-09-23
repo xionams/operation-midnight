@@ -80,6 +80,42 @@ def faction_band(mesh, width, height, depth, thickness=0.14):
         (width * 0.36, height + 0.14 + thickness * 0.5, depth * 0.02))
 
 
+def stack(mesh, x, z, base_height, tall, radius=0.32, cap="Dark"):
+    """A tall exhaust chimney - vertical punctuation that reads at zoom.
+
+    The structures already carried plenty of detail: gantry cranes, roll-up
+    doors, vent banks. None of it registered, because at the 14-45m camera
+    a 0.3m greeble is one or two pixels. What was missing was not more
+    detail, it was HEIGHT - something that breaks the roofline hard enough
+    to be seen as an outline rather than as surface.
+
+    A stack is the cheapest way to get it: two cylinders and a band, and
+    it changes the shape a player recognises the building by.
+    """
+    cylinder(mesh, "Metal", radius, tall, (x, base_height + tall / 2.0, z),
+             segments=8)
+    ## A lip at the top, so the chimney ends in something rather than just
+    ## stopping.
+    cylinder(mesh, cap, radius * 1.25, 0.16,
+             (x, base_height + tall - 0.02, z), segments=8)
+    ## Hazard band near the top - the one place a bright accent is allowed
+    ## on a structure that is not faction colour.
+    cylinder(mesh, "Amber", radius * 1.06, 0.22,
+             (x, base_height + tall * 0.78, z), segments=8)
+
+
+def lattice_mast(mesh, x, z, base_height, tall, radius=0.16):
+    """A slender antenna mast. Reads as a line against the ground."""
+    cylinder(mesh, "Metal", radius, tall, (x, base_height + tall / 2.0, z),
+             segments=6)
+    ## Three collars break the shaft so it is not a featureless pole.
+    for i in (0.35, 0.62, 0.86):
+        cylinder(mesh, "Dark", radius * 2.1, 0.09,
+                 (x, base_height + tall * i, z), segments=6)
+    cylinder(mesh, "Amber", radius * 1.5, 0.14,
+             (x, base_height + tall - 0.08, z), segments=6)
+
+
 def roof_vents(mesh, count, width, height, depth, radius=0.28):
     for i in range(count):
         x = (i - (count - 1) / 2.0) * (width * 0.24)
@@ -162,6 +198,11 @@ def _power_plant():
         cylinder(m, "Metal", 0.14, w * 0.8, (0, 0.7 + i * 0.45, -d * 0.42),
                  segments=6, axis="x")
     box(m, "Dark", (1.4, 1.2, 0.3), (0, 0.6, -d / 2.0 + 0.08))
+    ## Two chimneys well clear of the cooling towers. A power plant that
+    ## is only 3.2m tall on a 5m footprint reads as a shed; the stacks are
+    ## what make it identifiable across the map.
+    for side in (-1, 1):
+        stack(m, side * 1.9, -d * 0.3, 2.4, 3.6, radius=0.3)
     roof_deck(m, w, 2.4, d)
     faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
@@ -182,6 +223,10 @@ def _refinery():
     box(m, "Metal", (0.26, 0.26, 2.6), (-w * 0.14, 3.9, 0.7))
     for i in range(2):
         box(m, "Amber", (0.5, 0.3, 0.5), (-w * 0.14 + (i - 0.5) * 1.4, 3.85, 0.7))
+    ## Flare stack. The silo already gives the refinery height on one
+    ## side; this puts a second, thinner vertical on the other so the
+    ## outline is asymmetric and cannot be confused with the war factory.
+    stack(m, w * 0.34, d * 0.30, 2.4, 4.4, radius=0.26)
     roof_deck(m, w, 2.4, d)
     faction_band(m, w, 2.4, d)
     return [("Body", m, (0, 0, 0))]
@@ -196,8 +241,8 @@ def _barracks():
     box(m, "Concrete", (w * 0.7, 0.16, 1.4), (0, 0.08, -d * 0.38))
     sandbags(m, -w * 0.30, -d * 0.40, 1.8)
     sandbags(m, w * 0.30, -d * 0.40, 1.8)
-    cylinder(m, "Metal", 0.11, 3.4, (w * 0.40, h + 0.5, d * 0.36), segments=6)
-    box(m, "Faction", (0.5, 0.34, 0.04), (w * 0.40 + 0.28, h + 1.7, d * 0.36))
+    lattice_mast(m, w * 0.40, d * 0.36, 2.6, 4.2, radius=0.13)
+    box(m, "Faction", (0.5, 0.34, 0.04), (w * 0.40 + 0.30, 6.2, d * 0.36))
     roof_vents(m, 2, w, 3.5, d * 0.5, radius=0.22)
     roof_deck(m, w, 2.6, d)
     faction_band(m, w, 2.6, d)
@@ -219,6 +264,10 @@ def _war_factory():
     box(m, "Metal", (w * 0.85, 0.34, 0.45), (0, 5.5, d * 0.22))
     box(m, "Dark", (0.7, 0.9, 0.7), (w * 0.12, 4.9, d * 0.22))
     box(m, "Concrete", (5.2, 0.16, 2.0), (0, 0.08, -d * 0.39))
+    ## Foundry stacks. The gantry alone sat too close to the roof to break
+    ## the outline from above.
+    for side in (-1, 1):
+        stack(m, side * w * 0.3, -d * 0.28, 4.6, 3.2, radius=0.34)
     roof_vents(m, 3, w, 4.2, d * 0.6)
     roof_deck(m, w, 3.2, d)
     faction_band(m, w, 3.2, d)
@@ -866,10 +915,10 @@ UNIT_HULL_OVERRIDE = {
 # for. Everything absent from this table must fit its footprint exactly.
 OVERHANG = {
     "command_hq":        (0.0, 2.2, 0.0),   # tower and comms mast
-    "power_plant":       (0.0, 0.6, 0.1),   # cooling towers
-    "refinery":          (0.0, 1.7, 0.1),   # hopper and silo
-    "barracks":          (0.0, 2.6, 0.0),   # pitched roof and flag mast
-    "war_factory":       (0.0, 1.8, 0.0),   # gantry crane
+    "power_plant":       (0.0, 2.9, 0.1),   # cooling towers and chimneys
+    "refinery":          (0.0, 3.3, 0.1),   # hopper, silo and flare stack
+    "barracks":          (0.0, 3.6, 0.0),   # pitched roof and comms mast
+    "war_factory":       (0.0, 3.7, 0.0),   # gantry crane and foundry stacks
     "radar_center":      (0.0, 0.1, 0.0),   # dish
     "tech_center":       (0.0, 1.4, 0.1),   # antenna array
     "comms_outpost":     (0.0, 0.5, 0.0),   # mast

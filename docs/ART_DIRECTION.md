@@ -100,6 +100,26 @@ saturated (§8).
 
 ## 4. Shape language
 
+**Height is what reads, not detail.** The structures already carried
+plenty of detail — gantry cranes, roll-up doors, vent banks, pipe runs —
+and almost none of it registered, because at the 14–45m camera a 0.3m
+greeble is one or two pixels. What was missing was never more surface
+detail; it was something that breaks the roofline hard enough to be seen
+as an *outline*.
+
+`stack()` and `lattice_mast()` in `tools/asset_specs.py` are the shared
+vocabulary for that. A chimney is two cylinders and a band, and it
+changes the shape a player recognises a building by — the power plant was
+3.2m tall on a 5m footprint and read as a shed until it got two.
+
+Give every structure at least one vertical that clears its roof by half
+its own height, and make the arrangement asymmetric where two buildings
+would otherwise share an outline: the refinery's flare stack sits
+opposite its silo so it cannot be confused with the war factory.
+
+Stacks carry an amber hazard band near the top. That is the one place a
+saturated accent is allowed on a structure that is not faction colour.
+
 - **Boxy, chamfered, industrial.** Rectangular masses with cut corners.
 - **Silhouette first.** An asset must be identifiable as a black
   silhouette at 96px. If it is not, the silhouette is wrong — fix the
