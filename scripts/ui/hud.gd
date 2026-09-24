@@ -37,8 +37,11 @@ var _population_label: Label
 var _low_power_label: Label
 
 var _category: String = "BUILDINGS"
-var _item_list: VBoxContainer
+var _item_list: GridContainer
 var _item_rows: Dictionary = {}
+var _item_bars: Dictionary = {}
+var _item_captions: Dictionary = {}
+var _cameo_cache: Dictionary = {}
 var _category_tabs: Dictionary = {}
 
 var _info_panel: RichTextLabel
@@ -162,6 +165,11 @@ func _readout(icon_name: String, label: Label, tooltip: String) -> Control:
 ## Collecting them into one column is most of what makes this readable.
 const SIDEBAR_W: float = 302.0
 const CARD_H: float = 64.0
+## Cameo tile height only. The WIDTH is left to the grid to divide, which
+## is the whole point: a fixed 140 forced the two columns wider than the
+## 302px sidebar and pushed the credits readout and the right-hand column
+## off the panel. Two expanding columns fit whatever the sidebar is.
+const TILE_H: float = 104.0
 
 ## Panel chrome. Flat fills with a light top edge and a dark bottom edge
 ## read as bevelled metal without a single texture.
@@ -305,16 +313,21 @@ func _build_sidebar() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	## The catalogue takes whatever is left after the controls below it,
-	## with a floor of two cards. A floor of four looked better on a
-	## desktop window and pushed the order buttons off the bottom of a
+	## with a floor of two rows of cameos. A floor of four looked better on
+	## a desktop window and pushed the order buttons off the bottom of a
 	## 720p phone screen, which is the size that actually matters.
-	scroll.custom_minimum_size = Vector2(0, CARD_H * 2)
+	scroll.custom_minimum_size = Vector2(0, TILE_H * 2 + 6)
 	scroll.add_theme_stylebox_override("panel",
 		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
 			Color(0.03, 0.04, 0.04), 1))
 	column.add_child(scroll)
-	_item_list = VBoxContainer.new()
-	_item_list.add_theme_constant_override("separation", 3)
+	## Two columns of cameos rather than a list of rows. The cameo is the
+	## thing a player learns to hit, so it should be the biggest element on
+	## the card; in a full-width row it was a thumbnail beside the text.
+	_item_list = GridContainer.new()
+	_item_list.columns = 2
+	_item_list.add_theme_constant_override("h_separation", 3)
+	_item_list.add_theme_constant_override("v_separation", 3)
 	_item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_item_list)
 
@@ -438,44 +451,155 @@ func _set_category(category: String) -> void:
 	for child in _item_list.get_children():
 		child.queue_free()
 	_item_rows.clear()
+	_item_bars.clear()
+	_item_captions.clear()
 
 	## A card rather than a row of text: the icon is what a player learns
 	## to hit, and the cost is what they check. The name still leads the
 	## button text so anything searching by name keeps working.
 	for stats in BuildCatalog.items(category):
 		var row := Button.new()
-		row.custom_minimum_size = Vector2(0, CARD_H)
+		row.custom_minimum_size = Vector2(0, TILE_H)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.clip_text = true
-		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		row.add_theme_font_size_override("font_size", 13)
-		row.add_theme_constant_override("h_separation", 10)
-		var icon := Icons.for_name(stats.display_name)
-		if icon != null:
-			row.icon = icon
-			row.expand_icon = true
 		_style_button(row)
 		row.pressed.connect(func(): _on_item_pressed(stats))
+
+		## The tile's contents are children rather than the Button's own
+		## icon and text: a Button lays those out side by side, and a cameo
+		## has to sit ABOVE its label to read at this size. Everything
+		## inside ignores the mouse so the whole tile stays one click
+		## target.
+		var body := VBoxContainer.new()
+		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		body.set_anchors_preset(Control.PRESET_FULL_RECT)
+		body.offset_left = 3.0
+		body.offset_right = -3.0
+		body.offset_top = 3.0
+		body.offset_bottom = -3.0
+		body.add_theme_constant_override("separation", 1)
+		row.add_child(body)
+
+		var art := TextureRect.new()
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var cameo := _cameo_for(stats)
+		## Vector glyph fallback, for anything without a model.
+		art.texture = cameo if cameo != null else Icons.for_name(stats.display_name)
+		body.add_child(art)
+
+		var caption := Label.new()
+		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caption.add_theme_font_size_override("font_size", 11)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.autowrap_mode = TextServer.AUTOWRAP_OFF
+		caption.clip_text = true
+		body.add_child(caption)
+
+		var price := Label.new()
+		price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		price.add_theme_font_size_override("font_size", 11)
+		price.add_theme_color_override("font_color", Color(0.878, 0.651, 0.235))
+		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		price.clip_text = true
+		body.add_child(price)
+		_item_captions[stats] = [caption, price]
+
+		## A progress bar lying along the bottom edge of the card, the way
+		## Red Alert marks the thing currently being built. Anchored rather
+		## than laid out, so it sits ON the card instead of taking a row of
+		## its own and pushing the list around whenever something starts.
+		var progress := ProgressBar.new()
+		progress.max_value = 1.0
+		progress.show_percentage = false
+		progress.visible = false
+		progress.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		progress.offset_top = -7.0
+		progress.offset_bottom = 0.0
+		progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		progress.add_theme_stylebox_override("background",
+			_plate(Color(0.08, 0.09, 0.10), Color(0.16, 0.17, 0.19),
+				Color(0.05, 0.05, 0.06), 1))
+		progress.add_theme_stylebox_override("fill",
+			_plate(Color(0.878, 0.651, 0.235), Color(0.95, 0.76, 0.36),
+				Color(0.62, 0.44, 0.14), 1))
+		row.add_child(progress)
+
 		_item_list.add_child(row)
 		_item_rows[stats] = row
+		_item_bars[stats] = progress
 	_refresh_items()
+
+## The cameo is a render of the very model that gets placed, keyed off the
+## stats' own visual_scene, so a card can never show something the game
+## does not build. See tools/render_cameos.gd.
+func _cameo_for(stats) -> Texture2D:
+	if stats == null or stats.visual_scene == null:
+		return null
+	var id: String = stats.visual_scene.resource_path.get_file().get_basename()
+	if _cameo_cache.has(id):
+		return _cameo_cache[id]
+	var path: String = "res://assets/cameos/%s.png" % id
+	var texture: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	_cameo_cache[id] = texture
+	return texture
+
+## How far along this item is, or -1 if it is not being built right now.
+## Structures go through the shared ConstructionQueue; units go through
+## the queue on whichever building trains them.
+func _production_progress(stats) -> float:
+	if stats is BuildingStats:
+		if construction != null and construction.current() == stats:
+			return construction.progress()
+		return -1.0
+	var producer := BuildCatalog.producer_for(stats, true)
+	if producer == null or producer.queue == null:
+		return -1.0
+	if producer.queue.current_stats() == stats:
+		return producer.queue.progress()
+	return -1.0
 
 func _refresh_items() -> void:
 	for stats in _item_rows:
 		var row: Button = _item_rows[stats]
 		if not is_instance_valid(row):
 			continue
+		var bar: ProgressBar = _item_bars.get(stats)
+		var building: float = _production_progress(stats)
 		var missing: Array = TechTree.missing_prerequisites(stats, true)
-		if missing.is_empty():
-			row.text = "%s\n$%s   %ds" % [stats.display_name, _thousands(stats.cost),
-				int(round(stats.build_time))]
+
+		if bar != null:
+			bar.visible = building >= 0.0
+			if building >= 0.0:
+				bar.value = building
+
+		var labels: Array = _item_captions.get(stats, [])
+		var caption: Label = labels[0] if labels.size() > 0 else null
+		var price: Label = labels[1] if labels.size() > 1 else null
+		if caption != null:
+			caption.text = stats.display_name
+
+		if building >= 0.0:
+			## In production: greyed and showing its own progress, so the
+			## tile the player pressed is visibly the one working. Left
+			## enabled - queueing a second is a normal thing to want.
+			if price != null:
+				price.text = "%d%%" % int(building * 100.0)
+			row.disabled = false
+			row.modulate = Color(0.55, 0.57, 0.60)
+		elif missing.is_empty():
+			if price != null:
+				price.text = "$%s" % _thousands(stats.cost)
 			var affordable: bool = GameState.credits >= stats.cost
 			row.disabled = not affordable
 			## Dim rather than hide what is merely unaffordable: knowing
 			## what you are saving toward is half of an RTS build order.
 			row.modulate = Color(1, 1, 1) if affordable else Color(0.72, 0.70, 0.66)
 		else:
-			row.text = "%s\nNeeds %s" % [stats.display_name, ", ".join(missing)]
+			if price != null:
+				price.text = "LOCKED"
+			row.tooltip_text = "Needs %s" % ", ".join(missing)
 			row.disabled = true
 			row.modulate = Color(0.52, 0.52, 0.58)
 
