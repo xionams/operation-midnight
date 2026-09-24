@@ -28,3 +28,8 @@ __pycache__/
 # Codex scratch area and downloaded third-party packs; the curated
 # subset we actually ship lives in assets/models/nature/
 .codex-output/
+
+# Hero/cinematic assets live in ~/projects/tank_asset, not here. The tank
+# alone is 20 MB of mesh and 2048 textures against a 27 MB budget for the
+# whole game; it is a presentation asset, not a fielded unit.
+assets/models/_experiment/hero_*
