@@ -694,3 +694,58 @@ being a dozen of them rather than a hundred - recovered all of it.
 
 **Rule for the next art pass: a unit model gets at most three material
 slots.** Structures may use the full set.
+
+---
+
+## 16. Imported rigged characters — evaluated, not adopted
+
+Kenney's **Animated Characters** packs are CC0 and rigged, so infantry
+animation was evaluated properly rather than argued about.
+`tools/convert_character.py` is the working pipeline and
+`tests/skinned_cost_test.gd` is the measurement.
+
+**Cost is not the problem.** 120 skinned, animated characters cost
+**+1.07 ms/frame** against 120 static generated ones (6.19 → 7.26 ms);
+at 360 it is +2.40 ms. In the real scene at ~48 FPS that is roughly 2–3
+FPS. Affordable.
+
+**The model is the problem.** Kenney's character is a smooth, featureless
+mannequin: no rifle, no webbing, no boots, no helmet. Our generated
+soldier is 304 triangles of boxes and it reads as a *soldier* — it
+carries a weapon and has kit. Swapping to the import would make infantry
+**look worse while moving better**, at 5× the triangles.
+
+So the conclusion is the opposite of the one the search started with:
+**the animation is the prize, not the mesh.** The right shape of this
+work is a rig on our own geometry with these clips retargeted onto it,
+not a wholesale model swap. Our soldiers have no rig, so that is the
+piece of work to cost next.
+
+Four things the pipeline had to solve, all of which will recur for any
+rigged import:
+
+- **The rig is IK-driven.** Its clips key control bones (`LeftFootIK`,
+  `KneeCtrl`, `HeelRoll`) and the deform bones follow through Blender
+  constraints. glTF has no constraints, so an unbaked export produces
+  animations that *play* — the time advances, the player reports itself
+  running — while every deform bone sits in bind pose and the character
+  T-poses through the whole clip. Bake with visual keying.
+- **The body material exports with base-colour alpha 0**, because the
+  pack skins by a loose PNG the FBX never references. Exported as-is the
+  soldier is completely invisible and only the bolted-on faction geometry
+  renders.
+- **Palette colours need `srgb_to_linear`.** Blender's Base Color input
+  is linear, same as glTF `baseColorFactor`. OLIVE dropped straight in
+  arrived in Godot as `(0.57, 0.60, 0.51)` — a pale grey-green. The same
+  trap `tools/glb.py` has guarded since the whole game came out washed
+  out.
+- **Armature scale does not survive the glTF export** as a node scale,
+  and applying it to the armature rescales the bones while the actions
+  keep storing bone-local translations for the old size. Scale on the
+  Godot import with `nodes/root_scale`.
+
+Faction marking on a texture-skinned character has no material slot to
+use, so `convert_character.py` bolts a helmet and two shoulder pads onto
+the rig, weighted to their bones rather than parented — a parented object
+is a second draw call per soldier, which at 120 units is 120 extra draws
+for a hat.

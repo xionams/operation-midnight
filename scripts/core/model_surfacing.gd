@@ -60,6 +60,13 @@ static func prepare(material: StandardMaterial3D) -> void:
 	material.vertex_color_use_as_albedo = true
 	if not enabled():
 		return
+	## Never overwrite a material that already carries its own art. The
+	## detail sheet exists for the generated models, whose materials are
+	## flat colour and nothing else; assigning albedo_texture over an
+	## imported character's skin would delete the only thing making it
+	## look like a person.
+	if material.albedo_texture != null:
+		return
 
 	material.albedo_texture = DETAIL
 	material.uv1_triplanar = true
