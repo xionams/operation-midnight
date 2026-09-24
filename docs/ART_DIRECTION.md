@@ -345,6 +345,27 @@ small table re-skins the whole pack including anything added later. Doing
 it by colour would need an entry per shade and would silently miss any
 that did not match exactly.
 
+**Match the TONE, not just the hue.** The first remap put the pack into
+this game's colours and it still read as a brighter game pasted over this
+one, because saturation and value were untouched: bright green canopies
+against dark olive vehicles and gunmetal structures. Two tonal worlds on
+one screen looks like a style clash even when the shape language is fine.
+Foliage now sits in the same value band as everything else, which also
+puts the military silhouettes back in front — the right hierarchy, since
+units are what the player actually has to read.
+
+**Rock is rock.** Kenney authors rock and cliff pieces with a *grass*
+material capping them, for a stylised world where boulders wear a lawn.
+Run through the shared map that made every outcrop a bright green
+plateau — the worst single clash on the screen, because a rock formation
+then reads as terrain rather than as an obstacle. `ROCK_PALETTE`
+overrides the cap to lichen and the body to grey-brown stone.
+
+**Watch the compound scale.** The pack imports at 4×, so a 1.1–2.3×
+spawn multiplier on top produced boulders up to nine metres across —
+larger than a war factory, dominating every frame they appeared in. A
+formation is many small rocks, not a few monoliths.
+
 That remap is also what stops the props reading as off-the-shelf art
 sitting on our terrain. Flowers are the one exception that keeps its hue:
 they are the only saturated thing out there and are what stops a meadow

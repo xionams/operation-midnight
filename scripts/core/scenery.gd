@@ -30,6 +30,23 @@ var _fog_materials: Dictionary = {}
 ## not: panel seams on a boulder look like a mistake, and they are small
 ## enough on screen that flat colour costs nothing.
 const DETAILED_KINDS: Array = ["base_pad", "road"]
+
+## Kenney authors rock and cliff pieces with a GRASS material capping
+## them, for a stylised world where boulders wear a lawn. Painted with the
+## shared map that makes every outcrop a bright green plateau - the single
+## worst clash on the screen, because a rock formation then reads as
+## terrain rather than as an obstacle.
+##
+## Rock is rock. The cap becomes lichen, dark and desaturated, and the
+## body a grey-brown stone rather than soil.
+const ROCK_KINDS: Array = ["rock_small", "rock_small_b", "rock_flat",
+	"rock_large", "rock_large_b", "rock_large_c", "rock_large_d",
+	"cliff", "cliff_slope"]
+const ROCK_PALETTE: Dictionary = {
+	"grass": Color(0.208, 0.243, 0.180),
+	"dirt": Color(0.365, 0.353, 0.322),
+	"_defaultMat": Color(0.404, 0.396, 0.376),
+}
 const SURFACE_DETAIL: Texture2D = preload("res://assets/textures/surface_detail.png")
 const SURFACE_NORMAL: Texture2D = preload("res://assets/textures/surface_normal.png")
 ## Metres per tile of that sheet. Wider than the structures use it: a pad
@@ -102,7 +119,7 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 		node.scale = Vector3.ONE * scale
 	## Props sit ON the ground, which is no longer flat.
 	Terrain.settle(node)
-	_fog_paint(node, kind in DETAILED_KINDS)
+	_fog_paint(node, kind in DETAILED_KINDS, kind in ROCK_KINDS)
 	return node
 
 ## Kenney's Nature Kit is authored in a deliberate teal-and-coral palette
@@ -118,17 +135,25 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 ##
 ## This is also what stops the props reading as off-the-shelf art sitting
 ## on our terrain: they end up in our palette, not the pack's.
+##
+## Pulled down in value and saturation from the first version. Against
+## dark olive vehicles and gunmetal structures, a bright saturated green
+## canopy is not a different SHAPE language, it is a different TONAL one -
+## the nature read as a brighter game pasted over this one. Foliage now
+## sits in the same band as everything else and the military silhouettes
+## come forward again, which is the right hierarchy: the units are what
+## the player has to read.
 const NATURE_PALETTE: Dictionary = {
-	"grass": Color(0.286, 0.404, 0.216),
-	"leafsGreen": Color(0.310, 0.427, 0.224),
-	"leafsDark": Color(0.212, 0.318, 0.180),
-	"woodBark": Color(0.353, 0.278, 0.204),
-	"woodBarkDark": Color(0.278, 0.220, 0.165),
-	"wood": Color(0.420, 0.333, 0.235),
-	"woodDark": Color(0.278, 0.224, 0.169),
-	"woodInner": Color(0.565, 0.478, 0.365),
-	"dirt": Color(0.345, 0.290, 0.216),
-	"_defaultMat": Color(0.451, 0.451, 0.427),
+	"grass": Color(0.243, 0.318, 0.180),
+	"leafsGreen": Color(0.263, 0.341, 0.188),
+	"leafsDark": Color(0.184, 0.251, 0.149),
+	"woodBark": Color(0.310, 0.251, 0.192),
+	"woodBarkDark": Color(0.243, 0.200, 0.157),
+	"wood": Color(0.365, 0.298, 0.220),
+	"woodDark": Color(0.243, 0.204, 0.161),
+	"woodInner": Color(0.490, 0.420, 0.329),
+	"dirt": Color(0.302, 0.259, 0.200),
+	"_defaultMat": Color(0.404, 0.404, 0.388),
 	## Flowers keep their hue: they are the only saturated thing out there
 	## and they are what stops a meadow being one green mass. Muted down,
 	## so they never compete with the faction colours, which are the one
@@ -143,7 +168,8 @@ const NATURE_PALETTE: Dictionary = {
 ## surface is re-shaded with the terrain fog shader, carrying its own
 ## colour across. Without this, props would show through the shroud and
 ## hand the player a free map outline.
-func _fog_paint(node: Node3D, detailed: bool = false) -> void:
+func _fog_paint(node: Node3D, detailed: bool = false,
+		is_rock: bool = false) -> void:
 	var fog_texture: Texture2D = FogOfWar.get_texture()
 	for mesh_instance in node.find_children("*", "MeshInstance3D", true, false):
 		var mesh: Mesh = mesh_instance.mesh
@@ -152,8 +178,12 @@ func _fog_paint(node: Node3D, detailed: bool = false) -> void:
 		for surface in mesh.get_surface_count():
 			var source := mesh.surface_get_material(surface) as StandardMaterial3D
 			var colour: Color = source.albedo_color if source != null else Color(0.5, 0.5, 0.5)
-			if source != null and NATURE_PALETTE.has(source.resource_name):
-				colour = NATURE_PALETTE[source.resource_name]
+			if source != null:
+				var name: String = source.resource_name
+				if is_rock and ROCK_PALETTE.has(name):
+					colour = ROCK_PALETTE[name]
+				elif NATURE_PALETTE.has(name):
+					colour = NATURE_PALETTE[name]
 			mesh_instance.set_surface_override_material(
 				surface, _fog_material(colour, fog_texture, detailed))
 
@@ -437,14 +467,20 @@ func dress_blocker(position: Vector3, size: Vector3) -> void:
 	## Boulders over the top, at roughly one per 9 square metres of
 	## footprint, so a long ridge gets more rock than a small outcrop
 	## rather than the same handful stretched thin.
-	var count: int = maxi(6, int(size.x * size.z / 9.0))
+	## More of them, now that each is smaller: a formation is made of many
+	## rocks, not a few monoliths.
+	var count: int = maxi(10, int(size.x * size.z / 5.0))
 	for i in count:
 		var point := position + Vector3(
 			rng.randf_range(-size.x * 0.52, size.x * 0.52), 0.0,
 			rng.randf_range(-size.z * 0.52, size.z * 0.52))
 		var kind: String = BOULDERS[rng.randi_range(0, BOULDERS.size() - 1)]
+		## 0.6-1.3, not 1.1-2.3. On top of the pack's own 4x import scale
+		## the first range produced boulders up to nine metres across -
+		## bigger than a war factory, and they dominated every frame they
+		## appeared in.
 		var node := _spawn(kind, point, rng.randf_range(0.0, TAU),
-			rng.randf_range(1.1, 2.3))
+			rng.randf_range(0.6, 1.3))
 		## Varied sinking, so they sit IN the ground at different depths
 		## instead of all resting on it like dropped props.
 		Terrain.settle(node, rng.randf_range(0.2, 0.9))
