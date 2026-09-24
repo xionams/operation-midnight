@@ -196,7 +196,11 @@ func _process(_delta: float) -> void:
 		return
 
 	_ghost.visible = true
-	_ghost.global_position = Vector3(hit_pos.x, active_stats.body_size.y / 2.0, hit_pos.z)
+	## The raycast lands on the flat collision box, so the height has to
+	## come from Terrain rather than from the hit itself.
+	_ghost.global_position = Vector3(hit_pos.x,
+		Terrain.height_at(hit_pos.x, hit_pos.z) + active_stats.body_size.y / 2.0,
+		hit_pos.z)
 	_valid = _check_validity(hit_pos)
 	_ghost_material.albedo_color = VALID_COLOR if _valid else INVALID_COLOR
 
@@ -224,7 +228,9 @@ func _preview_wall_line(from: Vector3, to: Vector3) -> void:
 			continue
 		var point: Vector3 = points[i]
 		ghost.visible = true
-		ghost.global_position = Vector3(point.x, active_stats.body_size.y / 2.0, point.z)
+		ghost.global_position = Vector3(point.x,
+			Terrain.height_at(point.x, point.z) + active_stats.body_size.y / 2.0,
+			point.z)
 		var material := ghost.material_override as StandardMaterial3D
 		material.albedo_color = VALID_COLOR if _check_validity(point) else INVALID_COLOR
 
@@ -310,5 +316,6 @@ func _spawn(hit_pos: Vector3) -> void:
 	building.stats = active_stats
 	building.is_player_faction = true
 	get_tree().current_scene.get_node("Level/NavRegion").add_child(building)
-	building.global_position = Vector3(hit_pos.x, 0, hit_pos.z)
+	building.global_position = Vector3(hit_pos.x,
+		Terrain.height_at(hit_pos.x, hit_pos.z), hit_pos.z)
 	EventBus.building_placed.emit(building)

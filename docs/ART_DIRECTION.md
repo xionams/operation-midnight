@@ -749,3 +749,68 @@ use, so `convert_character.py` bolts a helmet and two shoulder pads onto
 the rig, weighted to their bones rather than parented — a parented object
 is a second draw call per soldier, which at 120 units is 120 extra draws
 for a hat.
+
+---
+
+## 17. The ground has shape
+
+The battlefield was a mathematically flat plane, and that is the loudest
+"this is a prototype" signal a 3D strategy game can send. Texture, prop
+density, lighting and model detail passes all went in ahead of it and
+none of them touched it.
+
+`scripts/core/terrain.gd` gives it relief: ±1.6m from a sum of three
+sines with wavelengths of 19–91m, deliberately not multiples of each
+other so the sum does not repeat on a visible grid.
+
+**Gameplay stays flat.** Collision is still a box and the navmesh is
+still baked level; only the visible surface moves, and everything on it
+is lifted to match. Deliberate, not a shortcut:
+
+- Pathfinding risk drops to nothing. No existing path, formation or
+  stuck-unit fix has to be re-validated.
+- An RTS mostly does not *want* slope to affect movement. A tank that
+  crawls uphill is a simulation feature, not a strategy one, and this
+  game has no line-of-sight or high-ground rules for it to serve.
+
+The honest limit: at large amplitudes a unit would visibly climb a hill
+its pathing knows nothing about. The amplitude is kept where the ground
+reads as rolling rather than as hills, which is where that stops
+mattering.
+
+**Flat things get graded under them.** Roads and base pads are flat
+slabs; laid on rolling ground they cut through it at the ends and float
+in the middle, which sliced the road network into disconnected grey
+patches. `Terrain.level()` registers discs where the ground is flattened
+before the mesh is built — bases, ore fields, civilian structures, and
+the road as a chain of overlapping discs.
+
+A run of slabs must be graded to **one** height. Letting each disc sample
+its own centre still leaves the corridor sloping and the slabs still cut
+through it: a road is a graded cutting, not a carpet over hills.
+
+### Three costs, all measured
+
+**Evaluating the graded height per query cost 15 FPS.** Three sines are
+nothing; walking ~110 road discs per unit per physics frame is not. The
+surface is baked once into a grid and sampled bilinearly on the same
+lattice the mesh uses, so a unit standing on a vertex is at exactly that
+vertex.
+
+**Writing `global_position` on a `CharacterBody3D` cost 10 FPS** at 120
+units — it forces a physics-server transform sync per body per frame.
+Now only when the unit has moved, with the transform read once rather
+than four times; `global_position` is a computed property and every
+access walks the parent chain.
+
+**The remainder is the honest price.** 120 units sits at ~40 FPS against
+48 before, and 60 FPS at 40 and 80 is unchanged. Thresholds of 0.35, 0.5
+and 0.9m all measure inside the stress test's own run-to-run noise, so
+there is nothing further to buy there.
+
+The ground does not cast shadows: its relief is gentle enough that
+self-shadowing shows almost nothing.
+
+> Winding matters. Get the triangle order backwards and the sheet is
+> backface-culled — it still shades and still occludes, so it reads as a
+> *black* ground rather than a missing one, which is slow to diagnose.

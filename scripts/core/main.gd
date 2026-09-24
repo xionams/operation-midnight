@@ -320,14 +320,21 @@ func _build_level_and_ground() -> void:
 	ground.add_child(shape)
 
 	var mesh_instance := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
 	# Visual only, and deliberately wider than the collision box below: the
 	# ground the player can reach stays map_size (collision drives the navmesh
 	# and every ground raycast), while the extra skirt keeps the map edge and
 	# the void beyond it out of frame at the camera's shallowest angle.
-	plane.size = Vector2(map_size * 2.4, map_size * 2.4)
-	mesh_instance.mesh = plane
+	#
+	# The surface rolls; the collision box under it does not. See
+	# scripts/core/terrain.gd for why the two are allowed to disagree.
+	_grade_terrain()
+	mesh_instance.mesh = Terrain.build_mesh(map_size * 2.4)
 	mesh_instance.material_override = _make_ground_material()
+	## The ground does not cast. Its relief is gentle enough that
+	## self-shadowing shows almost nothing, and rendering a 15,000
+	## triangle sheet into the shadow map as well as the frame is pure
+	## cost - it was worth several FPS at 120 units.
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ground.add_child(mesh_instance)
 
 	_nav_region.add_child(ground)
@@ -337,7 +344,11 @@ func _spawn_building(scene: PackedScene, stats: BuildingStats, is_player: bool, 
 	building.stats = stats
 	building.is_player_faction = is_player
 	_nav_region.add_child(building)
-	building.global_position = pos
+	## Structures sit on the surface, not at zero. A base pad is laid flat
+	## under each one, so what a player sees is a level platform cut into
+	## rolling ground rather than a building tilted on a slope.
+	building.global_position = Vector3(
+		pos.x, Terrain.height_at(pos.x, pos.z), pos.z)
 	return building
 
 func _spawn_unit(scene: PackedScene, stats: UnitStats, is_player: bool, pos: Vector3) -> Node:
@@ -440,6 +451,53 @@ func _spawn_strategic(stats: BuildingStats, pos: Vector3, benefit: int) -> void:
 ## exist to shape navigation, not to look like anything yet.
 ## Presentation only: pads, roads and props, none of which collide, so
 ## the navmesh and every existing path are unchanged.
+## The road runs base to base through whatever sits in the middle, so the
+## route most fighting happens along is legible on any layout.
+##
+## Split out from _dress_battlefield because the ground mesh has to know
+## where it goes BEFORE it is built - the terrain under a road is levelled
+## so the slabs do not cut through a slope.
+func _road_route() -> Array:
+	var midpoint: Vector3 = (map.player_base + map.enemy_base) * 0.5
+	if not map.resource_fields.is_empty():
+		var best: Vector3 = midpoint
+		var nearest: float = INF
+		for field in map.resource_fields:
+			var point := Vector3(field.x, 0.0, field.z)
+			if point.distance_to(midpoint) < nearest:
+				nearest = point.distance_to(midpoint)
+				best = point
+		midpoint = best
+	var to_mid: Vector3 = (midpoint - map.player_base).normalized() * 20.0
+	var from_mid: Vector3 = (midpoint - map.enemy_base).normalized() * 20.0
+	return [map.player_base + to_mid, midpoint, map.enemy_base + from_mid]
+
+## Grade the ground before the mesh is built: level under the bases, the
+## road, and everything else that puts a flat slab on the map.
+func _grade_terrain() -> void:
+	Terrain.reset()
+	for base in [map.player_base, map.enemy_base]:
+		Terrain.level(base, 20.0, 12.0)
+	for position in map.civilian_positions:
+		Terrain.level(position, 5.0, 5.0)
+	for position in [map.comms_outpost, map.repair_depot, map.supply_depot]:
+		Terrain.level(position, 6.0, 6.0)
+	for field in map.resource_fields:
+		Terrain.level(Vector3(field.x, 0.0, field.z), 9.0, 7.0)
+	## The road is levelled as a chain of overlapping discs along its
+	## route, all to ONE height. Sampling each disc's own centre leaves the
+	## corridor sloping and the flat slabs still cut through it; a road is
+	## a graded cutting, not a carpet laid over hills. The blend is wide so
+	## the banks either side read as earthworks rather than as a trench.
+	var route: Array = _road_route()
+	var road_height: float = Terrain.height_at(route[1].x, route[1].z)
+	for leg in [[route[0], route[1]], [route[1], route[2]]]:
+		var span: float = leg[0].distance_to(leg[1])
+		var steps: int = maxi(2, int(span / 4.0))
+		for i in steps + 1:
+			Terrain.level(leg[0].lerp(leg[1], float(i) / steps), 5.0, 11.0,
+				road_height)
+
 func _dress_battlefield() -> void:
 	_scenery = Scenery.new()
 	_scenery.name = "Scenery"
@@ -457,22 +515,9 @@ func _dress_battlefield() -> void:
 
 	_scenery.decorate_base(map.player_base, true)
 	_scenery.decorate_base(map.enemy_base, false)
-	## The road runs base to base through whatever sits in the middle, so
-	## the route most fighting happens along is legible on any layout.
-	var midpoint: Vector3 = (map.player_base + map.enemy_base) * 0.5
-	if not map.resource_fields.is_empty():
-		var best: Vector3 = midpoint
-		var nearest: float = INF
-		for field in map.resource_fields:
-			var point := Vector3(field.x, 0.0, field.z)
-			if point.distance_to(midpoint) < nearest:
-				nearest = point.distance_to(midpoint)
-				best = point
-		midpoint = best
-	var to_mid: Vector3 = (midpoint - map.player_base).normalized() * 20.0
-	var from_mid: Vector3 = (midpoint - map.enemy_base).normalized() * 20.0
-	_scenery.lay_road(map.player_base + to_mid, midpoint)
-	_scenery.lay_road(midpoint, map.enemy_base + from_mid)
+	var route: Array = _road_route()
+	_scenery.lay_road(route[0], route[1])
+	_scenery.lay_road(route[1], route[2])
 	## Ninety props on a 220m map is one object per 540 square metres -
 	## visually, bare ground. Clustered now, so this is stands of trees and
 	## fields of rock rather than a lattice.

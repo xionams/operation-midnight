@@ -100,6 +100,8 @@ func _spawn(kind: String, position: Vector3, rotation_y: float = 0.0,
 	node.rotation.y = rotation_y
 	if not is_equal_approx(scale, 1.0):
 		node.scale = Vector3.ONE * scale
+	## Props sit ON the ground, which is no longer flat.
+	Terrain.settle(node)
 	_fog_paint(node, kind in DETAILED_KINDS)
 	return node
 
@@ -349,9 +351,11 @@ func lay_ground_cover(map_size: float) -> void:
 					rng.randf_range(0.0, span), 0.0, rng.randf_range(0.0, span))
 				if not _is_clear_for_cover(point):
 					continue
+				point.y = Terrain.height_at(point.x, point.z)
 				var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
 				var size: float = scales[pick] * rng.randf_range(0.8, 1.6)
-				transforms.append(Transform3D(basis.scaled(Vector3.ONE * size), point))
+				transforms.append(Transform3D(
+					basis * Basis.from_scale(Vector3.ONE * size), point))
 			if transforms.is_empty():
 				continue
 
@@ -397,19 +401,55 @@ func _scale_of(scene: PackedScene) -> float:
 
 ## Terrain blockers keep their collision box and get a rock face instead
 ## of a grey cube. Purely a swap of what is drawn.
+## Rock formations, not a grid of cubes.
+##
+## The first version tiled a 4m cube across the blocker footprint on a
+## regular lattice. Kenney's cliff block is a unit cube with a grass top,
+## so a 40m ridge came out as a wall of identical green-topped boxes -
+## unmistakably Minecraft, and the single most out-of-place thing on the
+## screen. A lattice of cubes cannot read as rock at any scale.
+##
+## Boulders instead: several sizes, jittered off the grid, freely rotated
+## and overlapping, so the formation has a ragged outline and no two
+## pieces line up. The cubes are kept only as a buried core, which is what
+## stops a player seeing ground THROUGH a ridge they cannot walk past -
+## the collision box is still a box and the silhouette has to cover it.
+const BOULDERS: Array = ["rock_large", "rock_large_b", "rock_large_c",
+	"rock_large_d"]
+
 func dress_blocker(position: Vector3, size: Vector3) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(position.x * 131.0 + position.z * 17.0) & 0x7FFFFFFF
+
+	## A buried core so nothing shows through the mass. Sunk far enough
+	## that its flat top never reads as a surface.
 	var columns: int = maxi(1, int(size.x / 4.0))
 	var rows: int = maxi(1, int(size.z / 4.0))
 	for cx in range(columns):
 		for cz in range(rows):
 			var point := position + Vector3(
-				(cx - (columns - 1) / 2.0) * 4.0, 0.0, (cz - (rows - 1) / 2.0) * 4.0)
-			## A little slope mixed in, so an outcrop is not a wall of
-			## identical cubes.
-			var kind: String = "cliff_slope" if rng.randf() < 0.3 else "cliff"
-			var node := _spawn(kind, point, snappedf(
-				rng.randf_range(0.0, TAU), TAU / 4.0), rng.randf_range(0.98, 1.12))
-			node.position.y = -0.4
+				(cx - (columns - 1) / 2.0) * 4.0, 0.0,
+				(cz - (rows - 1) / 2.0) * 4.0)
+			var core := _spawn("cliff", point, snappedf(
+				rng.randf_range(0.0, TAU), TAU / 4.0), 1.0)
+			Terrain.settle(core, 2.1)
+
+	## Boulders over the top, at roughly one per 9 square metres of
+	## footprint, so a long ridge gets more rock than a small outcrop
+	## rather than the same handful stretched thin.
+	var count: int = maxi(6, int(size.x * size.z / 9.0))
+	for i in count:
+		var point := position + Vector3(
+			rng.randf_range(-size.x * 0.52, size.x * 0.52), 0.0,
+			rng.randf_range(-size.z * 0.52, size.z * 0.52))
+		var kind: String = BOULDERS[rng.randi_range(0, BOULDERS.size() - 1)]
+		var node := _spawn(kind, point, rng.randf_range(0.0, TAU),
+			rng.randf_range(1.1, 2.3))
+		## Varied sinking, so they sit IN the ground at different depths
+		## instead of all resting on it like dropped props.
+		Terrain.settle(node, rng.randf_range(0.2, 0.9))
+		## Tip them off level. A boulder that is perfectly upright reads
+		## as placed; one leaning reads as fallen.
+		node.rotation.x = rng.randf_range(-0.22, 0.22)
+		node.rotation.z = rng.randf_range(-0.22, 0.22)
 	_exclude(position, maxf(size.x, size.z) * 0.6)

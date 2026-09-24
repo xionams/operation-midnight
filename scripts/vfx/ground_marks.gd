@@ -105,7 +105,7 @@ func _ready() -> void:
 		node.name = name
 		node.multimesh = multi
 		node.material_override = material
-		## Marks lie flat on a 220m plane; without an explicit AABB Godot
+		## Marks lie flat across a 220m sheet; without an explicit AABB Godot
 		## derives one from the quad mesh and culls the lot the moment the
 		## origin leaves the frustum.
 		node.custom_aabb = AABB(Vector3(-extent, -1.0, -extent),
@@ -147,7 +147,9 @@ static func scorch(context: Node, position: Vector3, radius: float) -> void:
 	var size: float = radius * 2.0 * randf_range(0.85, 1.2)
 	marks._stamp(SCORCH, Transform3D(
 		basis * Basis.from_scale(Vector3(size, size, size)),
-		Vector3(position.x, LAYERS[SCORCH]["height"], position.z)))
+		Vector3(position.x,
+			Terrain.height_at(position.x, position.z) + LAYERS[SCORCH]["height"],
+			position.z)))
 
 ## Lay one stamp of ruts at `position`, running along `forward`.
 static func track(context: Node, position: Vector3, forward: Vector3,
@@ -174,7 +176,9 @@ static func track(context: Node, position: Vector3, forward: Vector3,
 	## The scorch layer never showed this because its scale is uniform.
 	marks._stamp(TRACK, Transform3D(
 		basis * Basis.from_scale(Vector3(width, length, 1.0)),
-		Vector3(position.x, LAYERS[TRACK]["height"], position.z)))
+		Vector3(position.x,
+			Terrain.height_at(position.x, position.z) + LAYERS[TRACK]["height"],
+			position.z)))
 
 ## How many marks of a layer are on the map. Used by the art pass tests.
 static func count(layer: String = SCORCH) -> int:

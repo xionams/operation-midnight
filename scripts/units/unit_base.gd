@@ -585,9 +585,43 @@ func _lay_tracks() -> void:
 	GroundMarks.track(self, global_position, heading,
 		stats.body_size.x * 0.92, TRACK_STEP * 2.2)
 
+## The ground rolls but collision does not, so nothing lifts a unit onto
+## the surface by itself. Snapped after movement rather than driven by
+## gravity: these are CharacterBody3D without gravity by design, and
+## giving them some now would mean re-validating every movement fix in the
+## game to buy nothing a player would notice.
+##
+## Only when the unit has actually moved. Writing global_position on a
+## CharacterBody3D forces a physics-server transform sync, and doing that
+## unconditionally for 120 bodies every physics frame cost 10 FPS - more
+## than shadows, more than the whole effects layer. A stationary unit's
+## ground height cannot change, and a moving one climbs slowly enough
+## that a third of a metre of travel between updates is not visible.
+## 0.5m of travel between updates. Chosen for accuracy, not for frames:
+## 0.35, 0.5 and 0.9 all measured within the stress test's own run-to-run
+## noise, so there is nothing to buy by widening it further, and 0.5 keeps
+## a unit within ~0.1m of the surface at this relief.
+const SETTLE_STEP: float = 0.5
+var _settled_at: Vector3 = Vector3.INF
+
+func _settle_on_ground() -> void:
+	## Read the transform ONCE. global_position is a computed property -
+	## every access walks the parent chain - and this used to touch it four
+	## times per unit per frame.
+	var here: Vector3 = global_position
+	if _settled_at.is_finite():
+		var dx: float = here.x - _settled_at.x
+		var dz: float = here.z - _settled_at.z
+		if dx * dx + dz * dz < SETTLE_STEP * SETTLE_STEP:
+			return
+	_settled_at = here
+	here.y = Terrain.height_at(here.x, here.z)
+	global_position = here
+
 func _physics_process(delta: float) -> void:
 	_refresh_damage_visual()
 	_lay_tracks()
+	_settle_on_ground()
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()
