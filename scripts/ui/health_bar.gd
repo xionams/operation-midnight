@@ -10,6 +10,20 @@ const SHOW_AFTER_DAMAGE: float = 4.0
 const WIDTH: float = 1.8
 const HEIGHT: float = 0.22
 
+const PIPS: Texture2D = preload("res://assets/textures/pips.png")
+
+## How many segments a bar is divided into, by how much health it has.
+##
+## A solid bar is read by judging a length; a segmented one is read by
+## counting, which is faster and more precise. Tying the count to health
+## means the pips also carry a second signal for free: a unit with twice
+## as many segments is visibly twice as tough, without the bar getting
+## any longer.
+const PIP_TIERS: Array = [
+	[150.0, 3], [350.0, 5], [700.0, 7], [1200.0, 9],
+]
+const PIP_MAX: int = 12
+
 var _health: HealthComponent
 var _fill: MeshInstance3D
 var _fill_material: StandardMaterial3D
@@ -37,9 +51,28 @@ func _build(width: float) -> void:
 	_fill.position = Vector3(0, 0, 0.01)
 	add_child(_fill)
 
+	## Dividers sit OVER the whole bar, not over the fill, so the empty
+	## part stays segmented too - that is what lets a player see how much
+	## is missing rather than only how much is left. One quad and one
+	## shared texture whatever the segment count.
+	var pips := _make_quad(Color(1, 1, 1), _fill_width, HEIGHT * 0.66)
+	var pip_material: StandardMaterial3D = pips.material_override
+	pip_material.albedo_texture = PIPS
+	pip_material.uv1_scale = Vector3(_segments(), 1.0, 1.0)
+	pip_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	pips.position = Vector3(0, 0, 0.02)
+	add_child(pips)
+
 	visible = false
 	if _health != null:
 		_health.health_changed.connect(_on_health_changed)
+
+func _segments() -> int:
+	var maximum: float = _health.max_health if _health != null else 100.0
+	for tier in PIP_TIERS:
+		if maximum <= tier[0]:
+			return tier[1]
+	return PIP_MAX
 
 func _make_quad(color: Color, width: float, height: float) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()

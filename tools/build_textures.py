@@ -381,6 +381,31 @@ def build_track(rng):
     return np.concatenate([rgb, (alpha * 255.0)[:, :, None]], axis=-1)
 
 
+def build_pips():
+    """Segment dividers for a health bar, tiled along its length.
+
+    A solid bar is read by judging a LENGTH, which is slow and imprecise.
+    A segmented one is read by counting, which is neither - it is why
+    every strategy game since Dune II pips its health bars.
+
+    One narrow strip, tiled by however many segments the bar wants, so a
+    tank with ten pips and a rifleman with four share this texture and
+    differ only by uv1_scale. Transparent except the divider, so it can be
+    laid over the fill without hiding it.
+    """
+    width, height = 16, 8
+    rgba = np.zeros((height, width, 4), dtype=np.float32)
+    ## Divider on the left edge of each tile, two pixels of it: one is
+    ## invisible once the bar is scaled down on screen.
+    rgba[:, 0:2, 3] = 235.0
+    ## Very dark rather than black, so a divider over a red bar does not
+    ## read as a hole punched through it.
+    rgba[:, :, 0] = 18.0
+    rgba[:, :, 1] = 20.0
+    rgba[:, :, 2] = 22.0
+    return rgba
+
+
 def main():
     out = os.path.abspath(OUT_DIR)
     os.makedirs(out, exist_ok=True)
@@ -393,6 +418,7 @@ def main():
     surface_normal = build_normal(surface_height, strength=3.0)
     scorch = build_scorch(rng)
     track = build_track(rng)
+    pips = build_pips()
 
     for name, image in [("ground_macro", macro),
                         ("ground_detail", detail),
@@ -400,7 +426,8 @@ def main():
                         ("surface_detail", surface),
                         ("surface_normal", surface_normal),
                         ("scorch", scorch),
-                        ("track", track)]:
+                        ("track", track),
+                        ("pips", pips)]:
         path = os.path.join(out, name + ".png")
         size = write_png(path, image)
         print("wrote %-28s %4dx%-4d %6.1f KiB"

@@ -244,6 +244,14 @@ func _build_selection_ring() -> void:
 	## Never swallowed by the ground it is lying on.
 	material.no_depth_test = true
 	selection_ring.material_override = material
+
+	## A facing tick was tried here and removed. "Front" is -Z, which from
+	## this camera is up the screen - exactly where the health bar sits -
+	## so the tick collided with the readout it was meant to complement,
+	## and the ring's no_depth_test drew it as a bright slab over the
+	## vehicle. Facing is worth showing, but not as a second floating
+	## element competing with the bar; it wants to be part of the ring
+	## itself, which needs a shader rather than another mesh.
 	selection_ring.visible = false
 	add_child(selection_ring)
 
