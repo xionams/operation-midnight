@@ -63,7 +63,10 @@ Every unit/building `.tscn` is just a root node (`CharacterBody3D` / `StaticBody
 - `WASD` / arrow keys — pan camera
 - Mouse wheel — zoom
 - Left click — select a unit; left-drag — box-select; click empty ground — deselect
-- Right click — move selected units, or attack-move if you right-click an enemy
+- Right click — move selected units, or attack-move if you right-click an enemy (infantry can be ordered onto enemy infantry, vehicles and buildings)
+- `C` — toggle the selected infantry between RUN (full speed) and CROUCH (60% speed, 135% damage); also the sidebar Crouch/Run button. Values live in `config/stances/`
+- Right click a civilian building (house 2, block 4, warehouse 8) with infantry selected — garrison it; select the building and press Unload to bring them out
+- Wall / gate tool — press, drag, release lays a grid-snapped line (a staircase on diagonals); segments join into corners, T-junctions and crossings. Your units path through your own gates; enemies do not
 - `F3` — toggle debug overlay (FPS, unit count, credits, power, match state)
 
 **Android (touch):**
