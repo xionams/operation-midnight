@@ -49,6 +49,23 @@ func progress() -> float:
 		return 1.0
 	return clampf(1.0 - _remaining / total, 0.0, 1.0)
 
+## Why `stats` cannot be queued here right now, or "" if it can. The
+## sidebar reports this instead of a tile that silently does nothing.
+func enqueue_error(stats: UnitStats) -> String:
+	if stats == null:
+		return "Nothing to build"
+	var owner_is_player: bool = get_parent().is_player_faction
+	if is_full():
+		return "%s queue is full (%d)" % [get_parent().stats.display_name, MAX_QUEUED]
+	if not TechTree.is_available(stats, owner_is_player):
+		return "%s is not available yet" % stats.display_name
+	if not TechTree.has_population_for(stats, owner_is_player):
+		return "Unit cap reached (%d/%d) - build more structures" % [
+			TechTree.population_used(owner_is_player), TechTree.population_cap(owner_is_player)]
+	if GameState.balance_of(owner_is_player) < stats.cost:
+		return "Insufficient funds for %s" % stats.display_name
+	return ""
+
 func enqueue(stats: UnitStats, scene: PackedScene) -> bool:
 	if stats == null or scene == null or is_full():
 		return false

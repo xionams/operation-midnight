@@ -660,12 +660,13 @@ func _on_item_pressed(stats) -> void:
 
 	var producer := BuildCatalog.producer_for(stats, true)
 	if producer == null:
-		_flash_event("Requires %s" % stats.produced_by, Color(1.0, 0.6, 0.3))
+		Feedback.reject("%s requires a %s" % [stats.display_name, stats.produced_by])
 		return
-	if not TechTree.has_population_for(stats, true):
-		_flash_event("Unit cap reached", Color(1.0, 0.6, 0.3))
+	var reason: String = producer.queue.enqueue_error(stats)
+	if not reason.is_empty() or not producer.produce(stats):
+		Feedback.reject(reason if not reason.is_empty() else "Can't queue %s" % stats.display_name)
 		return
-	producer.produce(stats)
+	Feedback.info("%s queued at %s" % [stats.display_name, producer.stats.display_name])
 
 func _on_construction_ready(stats: BuildingStats) -> void:
 	_flash_event("%s ready — place it" % stats.display_name, Color(0.4, 1.0, 0.5))
@@ -1064,6 +1065,11 @@ func _build_setup_screen() -> void:
 	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	map_row.add_theme_constant_override("separation", 10)
 	column.add_child(map_row)
+	## Default to the battlefield already built (a restart or a map chosen
+	## before this scene), not blindly to the first in the list - that
+	## silently switched maps and reloaded the scene on START.
+	if _chosen_map == null and GameState.selected_map != null:
+		_chosen_map = GameState.selected_map
 	for path in MAPS:
 		var definition: Resource = load(path)
 		if definition == null:
