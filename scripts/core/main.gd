@@ -216,8 +216,10 @@ var _water_baking: bool = false
 func _build_sea() -> void:
 	if not Water.has_water():
 		return
-	var surface_material := _make_fog_material(Color(0.13, 0.33, 0.46))
-	surface_material.set_shader_parameter("roughness_value", 0.25)
+	## A deep, slightly green-grey blue: the first cut was a saturated
+	## pool blue that out-shouted every unit on it.
+	var surface_material := _make_fog_material(Color(0.05, 0.12, 0.17))
+	surface_material.set_shader_parameter("roughness_value", 0.55)
 	for poly in Water.polygons():
 		## Grown a little past the waterline so it tucks under the beach
 		## rather than leaving a seam where the two meet.

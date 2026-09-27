@@ -325,7 +325,10 @@ func _build_sidebar() -> void:
 	## with a floor of two rows of cameos. A floor of four looked better on
 	## a desktop window and pushed the order buttons off the bottom of a
 	## 720p phone screen, which is the size that actually matters.
-	scroll.custom_minimum_size = Vector2(0, TILE_H * 2 + 6)
+	## Then trimmed to one row and a peek of the next when the selection
+	## card grew enough to say what a unit is doing: the half-visible row
+	## still tells the player the list scrolls.
+	scroll.custom_minimum_size = Vector2(0, TILE_H * 1.35)
 	scroll.add_theme_stylebox_override("panel",
 		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
 			Color(0.03, 0.04, 0.04), 1))
@@ -362,9 +365,14 @@ func _build_sidebar() -> void:
 	# --- selection, then orders ---
 	_info_panel = RichTextLabel.new()
 	_info_panel.bbcode_enabled = true
-	_info_panel.fit_content = true
-	_info_panel.custom_minimum_size = Vector2(0, 50)
-	_info_panel.add_theme_font_size_override("normal_font_size", 13)
+	## Fixed height, scrolling: growing to fit pushed the order buttons off
+	## the bottom of the screen as soon as the card had anything to say.
+	_info_panel.fit_content = false
+	_info_panel.scroll_active = true
+	_info_panel.custom_minimum_size = Vector2(0, 118)
+	_info_panel.add_theme_font_size_override("normal_font_size", 12)
+	_info_panel.add_theme_font_size_override("bold_font_size", 13)
+	_info_panel.add_theme_font_size_override("italics_font_size", 11)
 	var info_frame := PanelContainer.new()
 	info_frame.add_theme_stylebox_override("panel",
 		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
@@ -378,12 +386,14 @@ func _build_sidebar() -> void:
 	_set_category(_category)
 
 func _build_order_controls(column: VBoxContainer) -> void:
+	## Four across: seven unit orders in two rows. At three across the
+	## posture button fell to a third row below the bottom of a 720p screen.
 	var orders := GridContainer.new()
-	orders.columns = 3
+	orders.columns = 4
 	orders.add_theme_constant_override("h_separation", 3)
 	orders.add_theme_constant_override("v_separation", 3)
 	column.add_child(orders)
-	_attack_move_button = _order_button(orders, "Atk Move",
+	_attack_move_button = _order_button(orders, "A-Move",
 		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed),
 		"cmd_attack_move")
 	_attack_move_button.tooltip_text = "Attack-move (A): advance and engage anything met on the way"
@@ -679,13 +689,17 @@ func _order_button(parent: Control, text: String, handler: Callable,
 		icon_name: String = "") -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(86, TOUCH_MIN)
-	button.add_theme_font_size_override("font_size", 13)
+	button.custom_minimum_size = Vector2(64, TOUCH_MIN)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.clip_text = true
+	button.add_theme_font_size_override("font_size", 11)
 	var icon := Icons.get_icon(icon_name)
 	if icon != null:
 		button.icon = icon
-		button.expand_icon = true
-		button.add_theme_constant_override("h_separation", 4)
+		## Small fixed icons: at four buttons a row an expanding icon ate
+		## the label down to two letters.
+		button.add_theme_constant_override("icon_max_width", 12)
+		button.add_theme_constant_override("h_separation", 2)
 	_style_button(button)
 	button.pressed.connect(handler)
 	parent.add_child(button)
@@ -776,17 +790,17 @@ func _describe_one(entity) -> String:
 		hp_line = "[color=%s]%d / %d HP[/color]" % [colour, int(health.current_health), int(health.max_health)]
 	var lines: Array = []
 	lines.append("[b]%s[/b]  %s" % [entity.stats.display_name.to_upper(), _owner_tag(entity)])
-	if not entity.stats.role.is_empty():
-		lines.append("[i][color=#c8ccbb]%s[/color][/i]" % entity.stats.role)
-	lines.append("")
-	lines.append(hp_line)
+	## The role goes last: the card is read top-down in a glance, and
+	## health, state and reach are what a player needs mid-fight.
+	var role_line: String = "[i][color=#a9ad9c]%s[/color][/i]" % entity.stats.role \
+		if not entity.stats.role.is_empty() else ""
 
 	if entity is BuildingBase:
 		var building := entity as BuildingBase
 		var stats: BuildingStats = building.stats
 		var power: String = "+%d" % stats.power_generation if stats.power_generation > 0 \
 			else ("-%d" % stats.power_consumption if stats.power_consumption > 0 else "none")
-		lines.append("%s structure · Power %s" % [PlacementDomain.name_of(stats.placement_domain), power])
+		lines.append("%s · %s structure · Power %s" % [hp_line, PlacementDomain.name_of(stats.placement_domain), power])
 		var queue = building.get("queue")
 		if queue != null:
 			if queue.queue_length() > 0:
@@ -809,12 +823,24 @@ func _describe_one(entity) -> String:
 			lines.append("Your units pass through; the enemy cannot")
 		if building.repairing:
 			lines.append("[color=#7fe08a]Repairing[/color]")
+		if not role_line.is_empty():
+			lines.append(role_line)
 		return "\n".join(lines)
 
 	var unit_stats: UnitStats = entity.stats
 	var kind: String = "Warship" if unit_stats.movement_domain == PlacementDomain.Domain.WATER \
 		else ("Infantry" if unit_stats.is_infantry else "Vehicle")
-	lines.append("%s · %s armour" % [kind, Armor.type_name(unit_stats.armor_type).capitalize()])
+	lines.append("%s · %s · %s armour" % [hp_line, kind, Armor.type_name(unit_stats.armor_type).capitalize()])
+	var state: String = "[color=#9fd0ff]%s[/color]" % _activity_of(entity)
+	var stealth: Stealth = entity.get_node_or_null("Stealth")
+	if stealth != null:
+		if stealth.is_surfaced():
+			state += "  [color=#ffd479]SURFACED - visible to the enemy[/color]"
+		elif stealth.is_exposed():
+			state += "  [color=#ff7a6a]SUBMERGED - found by enemy sonar[/color]"
+		else:
+			state += "  [color=#7fd0ff]SUBMERGED - hidden[/color]"
+	lines.append(state)
 	var weapon: WeaponStats = unit_stats.weapon_stats
 	if weapon != null:
 		lines.append("%s %d · %dm · hits %s" % [weapon.display_name, int(weapon.damage),
@@ -824,17 +850,6 @@ func _describe_one(entity) -> String:
 	var senses: String = "Vision %dm" % int(unit_stats.vision_range)
 	if unit_stats.sonar_range > 0.0:
 		senses += " · Sonar %dm" % int(unit_stats.sonar_range)
-	lines.append(senses)
-	var stealth: Stealth = entity.get_node_or_null("Stealth")
-	if stealth != null:
-		if stealth.is_surfaced():
-			lines.append("[color=#ffd479]SURFACED - visible to the enemy[/color]")
-		elif stealth.is_exposed():
-			lines.append("[color=#ff7a6a]SUBMERGED - but enemy sonar has found it[/color]")
-		else:
-			lines.append("[color=#7fd0ff]SUBMERGED - hidden from the enemy[/color]")
-	lines.append("")
-	lines.append("[color=#9fd0ff]%s[/color]" % _activity_of(entity))
 	var posture := InfantryStance.of(entity)
 	var vet: VeterancyComponent = entity.get_node_or_null("VeterancyComponent")
 	var tail: String = "Stance: %s" % UnitBase.Stance.keys()[entity.stance].capitalize()
@@ -842,7 +857,9 @@ func _describe_one(entity) -> String:
 		tail += " · Posture: %s" % InfantryStance.mode_name(posture.mode)
 	if vet != null:
 		tail += " · %s" % VeterancyComponent.rank_name(vet.rank)
-	lines.append(tail)
+	lines.append(tail + " · " + senses)
+	if not role_line.is_empty():
+		lines.append(role_line)
 	return "\n".join(lines)
 
 var _panel_refresh: float = 0.0
