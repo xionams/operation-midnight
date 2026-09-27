@@ -66,6 +66,8 @@ Every unit/building `.tscn` is just a root node (`CharacterBody3D` / `StaticBody
 - Right click — move selected units, or attack-move if you right-click an enemy (infantry can be ordered onto enemy infantry, vehicles and buildings)
 - `C` — toggle the selected infantry between RUN (full speed) and CROUCH (60% speed, 135% damage); also the sidebar Crouch/Run button. Values live in `config/stances/`
 - Right click a civilian building (house 2, block 4, warehouse 8) with infantry selected — garrison it; select the building and press Unload to bring them out
+- Right click ground with only a production building selected — set its rally point
+- Every order answers: a ring where it landed, a red target lock on what you attacked, a red crossed ring and a sidebar message (with an error tone) when it was refused and why. Selected units show green lines to where they are going and red lines to what they are shooting
 - Wall / gate tool — press, drag, release lays a grid-snapped line (a staircase on diagonals); segments join into corners, T-junctions and crossings. Your units path through your own gates; enemies do not
 - `F3` — toggle debug overlay (FPS, unit count, credits, power, match state)
 
@@ -75,6 +77,16 @@ Every unit/building `.tscn` is just a root node (`CharacterBody3D` / `StaticBody
 - Tap a unit — select it
 - Tap terrain after selecting units — move there; tap an enemy — attack it
 - HUD buttons (bottom bar) — Build Power Plant / Build Refinery / Build Harvester / Cancel (while placing, drag to position the ghost, lift your finger to confirm)
+
+## The sea (Coastline map)
+
+Pick **Coastline** in the skirmish setup. Both bases sit above a southern sea:
+
+- Land units path on the land navmesh and stop at the beach; ships path on a separate sea navmesh (`NavLayers.LAND` / `NavLayers.WATER`) and stop at the coast. Ordering either into the wrong element says so.
+- **Naval Yard** (Structures tab): built on water, against your shore, inside your territory. It trains warships from the **SEA** tab and extends your territory out to sea. **Sonar Buoy** (Defenses): open water in your territory.
+- **Patrol Boat**: deck gun reaches land, ships and submarines its sonar (12m) has found.
+- **Attack Submarine**: hidden from the enemy while submerged; exposed by enemy sonar (boats 12m, yards 14m, buoys 22m) or for 3s after firing. Torpedoes reach ships and submarines, never land.
+- Land weapons and defences reach surface ships but never a submerged submarine.
 
 ## Running the prototype
 

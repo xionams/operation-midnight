@@ -83,7 +83,13 @@ func _run() -> void:
 				_director._attack_committed, _director.memory.has_base_guess])
 
 		## Once it is established, raze a structure and see if it rebuilds.
-		if not razed_once and elapsed > 240.0 and _has("Power Plant"):
+		## At 200s, not 240s: the passive player is usually overrun around
+		## 242-246s, which ends the loop, and the AI keeps a credit reserve,
+		## so a raze at 240s only "rebuilt" when a harvester delivery
+		## happened to land in the next ~3s (instrumented: baseline passed
+		## on a 700-credit delivery 1.6s after the raze). 200s leaves the
+		## rebuild a real window.
+		if not razed_once and elapsed > 200.0 and _has("Power Plant"):
 			for b in _enemy_buildings():
 				if is_instance_valid(b) and b.stats != null \
 					and b.stats.display_name == "Power Plant":
