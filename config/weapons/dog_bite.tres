@@ -16,3 +16,4 @@ tracer_color = Color(0.9, 0.3, 0.3, 1)
 requires_setup = false
 splash_radius = 0.0
 can_target_air = false
+excluded_armor = Array[int]([1, 2, 3, 4])

@@ -326,7 +326,7 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 			move_to(position)
 		CommandTypes.Type.ATTACK:
 			if attacker:
-				attacker.set_target(target)
+				attacker.set_target(target, true)
 			elif target is Node3D:
 				move_to((target as Node3D).global_position)
 		CommandTypes.Type.ATTACK_MOVE:
@@ -500,7 +500,7 @@ func _nearest_in_group(group: String, radius: float, attacker: AttackerComponent
 			continue
 		if not attacker.weapon.can_damage(candidate):
 			continue
-		var dist: float = global_position.distance_to(candidate.global_position)
+		var dist: float = CombatTarget.distance(global_position, candidate)
 		if dist > radius or dist >= best_dist:
 			continue
 		## The leash keeps a unit holding a position from wandering off

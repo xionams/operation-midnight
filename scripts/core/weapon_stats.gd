@@ -32,6 +32,16 @@ class_name WeaponStats
 
 @export var can_target_air: bool = false
 
+## Armor classes (Armor.Type values) this weapon will never engage,
+## whatever the damage table says. An Attack Dog's bite shares the
+## small-arms row with rifles, but a dog does not chew through a tank or a
+## wall - it lists everything except INFANTRY here. Everything else leaves
+## this empty and defers to the table.
+@export var excluded_armor: Array[int] = []
+
+func excludes(armor: int) -> bool:
+	return excluded_armor.has(armor)
+
 func multiplier_for(armor: int) -> float:
 	return DamageTypes.multiplier(damage_type, armor)
 

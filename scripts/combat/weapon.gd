@@ -27,13 +27,28 @@ func can_fire() -> bool:
 ## Dog would happily chase a Main Battle Tank and die achieving nothing.
 const MIN_USEFUL_MULTIPLIER: float = 0.25
 
+##
+## This is the bar for choosing a target by ITSELF (idle defence,
+## attack-move, towers). A direct order from the player is judged by
+## can_attack instead: a rifleman told to shoot a tank should shoot it,
+## however little it achieves - that is the player's call to make.
 func can_damage(target: Node) -> bool:
+	if not can_attack(target):
+		return false
+	var health: HealthComponent = target.get_node_or_null("HealthComponent")
+	return stats.multiplier_for(health.armor_type) >= MIN_USEFUL_MULTIPLIER
+
+## True when this weapon can hurt the target at all and is not the kind
+## of weapon that refuses that armor outright (see WeaponStats.excluded_armor).
+func can_attack(target: Node) -> bool:
 	if stats == null or not is_instance_valid(target):
 		return false
 	var health: HealthComponent = target.get_node_or_null("HealthComponent")
 	if health == null:
 		return false
-	return stats.multiplier_for(health.armor_type) >= MIN_USEFUL_MULTIPLIER
+	if stats.excludes(health.armor_type):
+		return false
+	return stats.multiplier_for(health.armor_type) > 0.0
 
 func fire_at(target: Node3D, from_position: Vector3) -> void:
 	if not can_fire() or not is_instance_valid(target):
