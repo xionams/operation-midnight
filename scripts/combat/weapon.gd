@@ -55,12 +55,19 @@ func can_attack(target: Node) -> bool:
 		return false
 	if stats.excludes(health.armor_type):
 		return false
+	if not stats.reaches(CombatTarget.domain_of(target)):
+		return false
 	return stats.multiplier_for(health.armor_type) > 0.0
 
 func fire_at(target: Node3D, from_position: Vector3) -> void:
 	if not can_fire() or not is_instance_valid(target):
 		return
 	var attacker := get_parent()
+	## A submarine has to come up to shoot, which is what lets it be
+	## answered (see Stealth).
+	var stealth: Stealth = attacker.get_node_or_null("Stealth")
+	if stealth != null:
+		stealth.surface()
 	## Posture (RUN / CROUCH) scales rate of fire and damage here, once,
 	## the same way rank does - see InfantryStance.
 	var posture: StanceModifiers = InfantryStance.modifiers_of(attacker)

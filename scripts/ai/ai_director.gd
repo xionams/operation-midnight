@@ -466,17 +466,37 @@ func _power_shortfall() -> int:
 
 ## A ring of slots that expands outward, wide enough that structures
 ## never seal the AI's own harvesters inside the base.
+##
+## A slot whose footprint would stand in the sea, or on another structure,
+## is skipped for the next one. On a land-only map every slot is legal and
+## this is exactly the old ring; on a coast it keeps the base on land.
 func _place(stats: BuildingStats) -> void:
-	var angle: float = TAU * float(_build_slot % 7) / 7.0
-	var ring: float = BUILD_SPACING + float(_build_slot / 7) * 9.0
-	_build_slot += 1
-	var offset := Vector3(cos(angle), 0, sin(angle)) * ring
+	var offset := Vector3.ZERO
+	for attempt in 21:
+		var angle: float = TAU * float(_build_slot % 7) / 7.0
+		var ring: float = BUILD_SPACING + float(_build_slot / 7) * 9.0
+		_build_slot += 1
+		offset = Vector3(cos(angle), 0, sin(angle)) * ring
+		if _slot_is_legal(stats, base_position + offset):
+			break
 	var building = stats.scene.instantiate()
 	building.stats = stats
 	building.is_player_faction = is_player
 	_nav_region.add_child(building)
 	building.global_position = base_position + offset
 	EventBus.building_placed.emit(building)
+
+func _slot_is_legal(stats: BuildingStats, point: Vector3) -> bool:
+	if not PlacementDomain.error_for(stats, point).is_empty():
+		return false
+	for other in get_tree().get_nodes_in_group("buildings"):
+		if not is_instance_valid(other) or other.stats == null:
+			continue
+		var gap: Vector2 = (stats.footprint + other.stats.footprint) * 0.5
+		if absf(point.x - other.global_position.x) < gap.x \
+			and absf(point.z - other.global_position.z) < gap.y:
+			return false
+	return true
 
 # ---------------------------------------------------------- production
 

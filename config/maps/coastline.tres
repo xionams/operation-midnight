@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MapDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/map_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Coastline"
+description = "Both bases sit above a long southern sea. Land ore is enough to start, but the open water is a second front: expand to the shore, raise a Naval Yard and contest the sea lanes - or be shelled from them."
+size = 220.0
+player_base = Vector3(-78, 0, -20)
+enemy_base = Vector3(78, 0, -20)
+start_reveal_radius = 38.0
+resource_fields = Array[Vector3]([Vector3(-60, 16000, -46), Vector3(60, 16000, -46), Vector3(0, 24000, -34), Vector3(-30, 12000, 0), Vector3(30, 12000, 0)])
+civilian_positions = Array[Vector3]([Vector3(-40, 0, -64), Vector3(40, 0, -64), Vector3(0, 0, -72), Vector3(0, 0, 6)])
+civilian_kinds = PackedStringArray("house", "house", "warehouse", "structure")
+comms_outpost = Vector3(0, 0, -52)
+repair_depot = Vector3(-44, 0, -86)
+supply_depot = Vector3(44, 0, -86)
+water_polygons = Array[PackedVector2Array]([PackedVector2Array(-270, 24, -110, 24, -96, 20, -80, 17, -64, 19, -48, 26, -30, 31, -14, 27, 0, 23, 14, 27, 30, 31, 48, 26, 64, 19, 80, 17, 96, 20, 110, 24, 270, 24, 270, 270, -270, 270)])
+water_level = -0.9
+blockers = Array[Vector3]([Vector3(-22, 0, -92), Vector3(24, 7, 10), Vector3(22, 0, -92), Vector3(24, 7, 10), Vector3(-52, 0, -6), Vector3(10, 7, 18), Vector3(52, 0, -6), Vector3(10, 7, 18)])

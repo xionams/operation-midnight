@@ -37,6 +37,12 @@ var _population_label: Label
 var _low_power_label: Label
 
 var _category: String = "BUILDINGS"
+const CATEGORY_NAMES: Dictionary = {
+	"BUILDINGS": "Structures", "DEFENSE": "Defenses and walls",
+	"INFANTRY": "Infantry (Barracks)", "VEHICLES": "Vehicles (Vehicle Factory)",
+	"NAVAL": "Warships (Naval Yard)",
+}
+const CATEGORY_SHORT: Dictionary = {"NAVAL": "SEA"}
 var _item_list: GridContainer
 var _item_rows: Dictionary = {}
 var _item_bars: Dictionary = {}
@@ -78,6 +84,7 @@ const MAPS: Array[String] = [
 	"res://config/maps/ridgeline.tres",
 	"res://config/maps/dry_basin.tres",
 	"res://config/maps/cold_corridor.tres",
+	"res://config/maps/coastline.tres",
 ]
 var _map_buttons: Dictionary = {}
 var _map_blurb: Label
@@ -111,6 +118,7 @@ func _ready() -> void:
 	GameState.match_ended.connect(_on_match_ended)
 	EventBus.building_captured.connect(_on_building_captured)
 	EventBus.building_infiltrated.connect(_on_building_infiltrated)
+	EventBus.feedback.connect(_on_feedback)
 	EventBus.objective_changed.connect(_on_objective_changed)
 	if construction:
 		construction.order_ready.connect(_on_construction_ready)
@@ -294,16 +302,16 @@ func _build_sidebar() -> void:
 	column.add_child(tabs)
 	for category in BuildCatalog.categories():
 		var tab := Button.new()
-		tab.tooltip_text = category
+		tab.tooltip_text = CATEGORY_NAMES.get(category, category.capitalize())
 		tab.toggle_mode = true
 		tab.button_pressed = category == _category
-		tab.custom_minimum_size = Vector2(68, TOUCH_MIN * 0.82)
+		tab.custom_minimum_size = Vector2(52, TOUCH_MIN * 0.82)
 		var tab_icon := Icons.for_category(category)
 		if tab_icon != null:
 			tab.icon = tab_icon
 			tab.expand_icon = true
 		else:
-			tab.text = category.substr(0, 4)
+			tab.text = CATEGORY_SHORT.get(category, category.substr(0, 4))
 		_style_button(tab)
 		tab.pressed.connect(func(): _set_category(category))
 		tabs.add_child(tab)
@@ -378,31 +386,43 @@ func _build_order_controls(column: VBoxContainer) -> void:
 	_attack_move_button = _order_button(orders, "Atk Move",
 		func(): SelectionManager.arm_attack_move(not SelectionManager.attack_move_armed),
 		"cmd_attack_move")
-	_order_button(orders, "Stop", func(): SelectionManager.command_stop(), "cmd_stop")
-	_order_button(orders, "Guard", func(): SelectionManager.command_guard(), "cmd_guard")
-	_order_button(orders, "Patrol", func(): SelectionManager.arm_patrol(), "cmd_patrol")
-	_order_button(orders, "Hold",
+	_attack_move_button.tooltip_text = "Attack-move (A): advance and engage anything met on the way"
+	var stop := _order_button(orders, "Stop", func(): SelectionManager.command_stop(), "cmd_stop")
+	stop.tooltip_text = "Stop (S): cancel orders and hold here"
+	var guard := _order_button(orders, "Guard", func(): SelectionManager.command_guard(), "cmd_guard")
+	guard.tooltip_text = "Guard: hold position and engage what comes close"
+	var patrol := _order_button(orders, "Patrol", func(): SelectionManager.arm_patrol(), "cmd_patrol")
+	patrol.tooltip_text = "Patrol (P): then click a point to sweep back and forth to"
+	var hold := _order_button(orders, "Hold",
 		func(): SelectionManager.set_stance(UnitBase.Stance.HOLD), "cmd_hold")
-	_order_button(orders, "Aggro",
+	hold.tooltip_text = "Hold stance: never chase, fire only at what comes into range"
+	var aggro := _order_button(orders, "Aggro",
 		func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE), "cmd_aggro")
+	aggro.tooltip_text = "Aggressive stance: wide acquisition and a long chase"
+	_unit_order_buttons = [_attack_move_button, stop, guard, patrol, hold, aggro]
 	## Infantry posture. Toggles RUN <-> CROUCH for the selected soldiers
 	## (hotkey C); the info panel shows which one they are in.
 	_posture_button = _order_button(orders, "Crouch",
 		func(): SelectionManager.toggle_infantry_stance(), "cmd_hold")
 	_posture_button.name = "PostureButton"
+	_posture_button.tooltip_text = "Posture (C): RUN is full speed; CROUCH is 60% speed and 135% damage"
 
 	_building_actions = HBoxContainer.new()
 	_building_actions.add_theme_constant_override("separation", 3)
 	_building_actions.visible = false
 	column.add_child(_building_actions)
-	_order_button(_building_actions, "Sell", _on_sell_pressed, "cmd_sell")
-	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair")
+	_order_button(_building_actions, "Sell", _on_sell_pressed, "cmd_sell") \
+		.tooltip_text = "Sell for half the build cost; anyone garrisoned walks out"
+	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair") \
+		.tooltip_text = "Toggle repair: restores health, draining credits as it goes"
 	_order_button(_building_actions, "Rally",
 		func(): SelectionManager.arm_rally_point(), "cmd_move")
 	## Garrisoned soldiers come back out.
 	var unload := _order_button(_building_actions, "Unload",
 		func(): SelectionManager.command_evacuate(), "cmd_stop")
 	unload.name = "UnloadButton"
+	unload.tooltip_text = "Unload every soldier garrisoned in the selected building"
+	_unload_button = unload
 
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 3)
@@ -601,7 +621,7 @@ func _refresh_items() -> void:
 		elif missing.is_empty():
 			if price != null:
 				price.text = "$%s" % _thousands(stats.cost)
-			row.tooltip_text = stats.role if stats is UnitStats else ""
+			row.tooltip_text = _tile_tooltip(stats)
 			var affordable: bool = GameState.credits >= stats.cost
 			row.disabled = not affordable
 			## Dim rather than hide what is merely unaffordable: knowing
@@ -613,6 +633,18 @@ func _refresh_items() -> void:
 			row.tooltip_text = "Needs %s" % ", ".join(missing)
 			row.disabled = true
 			row.modulate = Color(0.52, 0.52, 0.58)
+
+## Build tile tooltip: what it is for, and anything unusual about where
+## it goes or who builds it.
+func _tile_tooltip(stats) -> String:
+	var lines: Array = ["%s - $%s" % [stats.display_name, _thousands(stats.cost)]]
+	if not stats.role.is_empty():
+		lines.append(stats.role)
+	if stats is BuildingStats and stats.placement_domain == PlacementDomain.Domain.WATER:
+		lines.append("Built on water%s." % (" against your shore" if stats.requires_shore else ""))
+	if stats is UnitStats and not stats.produced_by.is_empty():
+		lines.append("Trained at: %s" % stats.produced_by)
+	return "\n".join(lines)
 
 func _on_item_pressed(stats) -> void:
 	if stats is BuildingStats:
@@ -729,51 +761,144 @@ func _refresh_posture_button(selected: Array) -> void:
 	_posture_button.disabled = infantry == 0
 	_posture_button.text = "Run" if infantry > 0 and crouched == infantry else "Crouch"
 
+## The selected-entity card. Every line answers a question a player
+## actually asks of a selection: whose is it, what is it for, how hurt is
+## it, what is it doing now, and what can it hit.
 func _describe_one(entity) -> String:
 	if not is_instance_valid(entity) or entity.stats == null:
 		return ""
 	var health: HealthComponent = entity.get_node_or_null("HealthComponent")
-	var hp: String = "%d / %d" % [int(health.current_health), int(health.max_health)] if health else "-"
+	var hp_line: String = "-"
+	if health != null:
+		var fraction: float = health.health_fraction()
+		var colour: String = "#7fe08a" if fraction > 0.6 else ("#ffd479" if fraction > 0.3 else "#ff7a6a")
+		hp_line = "[color=%s]%d / %d HP[/color]" % [colour, int(health.current_health), int(health.max_health)]
+	var lines: Array = []
+	lines.append("[b]%s[/b]  %s" % [entity.stats.display_name.to_upper(), _owner_tag(entity)])
+	if not entity.stats.role.is_empty():
+		lines.append("[i][color=#c8ccbb]%s[/color][/i]" % entity.stats.role)
+	lines.append("")
+	lines.append(hp_line)
 
 	if entity is BuildingBase:
 		var building := entity as BuildingBase
-		var power: String = "+%d" % building.stats.power_generation if building.stats.power_generation > 0 \
-			else "-%d" % building.stats.power_consumption
-		var extra: String = ""
+		var stats: BuildingStats = building.stats
+		var power: String = "+%d" % stats.power_generation if stats.power_generation > 0 \
+			else ("-%d" % stats.power_consumption if stats.power_consumption > 0 else "none")
+		lines.append("%s structure · Power %s" % [PlacementDomain.name_of(stats.placement_domain), power])
 		var queue = building.get("queue")
-		if queue != null and queue.queue_length() > 0:
-			extra = "\n\n[color=#9fd0ff]Building %s  %d%%[/color]" % [
-				queue.current_stats().display_name, int(queue.progress() * 100.0)]
-		if building.repairing:
-			extra += "\n[color=#7fe08a]Repairing[/color]"
+		if queue != null:
+			if queue.queue_length() > 0:
+				lines.append("[color=#9fd0ff]Building %s  %d%%  (+%d queued)[/color]" % [
+					queue.current_stats().display_name, int(queue.progress() * 100.0),
+					queue.queue_length() - 1])
+			else:
+				lines.append("[color=#8b8f7a]Production idle[/color]")
+			lines.append("Rally: %s" % ("set (right-click ground to move)" if building.rally_point != Vector3.ZERO
+				else "none - right-click ground to set"))
 		var garrison: GarrisonComponent = building.get_node_or_null("GarrisonComponent")
 		if garrison != null:
-			extra += "\n[color=#ffd479]Garrison: %d / %d[/color]" % [garrison.occupancy(), garrison.capacity]
-		return "[b]%s[/b]\n\n%s HP\nPower: %s\nVision: %dm%s" % [
-			building.stats.display_name.to_upper(), hp, power,
-			int(building.stats.vision_range), extra]
+			lines.append("[color=#ffd479]Garrison %d / %d%s[/color]" % [garrison.occupancy(), garrison.capacity,
+				" - Unload to release" if garrison.occupancy() > 0 else " - send infantry in"])
+		if stats.sonar_range > 0.0:
+			lines.append("Sonar %dm - exposes enemy submarines" % int(stats.sonar_range))
+		if stats.build_radius_bonus > 0.0:
+			lines.append("Extends territory %dm" % int(stats.build_radius_bonus))
+		if building is Gate:
+			lines.append("Your units pass through; the enemy cannot")
+		if building.repairing:
+			lines.append("[color=#7fe08a]Repairing[/color]")
+		return "\n".join(lines)
 
-	var weapon: WeaponStats = entity.stats.weapon_stats
-	var vet: VeterancyComponent = entity.get_node_or_null("VeterancyComponent")
-	var rank: String = VeterancyComponent.rank_name(vet.rank) if vet else "—"
-	var rank_colour: String = "#ffd479" if vet != null and vet.rank != VeterancyComponent.Rank.REGULAR else "#c8ccbb"
-	var damage_line: String = "—"
+	var unit_stats: UnitStats = entity.stats
+	var kind: String = "Warship" if unit_stats.movement_domain == PlacementDomain.Domain.WATER \
+		else ("Infantry" if unit_stats.is_infantry else "Vehicle")
+	lines.append("%s · %s armour" % [kind, Armor.type_name(unit_stats.armor_type).capitalize()])
+	var weapon: WeaponStats = unit_stats.weapon_stats
 	if weapon != null:
-		damage_line = "%d %s" % [int(weapon.damage),
-			DamageTypes.type_name(weapon.damage_type).to_lower().replace("_", " ")]
+		lines.append("%s %d · %dm · hits %s" % [weapon.display_name, int(weapon.damage),
+			int(weapon.attack_range), _domains_text(weapon.target_domains)])
+	else:
+		lines.append("Unarmed")
+	var senses: String = "Vision %dm" % int(unit_stats.vision_range)
+	if unit_stats.sonar_range > 0.0:
+		senses += " · Sonar %dm" % int(unit_stats.sonar_range)
+	lines.append(senses)
+	var stealth: Stealth = entity.get_node_or_null("Stealth")
+	if stealth != null:
+		if stealth.is_surfaced():
+			lines.append("[color=#ffd479]SURFACED - visible to the enemy[/color]")
+		elif stealth.is_exposed():
+			lines.append("[color=#ff7a6a]SUBMERGED - but enemy sonar has found it[/color]")
+		else:
+			lines.append("[color=#7fd0ff]SUBMERGED - hidden from the enemy[/color]")
+	lines.append("")
+	lines.append("[color=#9fd0ff]%s[/color]" % _activity_of(entity))
 	var posture := InfantryStance.of(entity)
-	var posture_line: String = "\nPosture: %s" % InfantryStance.mode_name(posture.mode) if posture else ""
-	var role_line: String = "\n[i][color=#c8ccbb]%s[/color][/i]" % entity.stats.role \
-		if not entity.stats.role.is_empty() else ""
-	return "[b]%s[/b]%s\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm%s\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
-		entity.stats.display_name.to_upper(), role_line, hp,
-		rank_colour, rank,
-		Armor.type_name(entity.stats.armor_type).capitalize(),
-		damage_line,
-		int(entity.stats.vision_range),
-		posture_line,
-		CommandTypes.type_name(entity.current_command).capitalize(),
-		UnitBase.Stance.keys()[entity.stance].capitalize()]
+	var vet: VeterancyComponent = entity.get_node_or_null("VeterancyComponent")
+	var tail: String = "Stance: %s" % UnitBase.Stance.keys()[entity.stance].capitalize()
+	if posture != null:
+		tail += " · Posture: %s" % InfantryStance.mode_name(posture.mode)
+	if vet != null:
+		tail += " · %s" % VeterancyComponent.rank_name(vet.rank)
+	lines.append(tail)
+	return "\n".join(lines)
+
+var _panel_refresh: float = 0.0
+var _unit_order_buttons: Array = []
+var _unload_button: Button = null
+
+## Health, activity and submarine state change while a unit stays
+## selected; the card and the button states follow them.
+func _refresh_live_panel() -> void:
+	var selected: Array = SelectionManager.selected_units.filter(func(e): return is_instance_valid(e))
+	if selected.size() == 1:
+		_info_panel.text = _describe_one(selected[0])
+	var has_units: bool = selected.any(func(e): return e.has_method("issue_command"))
+	for button in _unit_order_buttons:
+		button.disabled = not has_units
+	if _unload_button != null:
+		var occupied: bool = false
+		for entity in selected:
+			var hold = entity.get_node_or_null("GarrisonComponent")
+			if hold != null and hold.occupancy() > 0:
+				occupied = true
+		_unload_button.disabled = not occupied
+	_refresh_posture_button(selected)
+
+func _owner_tag(entity) -> String:
+	if entity.get("is_neutral") == true:
+		return "[color=#e0dcae](neutral)[/color]"
+	return "[color=#6fa8ff](yours)[/color]" if entity.is_player_faction else "[color=#ff6a5a](enemy)[/color]"
+
+static func _domains_text(mask: int) -> String:
+	var names: Array = []
+	for bit in [CombatTarget.Domain.LAND, CombatTarget.Domain.NAVAL, CombatTarget.Domain.SUBMERGED]:
+		if mask & bit:
+			names.append(CombatTarget.domain_name(bit))
+	return ", ".join(names) if not names.is_empty() else "nothing"
+
+## What the unit is doing, in words: the distinction between idle, on
+## the move and in a fight is the first thing a player reads.
+func _activity_of(unit) -> String:
+	var attacker = unit.get_node_or_null("AttackerComponent")
+	if attacker != null and attacker.has_target():
+		var target = attacker.target
+		var name: String = target.stats.display_name if target.get("stats") != null else "target"
+		return "Attacking %s" % name
+	var moving: bool = unit.nav_agent != null and not unit.nav_agent.is_navigation_finished()
+	match unit.current_command:
+		CommandTypes.Type.GARRISON:
+			return "Heading into a building"
+		CommandTypes.Type.ATTACK_MOVE:
+			return "Attack-moving" if moving else "Attack-move: holding"
+		CommandTypes.Type.PATROL:
+			return "Patrolling"
+		CommandTypes.Type.GUARD:
+			return "Guarding"
+		CommandTypes.Type.HARVEST, CommandTypes.Type.RETURN:
+			return "Harvesting"
+	return "Moving" if moving else "Idle"
 
 # ------------------------------------------------------ right column
 
@@ -1139,6 +1264,9 @@ func _flash_event(text: String, color: Color) -> void:
 	_event_label.visible = true
 	_event_timer = 3.5
 
+func _on_feedback(text: String, kind: int, _position: Vector3) -> void:
+	_flash_event(text, Feedback.color_for(kind))
+
 func _on_building_captured(building: Node, by_player: bool) -> void:
 	var display: String = building.stats.display_name if building.stats else "Structure"
 	_flash_event(("Captured %s" % display) if by_player else ("Lost %s" % display),
@@ -1194,6 +1322,11 @@ func _process(delta: float) -> void:
 	_refresh_items()
 	_refresh_construction()
 	_refresh_production()
+
+	_panel_refresh -= delta
+	if _panel_refresh <= 0.0:
+		_panel_refresh = 0.25
+		_refresh_live_panel()
 
 	if _group_hold_index != 0:
 		_group_hold_time += delta

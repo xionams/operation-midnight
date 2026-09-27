@@ -100,6 +100,7 @@ func _ready() -> void:
 
 	_build_environment()
 	_build_level_and_ground()
+	_build_sea()
 	## A resumed match rebuilds its own entities. Spawning the default
 	## bases first and restoring on top would leave two of everything.
 	var save: Dictionary = GameState.pending_save
@@ -146,6 +147,8 @@ func _ready() -> void:
 			director._match_time = float(ai.get("match_time", 0.0))
 		_restoring = {}
 
+	_level.add_child(OrderLines.new())
+
 	var overlay := DebugOverlay.new()
 	overlay.name = "DebugOverlay"
 	add_child(overlay)
@@ -163,6 +166,7 @@ func _ready() -> void:
 	EventBus.building_destroyed.connect(_request_nav_rebake)
 	EventBus.building_sold.connect(_request_nav_rebake)
 	EventBus.command_issued.connect(func(type, position): CommandMarker.spawn(_level, position, type))
+	EventBus.feedback.connect(_on_feedback)
 
 ## Navmesh rebakes are asynchronous and Godot refuses a new one while one
 ## is running. Baking directly from building_placed therefore dropped
@@ -177,6 +181,12 @@ func _ready() -> void:
 var _nav_dirty: bool = false
 var _nav_dirty_frame: int = -1
 
+## Rejections with a place get a mark on the ground, so "no" is seen
+## where the player was looking, not only in the sidebar text.
+func _on_feedback(_text: String, kind: int, position: Vector3) -> void:
+	if position.is_finite() and kind == Feedback.Kind.REJECT and _level != null:
+		CommandMarker.spawn_rejected(_level, position)
+
 func _request_nav_rebake(_building: Node = null) -> void:
 	_nav_dirty = true
 	_nav_dirty_frame = Engine.get_process_frames()
@@ -184,10 +194,134 @@ func _request_nav_rebake(_building: Node = null) -> void:
 func _process(_delta: float) -> void:
 	if not _nav_dirty or _nav_region == null:
 		return
-	if Engine.get_process_frames() <= _nav_dirty_frame or _nav_region.is_baking():
+	if Engine.get_process_frames() <= _nav_dirty_frame or _nav_region.is_baking() \
+		or _water_baking:
 		return
 	_nav_dirty = false
 	_nav_region.bake_navigation_mesh(true)
+	_bake_water_nav(true)
+
+# ------------------------------------------------------------------ sea
+
+## The sea as a gameplay layer, built from Water's polygons:
+##   - a water surface, fog-shaded like the ground so unexplored sea is
+##     as dark as unexplored land
+##   - a carve obstacle per region under the LAND navmesh, so land units
+##     path around the sea instead of into it
+##   - a separate navmesh region on NavLayers.WATER that naval units - and
+##     only naval units - path on
+var _water_nav: NavigationRegion3D = null
+var _water_baking: bool = false
+
+func _build_sea() -> void:
+	if not Water.has_water():
+		return
+	var surface_material := _make_fog_material(Color(0.13, 0.33, 0.46))
+	surface_material.set_shader_parameter("roughness_value", 0.25)
+	for poly in Water.polygons():
+		## Grown a little past the waterline so it tucks under the beach
+		## rather than leaving a seam where the two meet.
+		var grown: Array = Geometry2D.offset_polygon(poly, 3.0)
+		var outline: PackedVector2Array = grown[0] if not grown.is_empty() else poly
+		var surface := MeshInstance3D.new()
+		surface.name = "WaterSurface"
+		surface.mesh = _flat_polygon_mesh(outline, Water.level)
+		surface.material_override = surface_material
+		surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_level.add_child(surface)
+
+		var obstacle := NavigationObstacle3D.new()
+		obstacle.name = "SeaObstacle"
+		var vertices := PackedVector3Array()
+		for point in poly:
+			vertices.append(Vector3(point.x, 0.0, point.y))
+		obstacle.vertices = vertices
+		obstacle.height = 6.0
+		obstacle.position.y = -2.0
+		obstacle.affect_navigation_mesh = true
+		obstacle.avoidance_enabled = false
+		_nav_region.add_child(obstacle)
+
+	_water_nav = NavigationRegion3D.new()
+	_water_nav.name = "WaterNav"
+	_water_nav.navigation_layers = NavLayers.WATER
+	_level.add_child(_water_nav)
+	_bake_water_nav(false)
+
+static func _flat_polygon_mesh(poly: PackedVector2Array, y: float) -> ArrayMesh:
+	var indices := Geometry2D.triangulate_polygon(poly)
+	var vertices := PackedVector3Array()
+	for point in poly:
+		vertices.append(Vector3(point.x, y, point.y))
+	var normals := PackedVector3Array()
+	normals.resize(vertices.size())
+	normals.fill(Vector3.UP)
+	## Wind every triangle to face up, whichever way the polygon was drawn.
+	var wound := PackedInt32Array()
+	for i in range(0, indices.size(), 3):
+		var a: Vector3 = vertices[indices[i]]
+		var b: Vector3 = vertices[indices[i + 1]]
+		var c: Vector3 = vertices[indices[i + 2]]
+		if (b - a).cross(c - a).y > 0.0:
+			wound.append_array([indices[i], indices[i + 2], indices[i + 1]])
+		else:
+			wound.append_array([indices[i], indices[i + 1], indices[i + 2]])
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = wound
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+## The sea navmesh: the water polygons, minus a hull's clearance, minus
+## anything standing in the water (shipyards, buoys).
+func _bake_water_nav(async: bool) -> void:
+	if _water_nav == null or _water_baking:
+		return
+	var source := NavigationMeshSourceGeometryData3D.new()
+	for poly in Water.polygons():
+		var indices := Geometry2D.triangulate_polygon(poly)
+		var faces := PackedVector3Array()
+		for i in range(0, indices.size(), 3):
+			var a := Vector3(poly[indices[i]].x, Water.level, poly[indices[i]].y)
+			var b := Vector3(poly[indices[i + 1]].x, Water.level, poly[indices[i + 1]].y)
+			var c := Vector3(poly[indices[i + 2]].x, Water.level, poly[indices[i + 2]].y)
+			## Recast wants clockwise-from-above faces; the triangulator's
+			## order depends on how the polygon was drawn.
+			if (b - a).cross(c - a).y > 0.0:
+				faces.append_array([a, c, b])
+			else:
+				faces.append_array([a, b, c])
+		source.add_faces(faces, Transform3D.IDENTITY)
+	for building in get_tree().get_nodes_in_group("buildings"):
+		if not is_instance_valid(building) or building.stats == null \
+			or building.is_queued_for_deletion():
+			continue
+		if building.stats.placement_domain != PlacementDomain.Domain.WATER:
+			continue
+		var p: Vector3 = building.global_position
+		var h: Vector2 = building.stats.footprint * 0.5
+		source.add_projected_obstruction(PackedVector3Array([
+			Vector3(p.x - h.x, 0, p.z - h.y), Vector3(p.x + h.x, 0, p.z - h.y),
+			Vector3(p.x + h.x, 0, p.z + h.y), Vector3(p.x - h.x, 0, p.z + h.y)]),
+			Water.level - 2.0, 6.0, false)
+	var mesh := NavigationMesh.new()
+	mesh.agent_radius = 1.5
+	mesh.agent_height = 2.0
+	mesh.agent_max_climb = 0.5
+	mesh.cell_size = 0.25
+	mesh.cell_height = 0.25
+	if async:
+		_water_baking = true
+		NavigationServer3D.bake_from_source_geometry_data_async(mesh, source, func():
+			_water_baking = false
+			if is_instance_valid(_water_nav):
+				_water_nav.navigation_mesh = mesh)
+	else:
+		NavigationServer3D.bake_from_source_geometry_data(mesh, source)
+		_water_nav.navigation_mesh = mesh
 
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 
@@ -537,6 +671,8 @@ func _road_route() -> Array:
 ## road, and everything else that puts a flat slab on the map.
 func _grade_terrain() -> void:
 	Terrain.reset()
+	## Before any levelling is baked: the sea shapes the ground last.
+	Water.configure(map.water_polygons, map.water_level)
 	for base in [map.player_base, map.enemy_base]:
 		Terrain.level(base, 20.0, 12.0)
 	for position in map.civilian_positions:

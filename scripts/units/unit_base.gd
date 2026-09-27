@@ -109,6 +109,14 @@ func _ready() -> void:
 	var infantry: bool = stats != null and stats.is_infantry
 	collision_layer = INFANTRY_COLLISION_LAYER if infantry else UNIT_COLLISION_LAYER
 	collision_mask = GROUND_COLLISION_LAYER if infantry else (GROUND_COLLISION_LAYER | UNIT_COLLISION_LAYER)
+	## Ships float below the flat ground collider's top (y=0), so they
+	## must not collide with it or move_and_slide would shove them ashore.
+	if is_naval():
+		collision_mask = UNIT_COLLISION_LAYER
+	if stats != null and stats.submerged_stealth:
+		var stealth := Stealth.new()
+		stealth.name = "Stealth"
+		add_child(stealth)
 
 	_build_fog_visibility()
 	_build_collision()
@@ -174,7 +182,7 @@ func _build_nav_agent() -> void:
 	## The shared ground, plus this side's own layer - which is what gate
 	## passages are on, so a unit can use its own gates and never the
 	## enemy's.
-	nav_agent.navigation_layers = 1 | Gate.nav_layer_for(is_player_faction)
+	nav_agent.navigation_layers = NavLayers.for_unit(stats, is_player_faction)
 	nav_agent.velocity_computed.connect(_on_avoidance_velocity)
 	add_child(nav_agent)
 
@@ -194,6 +202,9 @@ func _build_infantry_stance() -> void:
 	## RVO clamps to max_speed, so it has to follow the posture or a
 	## running squad would be held to its crouched pace (or the reverse).
 	posture.mode_changed.connect(func(_mode): if nav_agent: nav_agent.max_speed = move_speed())
+
+func is_naval() -> bool:
+	return stats != null and stats.movement_domain == PlacementDomain.Domain.WATER
 
 ## Current ground speed: the unit's own figure scaled by its posture.
 func move_speed() -> float:
@@ -424,6 +435,14 @@ func _tick_combat_behavior(delta: float) -> void:
 	## Heading for a door is a movement order, not a hunt.
 	if current_command == CommandTypes.Type.GARRISON and is_instance_valid(garrison_target):
 		return
+	## Nor is a plain move. A unit that stopped to shoot at whatever it
+	## passed abandoned the move (the attacker halts it to fire), which is
+	## what made move orders feel ignored in a fight - the classic RTS
+	## answer is that MOVE means move and ATTACK-MOVE means fight on the
+	## way. It picks targets again the moment it arrives.
+	if current_command == CommandTypes.Type.MOVE and nav_agent != null \
+		and not nav_agent.is_navigation_finished():
+		return
 
 	_acquire_timer -= delta
 	if _acquire_timer > 0.0:
@@ -555,7 +574,8 @@ func _nearest_in_group(group: String, radius: float, attacker: AttackerComponent
 			continue
 		if is_player_faction and FogHideable.is_hidden(candidate):
 			continue
-		if not DisguiseAbility.visible_to(candidate, is_player_faction):
+		if not DisguiseAbility.visible_to(candidate, is_player_faction) \
+			or not Stealth.visible_to(candidate, is_player_faction):
 			continue
 		if not attacker.weapon.can_damage(candidate):
 			continue
@@ -632,7 +652,7 @@ func _refresh_damage_visual() -> void:
 ## explosions but not of movement, so a field that armour had crossed all
 ## match looked untouched between the craters.
 func _lay_tracks() -> void:
-	if stats == null or stats.body_size.y < TRACK_MIN_HEIGHT:
+	if stats == null or stats.body_size.y < TRACK_MIN_HEIGHT or is_naval():
 		return
 	if _last_track.is_finite() \
 		and global_position.distance_to(_last_track) < TRACK_STEP:
@@ -682,7 +702,11 @@ func _settle_on_ground() -> void:
 		if dx * dx + dz * dz < SETTLE_STEP * SETTLE_STEP:
 			return
 	_settled_at = here
-	here.y = Terrain.height_at(here.x, here.z)
+	## Ships ride the surface; a submerged boat sits lower in it.
+	if is_naval():
+		here.y = Water.level - (0.6 if Stealth.is_submerged(self) else 0.0)
+	else:
+		here.y = Terrain.height_at(here.x, here.z)
 	global_position = here
 
 func _physics_process(delta: float) -> void:
@@ -738,7 +762,11 @@ func _tick_unstick(delta: float) -> void:
 	var destination: Vector3 = nav_agent.target_position
 	## Nudge sideways before re-pathing, so a unit pressed flat against a
 	## wall has somewhere to go rather than immediately re-jamming.
-	global_position += Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+	## ...but never out of the unit's own domain: a nudged boat must stay
+	## afloat and a nudged tank must not end up in the sea.
+	var nudged: Vector3 = global_position + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+	if Water.is_water(nudged.x, nudged.z) == is_naval():
+		global_position = nudged
 	nav_agent.target_position = destination
 
 ## Armour flattens enemy infantry it drives over. Vehicles pass through
@@ -772,7 +800,9 @@ func _on_died() -> void:
 	if stats != null and not stats.is_infantry:
 		VFX.vehicle_wreck(self, global_position)
 		AudioDirector.play("explosion_small")
-		Wreckage.spawn_vehicle(self, global_position)
+		## Ships sink; there is no hulk to leave on the water.
+		if not is_naval():
+			Wreckage.spawn_vehicle(self, global_position)
 	else:
 		VFX.impact(self, global_position + Vector3.UP * 0.6)
 	MatchStats.record_unit_death(is_player_faction)

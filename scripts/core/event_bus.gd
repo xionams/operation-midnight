@@ -13,6 +13,11 @@ signal building_infiltrated(building: Node, effect: String)
 ## their command landed, without the command path knowing about the UI.
 signal command_issued(type: int, position: Vector3)
 signal building_sold(building: Node)
+## Player-facing acknowledgement or refusal of an action: stance changes,
+## garrison and unload results, and every rejected command or placement
+## with the reason. `kind` is a Feedback.Kind; `position` is where to mark
+## it on the ground, or Vector3.INF for none. See Feedback.
+signal feedback(text: String, kind: int, position: Vector3)
 ## Emitted for every structure that dies, whichever side owned it. The AI
 ## uses it to notice when it has just cost the player their economy.
 signal building_destroyed(building: Node)

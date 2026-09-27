@@ -39,6 +39,15 @@ class_name WeaponStats
 ## this empty and defers to the table.
 @export var excluded_armor: Array[int] = []
 
+## Which battlefield layers this weapon reaches (CombatTarget.Domain
+## bits): Land=1, Naval=2, Submerged=4. Guns and rockets reach land and
+## surface ships but not a submarine under water; a torpedo reaches only
+## ships and submarines.
+@export_flags("Land", "Naval", "Submerged") var target_domains: int = 3
+
+func reaches(domain: int) -> bool:
+	return (target_domains & domain) != 0
+
 func excludes(armor: int) -> bool:
 	return excluded_armor.has(armor)
 

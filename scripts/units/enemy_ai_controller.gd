@@ -49,7 +49,8 @@ func _scan() -> void:
 			continue
 		## A disguised Spy reads as friendly, so defenders walk straight
 		## past it. Killing it requires revealing it first.
-		if not DisguiseAbility.visible_to(unit, not _owner_unit.is_player_faction):
+		if not DisguiseAbility.visible_to(unit, not _owner_unit.is_player_faction) \
+			or not Stealth.visible_to(unit, not _owner_unit.is_player_faction):
 			continue
 		if attacker.weapon != null and not attacker.weapon.can_damage(unit):
 			continue

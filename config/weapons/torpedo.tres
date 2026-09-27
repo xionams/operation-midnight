@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Torpedo"
+damage = 115.0
+damage_type = 4
+attack_range = 14.0
+minimum_range = 0.0
+attack_cooldown = 3.2
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(0.55, 0.85, 1, 1)
+requires_setup = false
+splash_radius = 0.0
+can_target_air = false
+target_domains = 6

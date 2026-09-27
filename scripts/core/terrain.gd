@@ -94,7 +94,9 @@ static func _graded_height(x: float, z: float) -> float:
 		var weight: float = 1.0 - clampf((distance - disc[1]) / disc[2], 0.0, 1.0)
 		weight = weight * weight * (3.0 - 2.0 * weight)
 		height = lerpf(height, disc[3], weight)
-	return height
+	## The sea shapes the ground last: a levelled pad never floats over a
+	## bay, and every coast becomes a beach running into the water.
+	return Water.shape_height(x, z, height)
 
 ## --- baked lookup -----------------------------------------------------
 ##

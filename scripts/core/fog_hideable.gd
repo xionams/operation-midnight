@@ -55,6 +55,10 @@ func _refresh() -> void:
 		return
 	var seen: bool = FogOfWar.is_explored_at(_entity.global_position) if persists_once_explored \
 		else FogOfWar.is_visible_at(_entity.global_position)
+	## A submerged submarine is hidden even inside vision unless sonar or
+	## its own firing has exposed it - the same removal from the player's
+	## world as fog, so it cannot be seen, clicked or targeted either.
+	seen = seen and Stealth.visible_to(_entity, true)
 	if seen == (not hidden_by_fog):
 		return
 	_set_hidden(not seen)

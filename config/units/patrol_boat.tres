@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/naval_gun.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/units/patrol_boat.tscn" id="9"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Patrol Boat"
+role = "Surface warship: shells ships, the coast and anything on the shore. Its sonar exposes nearby submarines."
+cost = 700
+prerequisites = PackedStringArray("Naval Yard")
+population = 2
+category = "NAVAL"
+produced_by = "Naval Yard"
+build_time = 8.0
+max_health = 420.0
+move_speed = 7.0
+turn_speed = 3.5
+nav_radius = 1.4
+vision_range = 18.0
+body_color = Color(0.46, 0.5, 0.54, 1)
+body_size = Vector3(2.2, 1.6, 5.2)
+weapon_stats = ExtResource("2")
+armor_type = 1
+is_infantry = false
+can_be_crushed = false
+can_crush = false
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+movement_domain = 1
+sonar_range = 12.0
+submerged_stealth = false
+unit_scene = ExtResource("9")

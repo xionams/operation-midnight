@@ -65,7 +65,8 @@ func _nearest_hostile() -> Node:
 			continue
 		if is_player_faction and FogHideable.is_hidden(candidate):
 			continue
-		if not DisguiseAbility.visible_to(candidate, is_player_faction):
+		if not DisguiseAbility.visible_to(candidate, is_player_faction) \
+			or not Stealth.visible_to(candidate, is_player_faction):
 			continue
 		if not weapon.can_damage(candidate):
 			continue

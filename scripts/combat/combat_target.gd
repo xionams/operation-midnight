@@ -19,6 +19,33 @@ static func is_structure(target: Node) -> bool:
 	var health: HealthComponent = target.get_node_or_null("HealthComponent")
 	return health != null and health.armor_type == Armor.Type.STRUCTURE
 
+## Which layer of the battlefield a target is in, for weapon domains:
+##   LAND       anything on land, units and structures alike
+##   NAVAL      ships, surfaced submarines, structures built on water
+##   SUBMERGED  a submarine running under water
+## WeaponStats.target_domains is a mask of these bits.
+enum Domain { LAND = 1, NAVAL = 2, SUBMERGED = 4 }
+
+static func domain_of(target: Node) -> int:
+	if not is_instance_valid(target):
+		return Domain.LAND
+	var stats = target.get("stats")
+	if stats is UnitStats:
+		if stats.movement_domain != PlacementDomain.Domain.WATER:
+			return Domain.LAND
+		return Domain.SUBMERGED if Stealth.is_submerged(target) else Domain.NAVAL
+	if stats is BuildingStats and stats.placement_domain == PlacementDomain.Domain.WATER:
+		return Domain.NAVAL
+	return Domain.LAND
+
+static func domain_name(domain: int) -> String:
+	match domain:
+		Domain.NAVAL:
+			return "naval"
+		Domain.SUBMERGED:
+			return "submerged"
+	return "land"
+
 ## Half-extents of a target's ground footprint. Zero for units, which are
 ## treated as points exactly as before.
 static func half_extents(target: Node) -> Vector2:

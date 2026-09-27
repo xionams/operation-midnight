@@ -31,6 +31,16 @@ class_name BuildingStats
 @export var weapon_stats: WeaponStats = null
 @export var is_defensive: bool = false
 
+## LAND or WATER (PlacementDomain.Domain): which the whole footprint must
+## stand on. `requires_shore` additionally keeps a water structure
+## against the coast - a shipyard is built off a beach, not mid-ocean.
+@export var placement_domain: int = 0
+@export var requires_shore: bool = false
+## Exposes enemy submarines within this range (see Stealth).
+@export var sonar_range: float = 0.0
+## Short line on the build tile and info panel, as UnitStats.role.
+@export var role: String = ""
+
 ## Infantry can occupy this structure and fire from inside it.
 @export var garrisonable: bool = false
 ## How many infantry fit inside. Scales with the structure: a house holds

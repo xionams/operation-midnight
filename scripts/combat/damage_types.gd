@@ -20,7 +20,10 @@ class_name DamageTypes
 ##   EXPLOSIVE    artillery: strong vs infantry groups and structures,
 ##                less effective against heavy plate
 
-enum Type { SMALL_ARMS, ANTI_ARMOR, CANNON, EXPLOSIVE }
+##   TORPEDO      submarine torpedoes: nothing on land, heavy against
+##                hulls and anything built on the water
+
+enum Type { SMALL_ARMS, ANTI_ARMOR, CANNON, EXPLOSIVE, TORPEDO }
 
 ## [INFANTRY, LIGHT, MEDIUM, HEAVY, STRUCTURE]
 const TABLE: Dictionary = {
@@ -28,6 +31,7 @@ const TABLE: Dictionary = {
 	Type.ANTI_ARMOR: [0.35, 0.90, 1.10, 1.30, 0.70],
 	Type.CANNON:     [0.40, 1.00, 1.00, 0.90, 0.85],
 	Type.EXPLOSIVE:  [1.20, 0.85, 0.75, 0.55, 1.30],
+	Type.TORPEDO:    [0.00, 1.10, 1.25, 1.30, 1.10],
 }
 
 static func type_name(damage: Type) -> String:

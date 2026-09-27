@@ -65,6 +65,7 @@ var _touch_index: int = -1
 const TOUCH_MOUSE_LOCKOUT: float = 1.0
 var _last_touch_time: float = -99.0
 var _pressed_on_entity: bool = false
+var _press_is_touch: bool = false
 
 var _last_tap_time: float = -99.0
 var _last_tap_pos: Vector2 = Vector2.ZERO
@@ -97,7 +98,12 @@ func _process(_delta: float) -> void:
 	## A press that is held still long enough becomes a marquee even
 	## before the finger moves, so the box appears under the thumb and
 	## the player can see the mode they are in.
-	if _gesture != Gesture.PENDING or _pressed_on_entity:
+	## Touch only. On a desktop a press that stays still is a click however
+	## long it is held - the marquee there starts on movement. Applying the
+	## hold rule to the mouse turned any slow click (over 0.2s) into an
+	## empty box select that picked nothing: clicks "missed" at random,
+	## and every time on a slow frame.
+	if _gesture != Gesture.PENDING or _pressed_on_entity or not _press_is_touch:
 		return
 	if Time.get_ticks_msec() / 1000.0 - _press_time >= HOLD_TIME:
 		_enter_marquee()
@@ -188,6 +194,7 @@ func _handle_drag(drag: InputEventScreenDrag) -> void:
 # --------------------------------------------------------------- shared
 
 func _begin_press(pos: Vector2, from_touch: bool) -> void:
+	_press_is_touch = from_touch
 	_press_pos = pos
 	_current_pos = pos
 	_press_time = Time.get_ticks_msec() / 1000.0
@@ -207,8 +214,10 @@ func _end_press(pos: Vector2, additive: bool) -> void:
 
 	if gesture == Gesture.MARQUEE:
 		marquee_changed.emit(false)
-		_marquee_select(Rect2(_press_pos, Vector2.ZERO).expand(pos), additive)
-		return
+		## A box too small to hold anything was a tap that lingered.
+		if _press_pos.distance_to(pos) >= DRAG_THRESHOLD_PX:
+			_marquee_select(Rect2(_press_pos, Vector2.ZERO).expand(pos), additive)
+			return
 	if gesture == Gesture.PANNING:
 		return
 	if _press_pos.distance_to(pos) >= DRAG_THRESHOLD_PX:
@@ -259,6 +268,19 @@ func _handle_tap(pos: Vector2, additive: bool) -> void:
 
 # ------------------------------------------------------------- selection
 
+## What the player pointed at: {"collider": entity-or-ground, "position":
+## the ground point under the pointer}.
+##
+## Entities are picked in their own pass that ignores the ground layer.
+## The ground collider is a flat box at y=0 but the visible terrain rolls
+## +-1.6m (see Terrain), so a tank sitting in a hollow is partly or
+## wholly BELOW the pick surface: a single ray hit the ground first and
+## the click silently became a move order. With the ground skipped, the
+## ray reaches the unit the player can actually see.
+##
+## A miss then falls back to screen space: the nearest selectable thing
+## whose on-screen centre is within PICK_TOLERANCE_PX, so a soldier a few
+## pixels wide - or a fingertip on a phone - is not a pixel hunt.
 func _raycast(screen_pos: Vector2) -> Dictionary:
 	var camera := _get_camera()
 	if camera == null:
@@ -266,8 +288,46 @@ func _raycast(screen_pos: Vector2) -> Dictionary:
 	var from := camera.project_ray_origin(screen_pos)
 	var to := from + camera.project_ray_normal(screen_pos) * RAY_LENGTH
 	var space_state := camera.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, to, TARGET_MASK)
-	return space_state.intersect_ray(query)
+	var ground := space_state.intersect_ray(
+		PhysicsRayQueryParameters3D.create(from, to, GROUND_MASK))
+	var entity_hit := space_state.intersect_ray(
+		PhysicsRayQueryParameters3D.create(from, to, ENTITY_MASK))
+	var collider: Node = entity_hit.get("collider") if not entity_hit.is_empty() else null
+	if collider == null:
+		collider = _nearest_on_screen(screen_pos)
+	var point: Vector3 = ground.get("position", entity_hit.get("position", Vector3.ZERO))
+	if collider == null:
+		if ground.is_empty():
+			return {}
+		collider = ground.get("collider")
+	return {"collider": collider, "position": point}
+
+const PICK_TOLERANCE_PX: float = 22.0
+const GROUND_MASK: int = 0b00001
+const ENTITY_MASK: int = TARGET_MASK & ~GROUND_MASK
+
+## Screen-space fallback for _raycast: units first (they are small),
+## then structures, only what the player may interact with.
+func _nearest_on_screen(screen_pos: Vector2) -> Node:
+	var camera := _get_camera()
+	var best: Node = null
+	var best_d: float = PICK_TOLERANCE_PX
+	for group in ["player_units", "enemy_units"]:
+		for unit in get_tree().get_nodes_in_group(group):
+			if not is_instance_valid(unit) or not unit.is_inside_tree():
+				continue
+			if FogHideable.is_hidden(unit) or not DisguiseAbility.visible_to(unit, true) \
+				or not Stealth.visible_to(unit, true):
+				continue
+			var height: float = unit.stats.body_size.y * 0.5 if unit.get("stats") != null else 0.8
+			var centre: Vector3 = unit.global_position + Vector3.UP * height
+			if camera.is_position_behind(centre):
+				continue
+			var d: float = camera.unproject_position(centre).distance_to(screen_pos)
+			if d < best_d:
+				best_d = d
+				best = unit
+	return best
 
 ## Marquee selection is screen-space: a unit is caught if the point the
 ## player actually sees it at falls inside the rectangle they drew. It
@@ -372,9 +432,17 @@ func arm_patrol() -> void:
 	patrol_armed = not selected_units.is_empty()
 
 func set_stance(stance: int) -> void:
+	var n: int = 0
 	for unit in selected_units:
 		if is_instance_valid(unit) and unit.has_method("issue_command"):
 			unit.stance = stance
+			n += 1
+	if n == 0:
+		Feedback.reject("Stance: no units selected")
+		return
+	var label: String = UnitBase.Stance.keys()[stance].capitalize()
+	Feedback.ok("%s stance — %d unit%s" % [label, n, "" if n == 1 else "s"])
+	GameState.selection_changed.emit(selected_units)
 
 ## RUN / CROUCH for every selected soldier. Vehicles in a mixed
 ## selection have no posture and are simply skipped.
@@ -398,8 +466,20 @@ func toggle_infantry_stance() -> void:
 		if not posture.is_crouched():
 			any_running = true
 	if not any_infantry:
+		Feedback.reject("Posture: no infantry selected")
 		return
-	set_infantry_stance(InfantryStance.Mode.CROUCH if any_running else InfantryStance.Mode.RUN)
+	var mode: int = InfantryStance.Mode.CROUCH if any_running else InfantryStance.Mode.RUN
+	set_infantry_stance(mode)
+	var count: int = _units_with_posture()
+	Feedback.ok("%s — %d infantry %s" % [InfantryStance.mode_name(mode).to_upper(), count,
+		"slower, hitting harder" if mode == InfantryStance.Mode.CROUCH else "at full speed"])
+
+func _units_with_posture() -> int:
+	var n: int = 0
+	for unit in selected_units:
+		if InfantryStance.of(unit) != null:
+			n += 1
+	return n
 
 ## Everyone out of every selected garrison (or, later, transport).
 ## Returns how many units left.
@@ -412,6 +492,10 @@ func command_evacuate() -> int:
 			if child is OccupantHold:
 				count += (child as OccupantHold).exit_all().size()
 	GameState.selection_changed.emit(selected_units)
+	if count > 0:
+		Feedback.ok("Unloaded %d" % count)
+	else:
+		Feedback.reject("Nobody inside to unload")
 	return count
 
 func command_stop() -> void:
@@ -456,12 +540,30 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 		EventBus.command_issued.emit(CommandTypes.Type.ATTACK_MOVE, point)
 		return
 
+	## A selection of structures only: a right-click on the ground sets the
+	## rally point, as in Red Alert, rather than silently doing nothing.
+	if _commandable_units().is_empty():
+		var producers: int = 0
+		for entity in selected_units:
+			if is_instance_valid(entity) and entity is BuildingBase and entity.get("queue") != null:
+				entity.rally_point = point
+				producers += 1
+		if producers > 0:
+			EventBus.command_issued.emit(CommandTypes.Type.MOVE, point)
+			Feedback.ok("Rally point set")
+		return
+
 	var hostile: bool = collider != null \
 		and (collider.is_in_group("enemy_units") or collider.is_in_group("enemy_buildings"))
 
 	if hostile:
-		_command_on_target(collider)
+		var accepted: int = _command_on_target(collider)
+		if accepted == 0:
+			Feedback.reject("No selected unit can attack %s" % _name_of(collider),
+				collider.global_position)
+			return
 		EventBus.command_issued.emit(CommandTypes.Type.ATTACK, collider.global_position)
+		CommandMarker.spawn_on_target(collider as Node3D)
 		return
 
 	if collider != null and collider.is_in_group("resource_nodes"):
@@ -473,8 +575,7 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 	if collider != null and collider is BuildingBase:
 		var garrison = collider.get_node_or_null("GarrisonComponent")
 		if garrison != null and (collider.is_player_faction or collider.is_neutral):
-			_issue_to_selection(CommandTypes.Type.GARRISON, collider.global_position, collider)
-			EventBus.command_issued.emit(CommandTypes.Type.GARRISON, collider.global_position)
+			_order_garrison(collider, garrison)
 			return
 
 	## Guard mode armed at a friendly unit escorts it.
@@ -490,20 +591,87 @@ func _resolve_command_at(screen_pos: Vector2) -> void:
 		EventBus.command_issued.emit(CommandTypes.Type.RETURN, collider.global_position)
 		return
 
+	_warn_wrong_domain(point)
 	_command_move(point)
 	EventBus.command_issued.emit(CommandTypes.Type.MOVE, point)
 
 ## Engineers and Spies answer a click on an enemy structure with their
 ## ability; everything else attacks it, so a mixed group does the
 ## sensible thing per unit rather than all-or-nothing.
-func _command_on_target(target: Node) -> void:
+## Returns how many units took the order - an ability, or an attack their
+## weapon accepted - so the caller can say "no" when nobody could.
+func _command_on_target(target: Node) -> int:
+	var accepted: int = 0
 	for unit in selected_units:
 		if not is_instance_valid(unit):
 			continue
 		if unit.has_method("special_order") and unit.special_order(target):
+			accepted += 1
 			continue
 		if unit.has_method("issue_command"):
 			unit.issue_command(CommandTypes.Type.ATTACK, Vector3.ZERO, target)
+			var attacker = unit.get_node_or_null("AttackerComponent")
+			if attacker != null and attacker.target == target:
+				accepted += 1
+	return accepted
+
+## Send the selected infantry in, telling the player up front if the
+## building cannot take them all - or anyone.
+func _order_garrison(building: Node, hold: OccupantHold) -> void:
+	var infantry: Array = []
+	for unit in _commandable_units():
+		if unit.stats != null and unit.stats.is_infantry:
+			infantry.append(unit)
+	var at: Vector3 = building.global_position
+	if infantry.is_empty():
+		Feedback.reject("Only infantry can garrison %s" % _name_of(building), at)
+		_command_move(at)
+		return
+	if hold.free_slots() == 0:
+		Feedback.reject("%s is full (%d/%d)" % [_name_of(building), hold.occupancy(), hold.capacity], at)
+		return
+	_issue_to_selection(CommandTypes.Type.GARRISON, at, building)
+	EventBus.command_issued.emit(CommandTypes.Type.GARRISON, at)
+	var going: int = mini(infantry.size(), hold.free_slots())
+	if going < infantry.size():
+		Feedback.warn("%d of %d will fit in %s (%d/%d)" % [going, infantry.size(),
+			_name_of(building), hold.occupancy(), hold.capacity])
+	else:
+		Feedback.ok("Garrisoning %s — %d going in (%d/%d)" % [_name_of(building), going,
+			hold.occupancy(), hold.capacity])
+
+## Tanks cannot drive into the sea and ships cannot sail up the beach;
+## each still goes as far as it can (the navmesh takes it to the nearest
+## reachable point), but the player is told why it stopped short.
+func _warn_wrong_domain(point: Vector3) -> void:
+	if not Water.has_water():
+		return
+	var wet: bool = Water.is_water(point.x, point.z)
+	var stranded: int = 0
+	var total: int = 0
+	for unit in _commandable_units():
+		if unit.stats == null:
+			continue
+		total += 1
+		if unit.is_naval() != wet:
+			stranded += 1
+	if stranded == 0:
+		return
+	if wet:
+		Feedback.warn("Land units can't enter the sea - %d heading to the shore" % stranded, point)
+	else:
+		Feedback.warn("Ships can't go ashore - %d heading to the coast" % stranded, point)
+
+func _commandable_units() -> Array:
+	var out: Array = []
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.has_method("issue_command"):
+			out.append(unit)
+	return out
+
+static func _name_of(node: Node) -> String:
+	var stats = node.get("stats") if node != null else null
+	return stats.display_name if stats != null else "that"
 
 func _issue_to_selection(type: int, point: Vector3, target: Node) -> void:
 	for unit in selected_units:
@@ -512,20 +680,41 @@ func _issue_to_selection(type: int, point: Vector3, target: Node) -> void:
 
 ## Formation offsets keep a group from piling onto one coordinate. The
 ## grid is computed once per order, not maintained per frame.
+##
+## Slots are handed out nearest-first rather than in selection order, so
+## units do not cross through each other to reach an arbitrary slot - the
+## main source of the shuffle and jam at the end of a group move. Spacing
+## follows the largest unit in the group so tanks are not packed like
+## riflemen.
 func _command_move(target_pos: Vector3) -> void:
-	var count: int = selected_units.size()
+	var units: Array = _commandable_units()
+	var count: int = units.size()
+	if count == 0:
+		return
 	var spacing: float = 2.4
+	for unit in units:
+		if unit.stats != null:
+			spacing = maxf(spacing, maxf(unit.stats.body_size.x, unit.stats.body_size.z) + 0.8)
 	var per_row: int = maxi(1, ceili(sqrt(float(count))))
-	var i: int = 0
-	for unit in selected_units:
-		if not is_instance_valid(unit):
-			continue
+	var slots: Array = []
+	for i in count:
 		var row: int = i / per_row
 		var col: int = i % per_row
-		var offset := Vector3(
+		slots.append(target_pos + Vector3(
 			(col - (per_row - 1) / 2.0) * spacing,
 			0.0,
-			(row - (per_row - 1) / 2.0) * spacing)
-		if unit.has_method("issue_command"):
-			unit.issue_command(CommandTypes.Type.MOVE, target_pos + offset, null)
-		i += 1
+			(row - (per_row - 1) / 2.0) * spacing))
+	## Farthest units choose first: they have the longest walk, and the
+	## ones already close take whatever is left nearby.
+	units.sort_custom(func(a, b): return a.global_position.distance_squared_to(target_pos) \
+		> b.global_position.distance_squared_to(target_pos))
+	for unit in units:
+		var best: int = 0
+		var best_d: float = INF
+		for j in slots.size():
+			var d: float = unit.global_position.distance_squared_to(slots[j])
+			if d < best_d:
+				best_d = d
+				best = j
+		unit.issue_command(CommandTypes.Type.MOVE, slots[best], null)
+		slots.remove_at(best)

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Deck Gun"
+damage = 32.0
+damage_type = 2
+attack_range = 15.0
+minimum_range = 0.0
+attack_cooldown = 1.1
+is_hitscan = true
+projectile_speed = 40.0
+tracer_color = Color(1, 0.8, 0.45, 1)
+requires_setup = false
+splash_radius = 0.0
+can_target_air = false
+target_domains = 7

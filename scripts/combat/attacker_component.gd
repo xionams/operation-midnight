@@ -56,6 +56,8 @@ func set_target(new_target: Node, ordered: bool = false) -> void:
 	## Cannot order an attack on something the player cannot see.
 	if _owner_unit != null and _owner_unit.is_player_faction and FogHideable.is_hidden(new_target):
 		return
+	if _owner_unit != null and not Stealth.visible_to(new_target, _owner_unit.is_player_faction):
+		return
 	target = new_target as Node3D
 	_last_chase_position = Vector3.INF
 	_searching_last_known = false
@@ -81,6 +83,13 @@ func _physics_process(delta: float) -> void:
 
 	var health: HealthComponent = target.get_node_or_null("HealthComponent")
 	if health != null and health.is_dead():
+		target = null
+		return
+
+	## A submarine that dives out of sonar is gone - it cannot be tracked,
+	## and a gun that could reach it surfaced cannot reach it submerged.
+	if not Stealth.visible_to(target, _owner_unit.is_player_faction) \
+		or not weapon.stats.reaches(CombatTarget.domain_of(target)):
 		target = null
 		return
 

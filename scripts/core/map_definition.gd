@@ -40,6 +40,12 @@ class_name MapDefinition
 @export var repair_depot: Vector3 = Vector3.ZERO
 @export var supply_depot: Vector3 = Vector3.ZERO
 
+@export_group("Sea")
+## Water regions as (x, z) polygons, anticlockwise or clockwise. Empty on
+## land-only maps. See Water.
+@export var water_polygons: Array[PackedVector2Array] = []
+@export var water_level: float = -0.9
+
 @export_group("Terrain")
 ## Impassable masses as (position, size) pairs, flattened: even indices
 ## are positions, odd indices the box size that follows.

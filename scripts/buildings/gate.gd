@@ -17,8 +17,8 @@ class_name Gate
 
 ## Navigation layers. Bit 1 is the shared ground every agent uses; each
 ## side additionally carries its own bit, which is what gate links are on.
-const PLAYER_NAV_LAYER: int = 1 << 1
-const ENEMY_NAV_LAYER: int = 1 << 2
+const PLAYER_NAV_LAYER: int = NavLayers.PLAYER_GATE
+const ENEMY_NAV_LAYER: int = NavLayers.ENEMY_GATE
 ## Link ends sit this far either side of the gate's centre: past the
 ## carve (half a cell plus the navmesh agent radius) and onto open mesh.
 const LINK_REACH: float = 3.5
