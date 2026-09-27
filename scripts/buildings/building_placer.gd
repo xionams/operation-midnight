@@ -73,25 +73,23 @@ func cancel_placement() -> void:
 # --------------------------------------------------------- build radius
 
 ## Union of every owned building's influence. A structure is placeable if
-## its centre falls inside any of them.
+## its centre falls inside it. The rule itself lives in BuildTerritory.
 static func in_build_radius(tree: SceneTree, point: Vector3, is_player: bool) -> bool:
-	var group: String = "player_buildings" if is_player else "enemy_buildings"
-	for building in tree.get_nodes_in_group(group):
-		if not is_instance_valid(building) or building.stats == null:
-			continue
-		if point.distance_to(building.global_position) <= building.stats.build_radius_bonus:
-			return true
-	return false
+	return BuildTerritory.contains(tree, point, is_player)
 
+## Draws the outline of the territory the ghost's centre must stay inside
+## - for walls, grown by the wall margin - so the line on the ground is
+## exactly the line the validity check uses.
 func _build_radius_ring() -> void:
 	_radius_ring = MeshInstance3D.new()
 	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	for building in get_tree().get_nodes_in_group("player_buildings"):
-		if not is_instance_valid(building) or building.stats == null:
-			continue
-		_add_ring(mesh, building.global_position, building.stats.build_radius_bonus)
-	mesh.surface_end()
+	var lines := BuildTerritory.outline(get_tree(), true, BuildTerritory.margin_for(active_stats))
+	if lines.size() >= 2:
+		mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+		for point in lines:
+			mesh.surface_add_vertex(Vector3(point.x,
+				Terrain.height_at(point.x, point.z) + 0.3, point.z))
+		mesh.surface_end()
 	_radius_ring.mesh = mesh
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.35, 0.75, 1.0, 0.5)
@@ -100,16 +98,6 @@ func _build_radius_ring() -> void:
 	material.vertex_color_use_as_albedo = false
 	_radius_ring.material_override = material
 	add_child(_radius_ring)
-
-func _add_ring(mesh: ImmediateMesh, centre: Vector3, radius: float) -> void:
-	var segments: int = 40
-	var previous := centre + Vector3(radius, 0.3, 0)
-	for i in range(1, segments + 1):
-		var angle: float = TAU * float(i) / float(segments)
-		var point := centre + Vector3(cos(angle) * radius, 0.3, sin(angle) * radius)
-		mesh.surface_add_vertex(previous)
-		mesh.surface_add_vertex(point)
-		previous = point
 
 # --------------------------------------------------------------- ghost
 
@@ -267,7 +255,7 @@ func _check_validity(pos: Vector3) -> bool:
 		return false
 	if pos.z - footprint.y / 2.0 < bounds_min.y or pos.z + footprint.y / 2.0 > bounds_max.y:
 		return false
-	if not in_build_radius(get_tree(), pos, true):
+	if not BuildTerritory.allows(get_tree(), active_stats, pos, true):
 		return false
 
 	for building in get_tree().get_nodes_in_group("buildings"):

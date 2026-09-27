@@ -21,7 +21,10 @@ class_name BuildingStats
 ## the normal build panel listing order.
 @export var is_wall: bool = false
 
-## Extends the area the owner may build in, in metres.
+## Construction territory this structure grants: a circle of this radius
+## around its centre, in metres (see BuildTerritory). Sized per type -
+## large for the HQ, medium-large for production, small for defences -
+## and 0 for walls, which extend nothing.
 @export var build_radius_bonus: float = 8.0
 
 ## Defensive structures mount a weapon and are disabled by low power.

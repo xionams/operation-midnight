@@ -40,9 +40,18 @@ func _find_button(prefix: String) -> Button:
 		var n = stack.pop_back()
 		if n is Button and (n as Button).text.begins_with(prefix):
 			return n
+		## Sidebar cameo tiles are text-less buttons captioned by a Label.
+		if n is Button and _caption_of(n).begins_with(prefix):
+			return n
 		for c in n.get_children():
 			stack.append(c)
 	return null
+
+func _caption_of(button: Node) -> String:
+	for c in button.find_children("*", "Label", true, false):
+		if not (c as Label).text.is_empty():
+			return (c as Label).text
+	return ""
 
 func _move(pos: Vector2) -> void:
 	var mm := InputEventMouseMotion.new()
