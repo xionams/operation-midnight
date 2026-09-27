@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Scout Vehicle"
+role = "Recon: fastest vehicle, widest vision. Spots for the army and hunts infantry; carries no troops."
 cost = 600
 prerequisites = PackedStringArray("Vehicle Factory")
 population = 1

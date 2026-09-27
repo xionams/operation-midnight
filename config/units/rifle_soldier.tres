@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Rifle Squad"
+role = "Line infantry: cheap, shreds infantry, can garrison buildings. Crouch to hit harder."
 cost = 300
 prerequisites = PackedStringArray("Barracks")
 population = 1

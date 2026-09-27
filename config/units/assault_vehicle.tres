@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Assault Vehicle"
+role = "Mainline armour: all-round cannon, the backbone of an attack."
 cost = 900
 prerequisites = PackedStringArray("Vehicle Factory")
 population = 2

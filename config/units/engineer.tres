@@ -8,6 +8,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Engineer"
+role = "Captures enemy and neutral structures intact. Unarmed."
 cost = 500
 prerequisites = PackedStringArray("Barracks")
 population = 1

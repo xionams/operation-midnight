@@ -8,6 +8,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Supply Harvester"
+role = "Economy: hauls ore to a refinery. Protect it."
 cost = 1200
 prerequisites = PackedStringArray("Resource Refinery")
 population = 1

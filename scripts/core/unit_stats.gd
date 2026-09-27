@@ -5,6 +5,9 @@ class_name UnitStats
 ## never in gameplay scripts.
 
 @export var display_name: String = "Unit"
+## One line on what the unit is FOR, shown on its build tile and in the
+## info panel. A unit whose job the player cannot name does not get built.
+@export var role: String = ""
 @export var cost: int = 0
 
 ## Structures required before this unit can be produced.
@@ -34,7 +37,7 @@ class_name UnitStats
 @export var body_color: Color = Color.WHITE
 @export var body_size: Vector3 = Vector3(1.5, 1.0, 2.2)
 
-## Optional weapon. Leave null for unarmed units (scout, harvester).
+## Optional weapon. Leave null for unarmed units (Engineer, Spy, harvester).
 @export var weapon_stats: WeaponStats = null
 
 ## What this unit counts as when something shoots it.

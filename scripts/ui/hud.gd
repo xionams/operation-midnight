@@ -601,6 +601,7 @@ func _refresh_items() -> void:
 		elif missing.is_empty():
 			if price != null:
 				price.text = "$%s" % _thousands(stats.cost)
+			row.tooltip_text = stats.role if stats is UnitStats else ""
 			var affordable: bool = GameState.credits >= stats.cost
 			row.disabled = not affordable
 			## Dim rather than hide what is merely unaffordable: knowing
@@ -762,8 +763,10 @@ func _describe_one(entity) -> String:
 			DamageTypes.type_name(weapon.damage_type).to_lower().replace("_", " ")]
 	var posture := InfantryStance.of(entity)
 	var posture_line: String = "\nPosture: %s" % InfantryStance.mode_name(posture.mode) if posture else ""
-	return "[b]%s[/b]\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm%s\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
-		entity.stats.display_name.to_upper(), hp,
+	var role_line: String = "\n[i][color=#c8ccbb]%s[/color][/i]" % entity.stats.role \
+		if not entity.stats.role.is_empty() else ""
+	return "[b]%s[/b]%s\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm%s\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
+		entity.stats.display_name.to_upper(), role_line, hp,
 		rank_colour, rank,
 		Armor.type_name(entity.stats.armor_type).capitalize(),
 		damage_line,

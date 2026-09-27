@@ -8,6 +8,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Spy"
+role = "Disguised infiltrator: steals credits, sabotages production and power."
 cost = 700
 prerequisites = PackedStringArray("Barracks")
 population = 1

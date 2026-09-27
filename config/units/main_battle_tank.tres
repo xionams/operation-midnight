@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Main Battle Tank"
+role = "Heavy armour: breaks other vehicles and holds the line."
 cost = 1800
 prerequisites = PackedStringArray("Vehicle Factory", "Technology Center")
 population = 3

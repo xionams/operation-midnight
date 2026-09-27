@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Anti-Armor Squad"
+role = "Anti-armour infantry: rockets that kill vehicles, weak against men."
 cost = 500
 prerequisites = PackedStringArray("Barracks")
 population = 1

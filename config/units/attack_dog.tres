@@ -9,6 +9,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Attack Dog"
+role = "Fast infantry hunter; sniffs out disguised Spies. Cannot hurt vehicles or buildings."
 cost = 300
 prerequisites = PackedStringArray("Barracks")
 population = 1

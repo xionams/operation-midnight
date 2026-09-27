@@ -8,6 +8,7 @@
 [resource]
 script = ExtResource("1")
 display_name = "Artillery Vehicle"
+role = "Long-range siege: razes structures and packed infantry, helpless up close."
 cost = 1600
 prerequisites = PackedStringArray("Vehicle Factory", "Radar Center")
 population = 3
