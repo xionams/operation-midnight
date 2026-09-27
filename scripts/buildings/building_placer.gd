@@ -192,15 +192,15 @@ func _process(_delta: float) -> void:
 	_valid = _check_validity(hit_pos)
 	_ghost_material.albedo_color = VALID_COLOR if _valid else INVALID_COLOR
 
-## Segment positions along the drag, one per footprint width.
+## Segment positions along the drag: grid cells from the press to the
+## release, 4-connected (a staircase on a diagonal), so every segment
+## shares an edge with the next and separate drags meet on the same grid.
+## A cell that already holds a wall is simply skipped when committing,
+## which is how a new line joins an existing one at a corner.
 func _wall_points(from: Vector3, to: Vector3) -> Array:
-	var step: float = maxf(active_stats.footprint.x, 1.0)
-	var delta := to - from
-	delta.y = 0.0
-	var count: int = clampi(int(delta.length() / step), 0, MAX_WALL_SEGMENTS)
 	var points: Array = []
-	for i in count + 1:
-		points.append(from + delta.normalized() * step * float(i))
+	for c in Wall.line_cells(from, to, MAX_WALL_SEGMENTS):
+		points.append(Wall.cell_centre(c))
 	return points
 
 func _preview_wall_line(from: Vector3, to: Vector3) -> void:
@@ -224,7 +224,7 @@ func _preview_wall_line(from: Vector3, to: Vector3) -> void:
 
 func _commit_wall_line() -> void:
 	var hit_pos: Variant = _raycast_ground(_pointer_pos)
-	var points := _wall_points(_wall_anchor, hit_pos) if hit_pos != null else [_wall_anchor]
+	var points := _wall_points(_wall_anchor, hit_pos if hit_pos != null else _wall_anchor)
 	_wall_anchor = null
 	_clear_wall_ghosts()
 	for point in points:

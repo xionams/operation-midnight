@@ -171,6 +171,10 @@ func _build_nav_agent() -> void:
 	nav_agent.max_neighbors = 8
 	nav_agent.avoidance_priority = 0.5 if stats != null and stats.is_infantry else 1.0
 	nav_agent.max_speed = move_speed()
+	## The shared ground, plus this side's own layer - which is what gate
+	## passages are on, so a unit can use its own gates and never the
+	## enemy's.
+	nav_agent.navigation_layers = 1 | Gate.nav_layer_for(is_player_faction)
 	nav_agent.velocity_computed.connect(_on_avoidance_velocity)
 	add_child(nav_agent)
 

@@ -153,8 +153,37 @@ func _ready() -> void:
 	var placer := _build_placer()
 	_build_hud(placer, overlay)
 
-	EventBus.building_placed.connect(func(_building): _nav_region.bake_navigation_mesh(true))
+	## Every change to what stands on the map re-bakes the navmesh, but
+	## through one debounced request - see _process.
+	EventBus.building_placed.connect(func(_building): _request_nav_rebake())
+	EventBus.building_destroyed.connect(func(_building): _request_nav_rebake())
+	EventBus.building_sold.connect(func(_building): _request_nav_rebake())
 	EventBus.command_issued.connect(func(type, position): CommandMarker.spawn(_level, position, type))
+
+## Navmesh rebakes are asynchronous and Godot refuses a new one while one
+## is running. Baking directly from building_placed therefore dropped
+## every request after the first in a burst: dragging out a wall line
+## placed all its segments in one frame, only the first was baked in, and
+## units walked straight through the rest. Nothing re-baked on a
+## structure's destruction or sale either, so a breached wall stayed
+## solid. Requests now just mark the mesh dirty; a bake starts when the
+## previous one is done, and never in the same frame as the request, so a
+## structure that is being removed has left the tree before geometry is
+## parsed.
+var _nav_dirty: bool = false
+var _nav_dirty_frame: int = -1
+
+func _request_nav_rebake() -> void:
+	_nav_dirty = true
+	_nav_dirty_frame = Engine.get_process_frames()
+
+func _process(_delta: float) -> void:
+	if not _nav_dirty or _nav_region == null:
+		return
+	if Engine.get_process_frames() <= _nav_dirty_frame or _nav_region.is_baking():
+		return
+	_nav_dirty = false
+	_nav_region.bake_navigation_mesh(true)
 
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 
