@@ -155,9 +155,13 @@ func _ready() -> void:
 
 	## Every change to what stands on the map re-bakes the navmesh, but
 	## through one debounced request - see _process.
-	EventBus.building_placed.connect(func(_building): _request_nav_rebake())
-	EventBus.building_destroyed.connect(func(_building): _request_nav_rebake())
-	EventBus.building_sold.connect(func(_building): _request_nav_rebake())
+	## Bound methods, not lambdas: EventBus is an autoload and outlives a
+	## scene reload, and a lambda connected to it keeps firing after this
+	## Main is freed ("Lambda capture ... was freed"). A method connection
+	## is dropped automatically with its object.
+	EventBus.building_placed.connect(_request_nav_rebake)
+	EventBus.building_destroyed.connect(_request_nav_rebake)
+	EventBus.building_sold.connect(_request_nav_rebake)
 	EventBus.command_issued.connect(func(type, position): CommandMarker.spawn(_level, position, type))
 
 ## Navmesh rebakes are asynchronous and Godot refuses a new one while one
@@ -173,7 +177,7 @@ func _ready() -> void:
 var _nav_dirty: bool = false
 var _nav_dirty_frame: int = -1
 
-func _request_nav_rebake() -> void:
+func _request_nav_rebake(_building: Node = null) -> void:
 	_nav_dirty = true
 	_nav_dirty_frame = Engine.get_process_frames()
 

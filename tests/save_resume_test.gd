@@ -11,6 +11,7 @@ const SETTLE: float = 120.0
 
 var _fails: Array = []
 var _before: Dictionary = {}
+var _restored: Dictionary = {}
 
 func _check(name: String, cond: bool, detail: String = "") -> void:
 	print("TEST| %-52s %s %s" % [name, "PASS" if cond else "FAIL", detail])
@@ -66,6 +67,14 @@ func _ready() -> void:
 	## whatever order it is built in.
 	if not _resumed_state().is_empty():
 		get_tree().paused = true
+		## ...but the pause does not hold: on a resume the HUD defers
+		## _begin_match, which unpauses the tree, so by the time a frame
+		## has passed the restored world has already simulated. A wounded
+		## unit under fire at save time could die before being counted
+		## (seen: an enemy rifleman on 16hp inside the player's base).
+		## Deferred calls run in order, and this one is queued before the
+		## HUD's, so it sees the restored world exactly as loaded.
+		(func(): _restored = _snapshot(scene)).call_deferred()
 		await get_tree().process_frame
 		await _verify(scene)
 		return
@@ -115,8 +124,9 @@ func _verify(scene: Node) -> void:
 	_check("The commander exists after the reload", director != null)
 	if director != null:
 		director.enabled = false
-	## Still paused: measure the restored state before anything moves.
-	var after := _snapshot(scene)
+	## The restored state before anything moved (see _ready).
+	_check("Restored state measured before the world resumed", not _restored.is_empty())
+	var after := _restored if not _restored.is_empty() else _snapshot(scene)
 	print("TEST| after:  %s" % str(after))
 
 	for key in ["player_units", "enemy_units", "player_buildings",
