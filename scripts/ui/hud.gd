@@ -47,6 +47,7 @@ var _category_tabs: Dictionary = {}
 var _info_panel: RichTextLabel
 var _building_actions: HBoxContainer
 var _attack_move_button: Button
+var _posture_button: Button
 
 var _construction_panel: VBoxContainer
 var _construction_label: Label
@@ -384,6 +385,11 @@ func _build_order_controls(column: VBoxContainer) -> void:
 		func(): SelectionManager.set_stance(UnitBase.Stance.HOLD), "cmd_hold")
 	_order_button(orders, "Aggro",
 		func(): SelectionManager.set_stance(UnitBase.Stance.AGGRESSIVE), "cmd_aggro")
+	## Infantry posture. Toggles RUN <-> CROUCH for the selected soldiers
+	## (hotkey C); the info panel shows which one they are in.
+	_posture_button = _order_button(orders, "Crouch",
+		func(): SelectionManager.toggle_infantry_stance(), "cmd_hold")
+	_posture_button.name = "PostureButton"
 
 	_building_actions = HBoxContainer.new()
 	_building_actions.add_theme_constant_override("separation", 3)
@@ -681,6 +687,7 @@ func _on_selection_changed(selected: Array) -> void:
 			has_building = true
 			break
 	_building_actions.visible = has_building
+	_refresh_posture_button(selected)
 
 	if selected.is_empty():
 		_info_panel.text = "[color=#8b8f7a]Nothing selected[/color]"
@@ -699,6 +706,23 @@ func _on_selection_changed(selected: Array) -> void:
 	for display in counts:
 		lines.append("%s × %d" % [display, counts[display]])
 	_info_panel.text = "\n".join(lines)
+
+## The posture button only means something with infantry selected, and
+## its label says what pressing it will do.
+func _refresh_posture_button(selected: Array) -> void:
+	if _posture_button == null:
+		return
+	var infantry: int = 0
+	var crouched: int = 0
+	for entity in selected:
+		var posture := InfantryStance.of(entity)
+		if posture == null:
+			continue
+		infantry += 1
+		if posture.is_crouched():
+			crouched += 1
+	_posture_button.disabled = infantry == 0
+	_posture_button.text = "Run" if infantry > 0 and crouched == infantry else "Crouch"
 
 func _describe_one(entity) -> String:
 	if not is_instance_valid(entity) or entity.stats == null:
@@ -729,12 +753,15 @@ func _describe_one(entity) -> String:
 	if weapon != null:
 		damage_line = "%d %s" % [int(weapon.damage),
 			DamageTypes.type_name(weapon.damage_type).to_lower().replace("_", " ")]
-	return "[b]%s[/b]\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
+	var posture := InfantryStance.of(entity)
+	var posture_line: String = "\nPosture: %s" % InfantryStance.mode_name(posture.mode) if posture else ""
+	return "[b]%s[/b]\n\n%s HP\nRank: [color=%s]%s[/color]\nArmor: %s\nDamage: %s\nVision: %dm%s\n\n[color=#9fd0ff]Order: %s   Stance: %s[/color]" % [
 		entity.stats.display_name.to_upper(), hp,
 		rank_colour, rank,
 		Armor.type_name(entity.stats.armor_type).capitalize(),
 		damage_line,
 		int(entity.stats.vision_range),
+		posture_line,
 		CommandTypes.type_name(entity.current_command).capitalize(),
 		UnitBase.Stance.keys()[entity.stance].capitalize()]
 

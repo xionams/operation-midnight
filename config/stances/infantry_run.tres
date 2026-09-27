@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StanceModifiers" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/stance_modifiers.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Run"
+move_speed_multiplier = 1.0
+damage_multiplier = 1.0
+range_multiplier = 1.0
+fire_rate_multiplier = 1.0
+accuracy_multiplier = 1.0
+suppression_resistance = 0.0

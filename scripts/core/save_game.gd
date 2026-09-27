@@ -131,6 +131,9 @@ static func _capture_unit(unit: Node) -> Dictionary:
 		"health": snappedf(unit.health.current_health, 0.1) if unit.health else 0.0,
 		"stance": unit.stance,
 	}
+	var posture := InfantryStance.of(unit)
+	if posture != null:
+		entry["posture"] = posture.mode
 	if unit.veterancy != null:
 		entry["xp"] = snappedf(unit.veterancy.experience, 0.1)
 	## Harvesters keep their cargo; losing it on resume is a small theft
@@ -198,6 +201,9 @@ static func restore(scene: Node, data: Dictionary, spawn_unit: Callable,
 			unit.health.current_health = clampf(float(entry["health"]), 1.0,
 				unit.health.max_health)
 		unit.stance = int(entry.get("stance", unit.stance))
+		var posture := InfantryStance.of(unit)
+		if posture != null and entry.has("posture"):
+			posture.set_mode(int(entry["posture"]))
 		if unit.veterancy != null and entry.has("xp"):
 			unit.veterancy.award_damage(float(entry["xp"]))
 		if stats.is_harvester and entry.has("cargo"):

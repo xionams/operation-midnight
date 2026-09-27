@@ -47,6 +47,12 @@ class_name UnitStats
 @export var can_be_crushed: bool = false
 @export var can_crush: bool = false
 
+## Infantry posture profiles (see InfantryStance). Left null, infantry use
+## the shared defaults in config/stances/; set them to give one unit type
+## its own RUN / CROUCH trade-off. Ignored for non-infantry.
+@export var run_stance: StanceModifiers = null
+@export var crouch_stance: StanceModifiers = null
+
 ## Harvester-only fields. Ignored by other unit types.
 @export var is_harvester: bool = false
 @export var cargo_capacity: float = 0.0

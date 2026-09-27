@@ -151,6 +151,8 @@ func _handle_key(key: InputEventKey) -> void:
 			command_stop()
 		KEY_P:
 			arm_patrol()
+		KEY_C:
+			toggle_infantry_stance()
 		KEY_1, KEY_2, KEY_3:
 			var index: int = key.physical_keycode - KEY_0
 			if key.ctrl_pressed:
@@ -373,6 +375,31 @@ func set_stance(stance: int) -> void:
 	for unit in selected_units:
 		if is_instance_valid(unit) and unit.has_method("issue_command"):
 			unit.stance = stance
+
+## RUN / CROUCH for every selected soldier. Vehicles in a mixed
+## selection have no posture and are simply skipped.
+func set_infantry_stance(mode: int) -> void:
+	for unit in selected_units:
+		var posture := InfantryStance.of(unit)
+		if posture != null:
+			posture.set_mode(mode)
+	GameState.selection_changed.emit(selected_units)
+
+## One key / one button: if anyone selected is still running, everyone
+## crouches; only when the whole group is already down do they get up.
+func toggle_infantry_stance() -> void:
+	var any_running: bool = false
+	var any_infantry: bool = false
+	for unit in selected_units:
+		var posture := InfantryStance.of(unit)
+		if posture == null:
+			continue
+		any_infantry = true
+		if not posture.is_crouched():
+			any_running = true
+	if not any_infantry:
+		return
+	set_infantry_stance(InfantryStance.Mode.CROUCH if any_running else InfantryStance.Mode.RUN)
 
 func command_stop() -> void:
 	for unit in selected_units:

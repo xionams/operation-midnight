@@ -113,6 +113,7 @@ func _ready() -> void:
 	_build_fog_visibility()
 	_build_collision()
 	_build_nav_agent()
+	_build_infantry_stance()
 	_build_health()
 	_build_weapon()
 	_build_visual()
@@ -169,9 +170,31 @@ func _build_nav_agent() -> void:
 	nav_agent.neighbor_distance = 6.0
 	nav_agent.max_neighbors = 8
 	nav_agent.avoidance_priority = 0.5 if stats != null and stats.is_infantry else 1.0
-	nav_agent.max_speed = stats.move_speed if stats else 5.0
+	nav_agent.max_speed = move_speed()
 	nav_agent.velocity_computed.connect(_on_avoidance_velocity)
 	add_child(nav_agent)
+
+## Infantry can run or crouch. The posture only ever reaches movement
+## through move_speed() and weapons through Weapon, so nothing else here
+## knows it exists.
+func _build_infantry_stance() -> void:
+	if stats == null or not stats.is_infantry:
+		return
+	var posture := InfantryStance.new()
+	posture.name = "InfantryStance"
+	if stats.run_stance != null:
+		posture.run_profile = stats.run_stance
+	if stats.crouch_stance != null:
+		posture.crouch_profile = stats.crouch_stance
+	add_child(posture)
+	## RVO clamps to max_speed, so it has to follow the posture or a
+	## running squad would be held to its crouched pace (or the reverse).
+	posture.mode_changed.connect(func(_mode): if nav_agent: nav_agent.max_speed = move_speed())
+
+## Current ground speed: the unit's own figure scaled by its posture.
+func move_speed() -> float:
+	var base: float = stats.move_speed if stats else 5.0
+	return base * InfantryStance.modifiers_of(self).move_speed_multiplier
 
 ## RVO hands back a velocity that avoids neighbours; the body moves with
 ## that rather than the raw desired direction.
@@ -395,7 +418,7 @@ func _tick_combat_behavior(delta: float) -> void:
 		return
 	_acquire_timer = ACQUIRE_INTERVAL
 
-	var acquisition: float = attacker.weapon.stats.attack_range \
+	var acquisition: float = attacker.weapon.attack_range() \
 		+ STANCE_ACQUIRE_BONUS.get(stance, ACQUIRE_BONUS)
 	var found := _nearest_hostile(acquisition, attacker)
 	if found == null:
@@ -646,7 +669,7 @@ func _physics_process(delta: float) -> void:
 		var desired_rotation: float = atan2(direction.x, direction.z)
 		var turn_speed: float = stats.turn_speed if stats else 6.0
 		rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * delta, 0.0, 1.0))
-		var speed: float = stats.move_speed if stats else 5.0
+		var speed: float = move_speed()
 		velocity = direction.normalized() * speed
 	else:
 		velocity = Vector3.ZERO

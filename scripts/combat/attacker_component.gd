@@ -116,7 +116,7 @@ func _physics_process(delta: float) -> void:
 		_owner_unit.call("move_to", _owner_unit.global_position + away * weapon.stats.minimum_range)
 		return
 
-	if distance > weapon.stats.attack_range:
+	if distance > weapon.attack_range():
 		if not mobile:
 			target = null
 			return
