@@ -15,6 +15,7 @@ const WAREHOUSE_STATS := preload("res://config/buildings/civilian_warehouse.tres
 
 var _main: Node3D
 var _fails: Array = []
+var _saved_block: Dictionary = {}
 
 func _ready() -> void:
 	_main = get_parent()
@@ -242,9 +243,11 @@ func _run() -> void:
 	for u in sold_squad:
 		hold_block.enter(u)
 	_check("Block holds engineer + two riflemen", hold_block.occupancy() == 3)
+	InfantryStance.of(sold_squad[0]).set_mode(InfantryStance.Mode.CROUCH)
 	var entry: Dictionary = SaveGame._capture_building(block)
 	_check("Saving records who is inside a garrison",
 		entry.get("occupants", []).size() == 3, "(%d)" % entry.get("occupants", []).size())
+	_saved_block = entry
 	block.sell()
 	await get_tree().process_frame
 	_check("Selling a garrisoned building releases everyone",
@@ -264,6 +267,36 @@ func _run() -> void:
 	for u in ghosts:
 		all_freed = all_freed and not is_instance_valid(u)
 	_check("Removing a building frees the units held inside it", all_freed)
+
+	# --- a saved garrison comes back garrisoned ---
+	## Through SaveGame.restore with the game's own spawners, as a resumed
+	## match does. The block was sold above, so its cell is free again.
+	var pop_pre_restore: int = TechTree.population_used(true)
+	SaveGame.restore(_main, {"buildings": [_saved_block], "credits": GameState.credits,
+			"enemy_credits": GameState.enemy_credits},
+		func(stats, is_player, position): return _main._spawn_unit(stats.unit_scene, stats, is_player, position),
+		func(stats, is_player, position, neutral): return _main._spawn_saved_building(stats, is_player, position, neutral),
+		func(position, amount): _main._spawn_resource_node(position, amount))
+	await get_tree().process_frame
+	var restored: Node = null
+	for b in get_tree().get_nodes_in_group("buildings"):
+		if is_instance_valid(b) and b.stats == BLOCK_STATS and not b.is_queued_for_deletion() \
+			and Vector2(b.global_position.x, b.global_position.z).distance_to(
+				Vector2(_saved_block["position"][0], _saved_block["position"][2])) < 0.5:
+			restored = b
+	var restored_hold: OccupantHold = restored.get_node_or_null("GarrisonComponent") if restored else null
+	_check("Restored building is garrisoned again",
+		restored_hold != null and restored_hold.occupancy() == 3,
+		"(%d)" % (restored_hold.occupancy() if restored_hold else -1))
+	var crouched_back: bool = false
+	if restored_hold != null:
+		for u in restored_hold.occupants:
+			if InfantryStance.of(u) != null and InfantryStance.of(u).is_crouched():
+				crouched_back = true
+	_check("Occupants keep their posture through save/restore", crouched_back)
+	_check("Restored occupants are counted, not duplicated in the world",
+		TechTree.population_used(true) == pop_pre_restore + 3,
+		"(%d -> %d)" % [pop_pre_restore, TechTree.population_used(true)])
 
 func _in_world(u) -> bool:
 	return is_instance_valid(u) and u.is_inside_tree()

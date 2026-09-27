@@ -126,7 +126,9 @@ static func _capture_unit(unit: Node) -> Dictionary:
 	var entry := {
 		"name": unit.stats.display_name,
 		"player": unit.is_player_faction,
-		"position": _v3(unit.global_position),
+		## A garrisoned unit is out of the tree and has no global
+		## transform; its building's position is recorded for it instead.
+		"position": _v3(unit.global_position if unit.is_inside_tree() else unit.position),
 		"rotation": snappedf(unit.rotation.y, 0.01),
 		"health": snappedf(unit.health.current_health, 0.1) if unit.health else 0.0,
 		"stance": unit.stance,
@@ -163,6 +165,7 @@ static func _capture_building(building: Node) -> Dictionary:
 		for unit in garrison.occupants:
 			var unit_entry := _capture_unit(unit)
 			if not unit_entry.is_empty():
+				unit_entry["position"] = _v3(building.global_position)
 				inside.append(unit_entry)
 		entry["occupants"] = inside
 	if garrison != null:
