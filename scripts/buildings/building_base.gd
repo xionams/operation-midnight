@@ -61,7 +61,7 @@ func _ready() -> void:
 	_register_power()
 
 func _build_garrison() -> void:
-	if stats == null or not stats.garrisonable:
+	if stats == null or not (stats.garrisonable or stats.garrison_capacity > 0):
 		return
 	var garrison := GarrisonComponent.new()
 	garrison.name = "GarrisonComponent"
@@ -100,6 +100,8 @@ func _build_visual() -> void:
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
 		_visual_root = visual
+		if visual is Node3D and stats.visual_scale != Vector3.ONE:
+			(visual as Node3D).scale = stats.visual_scale
 		FactionPaint.apply(visual, _faction_color())
 		## Models built with a Turret node aim it; everything else
 		## simply has no turret to turn.
@@ -184,6 +186,36 @@ func set_faction(player: bool) -> void:
 	_on_faction_changed()
 	EventBus.building_captured.emit(self, is_player_faction)
 
+## The reverse of a capture, for structures that belong to whoever is
+## standing in them: an emptied civilian building is nobody's again, so
+## either side can occupy it next.
+func release_to_neutral() -> void:
+	if is_neutral:
+		return
+	_on_faction_changing()
+	_unregister_power()
+	remove_from_group("player_buildings" if is_player_faction else "enemy_buildings")
+	is_neutral = true
+	add_to_group("neutral_buildings")
+	if _indicator != null:
+		var material := _indicator.material_override as StandardMaterial3D
+		if material != null:
+			material.albedo_color = _faction_color()
+	if _visual_root != null:
+		FactionPaint.apply(_visual_root, _faction_color())
+	if get_node_or_null("FogHideable") == null:
+		_build_fog_visibility()
+	## Nobody may keep a neutral structure selected.
+	SelectionManager.notify_unit_removed(self)
+	_on_faction_changed()
+
+## Anyone carried inside (a garrison) walks out rather than vanishing
+## with a structure that is sold.
+func _release_occupants() -> void:
+	for child in get_children():
+		if child is OccupantHold:
+			(child as OccupantHold).exit_all()
+
 ## Overridden by buildings that register themselves somewhere on _ready.
 func _on_faction_changing() -> void:
 	pass
@@ -223,6 +255,7 @@ func sell() -> void:
 	if not is_player_faction:
 		return
 	GameState.add_credits_for(true, int(round(stats.cost * SELL_REFUND)))
+	_release_occupants()
 	_unregister_power()
 	EventBus.building_sold.emit(self)
 	queue_free()

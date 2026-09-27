@@ -367,9 +367,15 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 			stop_moving()
 		CommandTypes.Type.GARRISON:
 			## Only infantry can occupy; everyone else just walks there.
-			if stats != null and stats.is_infantry and target != null:
+			## A soldier on his way in is not fighting: drop any target so
+			## the order is not abandoned at the first enemy he sees.
+			if attacker:
+				attacker.clear_target()
+			garrison_target = null
+			if stats != null and stats.is_infantry and target != null \
+				and _hold_of(target) != null:
 				garrison_target = target
-				move_to(position)
+				move_to((target as Node3D).global_position)
 			else:
 				move_to(position)
 		CommandTypes.Type.PATROL:
@@ -411,7 +417,9 @@ func _tick_combat_behavior(delta: float) -> void:
 
 	_tick_patrol()
 	_tick_guard()
-	_tick_garrison()
+	## Heading for a door is a movement order, not a hunt.
+	if current_command == CommandTypes.Type.GARRISON and is_instance_valid(garrison_target):
+		return
 
 	_acquire_timer -= delta
 	if _acquire_timer > 0.0:
@@ -450,16 +458,40 @@ func _should_return_home() -> bool:
 	return global_position.distance_to(_guard_origin) > leash
 
 ## Walk in once close enough. Entering removes the unit from the world,
-## so this is the last thing it does.
+## so this is the last thing it does. Runs every physics tick for every
+## unit, not from the combat scan - that scan returns early for unarmed
+## infantry and for anyone who has a target, which meant an Engineer could
+## never garrison and a rifleman who spotted an enemy never arrived.
 func _tick_garrison() -> void:
-	if current_command != CommandTypes.Type.GARRISON or not is_instance_valid(garrison_target):
+	if current_command != CommandTypes.Type.GARRISON or garrison_target == null:
 		return
-	if global_position.distance_to(garrison_target.global_position) > 6.0:
+	if not is_instance_valid(garrison_target):
+		garrison_target = null
 		return
-	var garrison = garrison_target.get_node_or_null("GarrisonComponent")
+	var hold := _hold_of(garrison_target)
+	if hold == null:
+		garrison_target = null
+		return
+	if not hold.in_entry_range(self):
+		return
+	var building := garrison_target
 	garrison_target = null
-	if garrison != null:
-		garrison.enter(self)
+	if not hold.enter(self):
+		## Full, or it changed hands on the way: stand at the door.
+		stop_moving()
+		current_command = CommandTypes.Type.STOP
+		command_target = null
+	elif building != null:
+		command_target = building
+
+## The garrison/transport a node carries, if any.
+func _hold_of(node: Node) -> OccupantHold:
+	if not is_instance_valid(node):
+		return null
+	for child in node.get_children():
+		if child is OccupantHold:
+			return child
+	return null
 
 ## Patrol turns around at each end, so a unit sweeps a line indefinitely
 ## and re-engages anything that wanders into it.
@@ -650,6 +682,9 @@ func _settle_on_ground() -> void:
 	global_position = here
 
 func _physics_process(delta: float) -> void:
+	_tick_garrison()
+	if not is_inside_tree():
+		return
 	_refresh_damage_visual()
 	_lay_tracks()
 	_settle_on_ground()

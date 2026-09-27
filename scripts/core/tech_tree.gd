@@ -60,6 +60,9 @@ func population_used(is_player: bool = true) -> int:
 	for unit in get_tree().get_nodes_in_group(group):
 		if is_instance_valid(unit) and unit.stats != null:
 			used += unit.stats.population
+	## Soldiers inside a garrison are out of the tree but still on the
+	## books - otherwise garrisoning would dodge the unit cap.
+	used += OccupantHold.population_inside(get_tree(), is_player)
 	## Queued orders count too, or a player could queue an unlimited army
 	## and watch it all arrive at once.
 	for building in get_tree().get_nodes_in_group("player_buildings" if is_player else "enemy_buildings"):

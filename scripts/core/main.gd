@@ -28,6 +28,13 @@ const COMMS_OUTPOST_STATS: BuildingStats = preload("res://config/buildings/comms
 const REPAIR_DEPOT_STATS: BuildingStats = preload("res://config/buildings/repair_depot.tres")
 const SUPPLY_DEPOT_STATS: BuildingStats = preload("res://config/buildings/supply_depot.tres")
 const CIVILIAN_STATS: BuildingStats = preload("res://config/buildings/civilian_structure.tres")
+## Garrisonable civilian buildings by size; MapDefinition.civilian_kinds
+## picks one per position.
+const CIVILIAN_KINDS: Dictionary = {
+	"house": preload("res://config/buildings/civilian_house.tres"),
+	"structure": CIVILIAN_STATS,
+	"warehouse": preload("res://config/buildings/civilian_warehouse.tres"),
+}
 
 ## Empty buildings near the routes between bases. Infantry inside one is
 ## far harder to shift than infantry in the open, so they turn a corridor
@@ -449,9 +456,12 @@ func _spawn_neutral_structure() -> void:
 	_spawn_strategic(COMMS_OUTPOST_STATS, map.comms_outpost, StrategicStructure.Benefit.VISION)
 	_spawn_strategic(REPAIR_DEPOT_STATS, map.repair_depot, StrategicStructure.Benefit.REPAIR)
 	_spawn_strategic(SUPPLY_DEPOT_STATS, map.supply_depot, StrategicStructure.Benefit.SUPPLY)
-	for position in map.civilian_positions:
-		var civilian = CIVILIAN_STATS.scene.instantiate()
-		civilian.stats = CIVILIAN_STATS
+	for i in map.civilian_positions.size():
+		var position: Vector3 = map.civilian_positions[i]
+		var kind: String = map.civilian_kinds[i] if i < map.civilian_kinds.size() else "structure"
+		var civilian_stats: BuildingStats = CIVILIAN_KINDS.get(kind, CIVILIAN_STATS)
+		var civilian = civilian_stats.scene.instantiate()
+		civilian.stats = civilian_stats
 		civilian.is_neutral = true
 		_nav_region.add_child(civilian)
 		civilian.global_position = position

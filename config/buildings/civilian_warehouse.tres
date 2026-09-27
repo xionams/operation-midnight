@@ -6,7 +6,7 @@
 
 [resource]
 script = ExtResource("1")
-display_name = "Civilian Structure"
+display_name = "Warehouse"
 cost = 0
 prerequisites = PackedStringArray()
 population_provided = 0
@@ -16,14 +16,15 @@ build_radius_bonus = 0.0
 weapon_stats = null
 is_defensive = false
 garrisonable = true
-garrison_capacity = 4
-max_health = 500.0
+garrison_capacity = 8
+max_health = 900.0
 build_time = 0.0
 power_generation = 0
 power_consumption = 0
 vision_range = 8.0
-footprint = Vector2(6, 6)
+footprint = Vector2(10, 8)
 body_color = Color(0.6, 0.58, 0.52, 1)
-body_size = Vector3(5, 4.5, 5)
+body_size = Vector3(8.5, 5, 6.5)
 visual_scene = ExtResource("3")
 scene = ExtResource("2")
+visual_scale = Vector3(1.7, 1.1, 1.3)

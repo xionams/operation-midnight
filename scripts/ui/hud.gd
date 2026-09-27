@@ -399,6 +399,10 @@ func _build_order_controls(column: VBoxContainer) -> void:
 	_order_button(_building_actions, "Repair", _on_repair_pressed, "cmd_repair")
 	_order_button(_building_actions, "Rally",
 		func(): SelectionManager.arm_rally_point(), "cmd_move")
+	## Garrisoned soldiers come back out.
+	var unload := _order_button(_building_actions, "Unload",
+		func(): SelectionManager.command_evacuate(), "cmd_stop")
+	unload.name = "UnloadButton"
 
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 3)
@@ -741,6 +745,9 @@ func _describe_one(entity) -> String:
 				queue.current_stats().display_name, int(queue.progress() * 100.0)]
 		if building.repairing:
 			extra += "\n[color=#7fe08a]Repairing[/color]"
+		var garrison: GarrisonComponent = building.get_node_or_null("GarrisonComponent")
+		if garrison != null:
+			extra += "\n[color=#ffd479]Garrison: %d / %d[/color]" % [garrison.occupancy(), garrison.capacity]
 		return "[b]%s[/b]\n\n%s HP\nPower: %s\nVision: %dm%s" % [
 			building.stats.display_name.to_upper(), hp, power,
 			int(building.stats.vision_range), extra]

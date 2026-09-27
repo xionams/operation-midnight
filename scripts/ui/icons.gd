@@ -28,6 +28,8 @@ const BY_NAME: Dictionary = {
 	"Repair Depot": "bld_repair_depot",
 	"Supply Depot": "bld_supply_depot",
 	"Civilian Structure": "bld_civilian",
+	"Civilian House": "bld_civilian",
+	"Warehouse": "bld_civilian",
 	# Units
 	"Rifle Squad": "unit_rifle_soldier",
 	"Anti-Armor Squad": "unit_at_squad",

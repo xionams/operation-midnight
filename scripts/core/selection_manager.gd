@@ -401,6 +401,19 @@ func toggle_infantry_stance() -> void:
 		return
 	set_infantry_stance(InfantryStance.Mode.CROUCH if any_running else InfantryStance.Mode.RUN)
 
+## Everyone out of every selected garrison (or, later, transport).
+## Returns how many units left.
+func command_evacuate() -> int:
+	var count: int = 0
+	for entity in selected_units:
+		if not is_instance_valid(entity):
+			continue
+		for child in entity.get_children():
+			if child is OccupantHold:
+				count += (child as OccupantHold).exit_all().size()
+	GameState.selection_changed.emit(selected_units)
+	return count
+
 func command_stop() -> void:
 	for unit in selected_units:
 		if is_instance_valid(unit) and unit.has_method("issue_command"):

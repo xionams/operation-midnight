@@ -32,6 +32,10 @@ class_name MapDefinition
 
 @export_group("Neutral structures")
 @export var civilian_positions: Array[Vector3] = []
+## Which kind of civilian building stands at each position, by index:
+## "house" (garrison 2), "structure" (4) or "warehouse" (8). Missing or
+## unknown entries fall back to "structure", so older maps are unchanged.
+@export var civilian_kinds: PackedStringArray = PackedStringArray()
 @export var comms_outpost: Vector3 = Vector3.ZERO
 @export var repair_depot: Vector3 = Vector3.ZERO
 @export var supply_depot: Vector3 = Vector3.ZERO

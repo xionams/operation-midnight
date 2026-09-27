@@ -30,6 +30,10 @@ class_name BuildingStats
 
 ## Infantry can occupy this structure and fire from inside it.
 @export var garrisonable: bool = false
+## How many infantry fit inside. Scales with the structure: a house holds
+## a couple, a warehouse a platoon. 0 on a garrisonable building means
+## GarrisonComponent.DEFAULT_CAPACITY.
+@export var garrison_capacity: int = 0
 @export var max_health: float = 500.0
 @export var build_time: float = 0.0 ## Instant in Milestone 1; wired for later.
 @export var power_generation: int = 0
@@ -46,6 +50,9 @@ class_name BuildingStats
 
 ## Replace with a Blender-authored PackedScene later.
 @export var visual_scene: PackedScene = null
+## Lets one model serve several sizes of structure (a house and a
+## warehouse share the civilian block, scaled).
+@export var visual_scale: Vector3 = Vector3.ONE
 
 ## Scene to instance when this building is placed via the build menu.
 @export var scene: PackedScene = null

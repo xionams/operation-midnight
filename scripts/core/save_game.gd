@@ -155,6 +155,18 @@ static func _capture_building(building: Node) -> Dictionary:
 	}
 	if building.get("benefit") != null:
 		entry["benefit"] = building.benefit
+	## Soldiers inside are out of the tree, so the unit sweep never sees
+	## them - they are saved with the building that holds them.
+	var garrison: OccupantHold = building.get_node_or_null("GarrisonComponent")
+	if garrison != null and garrison.occupancy() > 0:
+		var inside: Array = []
+		for unit in garrison.occupants:
+			var unit_entry := _capture_unit(unit)
+			if not unit_entry.is_empty():
+				inside.append(unit_entry)
+		entry["occupants"] = inside
+	if garrison != null:
+		entry["reverts_to_neutral"] = bool(garrison.get("_started_neutral"))
 	return entry
 
 # ------------------------------------------------------------ restore
@@ -187,27 +199,18 @@ static func restore(scene: Node, data: Dictionary, spawn_unit: Callable,
 		building.rally_point = _to_v3(entry.get("rally"))
 		if entry.has("benefit") and building.get("benefit") != null:
 			building.benefit = int(entry["benefit"])
+		var garrison: OccupantHold = building.get_node_or_null("GarrisonComponent")
+		if garrison != null:
+			if entry.has("reverts_to_neutral"):
+				garrison.set("_started_neutral", bool(entry["reverts_to_neutral"]))
+			for unit_entry in entry.get("occupants", []):
+				## If he can no longer board he simply stays on the map.
+				var occupant = _restore_unit(unit_entry, spawn_unit)
+				if occupant != null:
+					garrison.enter(occupant)
 
 	for entry in data.get("units", []):
-		var stats = _find_unit(String(entry.get("name", "")))
-		if stats == null:
-			continue
-		var unit = spawn_unit.call(stats, bool(entry.get("player", true)),
-			_to_v3(entry.get("position")))
-		if unit == null:
-			continue
-		unit.rotation.y = float(entry.get("rotation", 0.0))
-		if unit.health != null and entry.has("health"):
-			unit.health.current_health = clampf(float(entry["health"]), 1.0,
-				unit.health.max_health)
-		unit.stance = int(entry.get("stance", unit.stance))
-		var posture := InfantryStance.of(unit)
-		if posture != null and entry.has("posture"):
-			posture.set_mode(int(entry["posture"]))
-		if unit.veterancy != null and entry.has("xp"):
-			unit.veterancy.award_damage(float(entry["xp"]))
-		if stats.is_harvester and entry.has("cargo"):
-			unit.set("cargo", float(entry["cargo"]))
+		_restore_unit(entry, spawn_unit)
 
 	if data.has("fog"):
 		FogOfWar.import_explored(Marshalls.base64_to_raw(String(data["fog"])))
@@ -242,6 +245,28 @@ static func _find_unit(display_name: String):
 			return stats
 	return null
 
+static func _restore_unit(entry: Dictionary, spawn_unit: Callable) -> Node:
+	var stats = _find_unit(String(entry.get("name", "")))
+	if stats == null:
+		return null
+	var unit = spawn_unit.call(stats, bool(entry.get("player", true)),
+		_to_v3(entry.get("position")))
+	if unit == null:
+		return null
+	unit.rotation.y = float(entry.get("rotation", 0.0))
+	if unit.health != null and entry.has("health"):
+		unit.health.current_health = clampf(float(entry["health"]), 1.0,
+			unit.health.max_health)
+	unit.stance = int(entry.get("stance", unit.stance))
+	var posture := InfantryStance.of(unit)
+	if posture != null and entry.has("posture"):
+		posture.set_mode(int(entry["posture"]))
+	if unit.veterancy != null and entry.has("xp"):
+		unit.veterancy.award_damage(float(entry["xp"]))
+	if stats.is_harvester and entry.has("cargo"):
+		unit.set("cargo", float(entry["cargo"]))
+	return unit
+
 static func _find_building(display_name: String):
 	for category in BuildCatalog.categories():
 		for stats in BuildCatalog.items(category):
@@ -249,6 +274,8 @@ static func _find_building(display_name: String):
 				return stats
 	for path in ["res://config/buildings/command_hq.tres",
 			"res://config/buildings/civilian_structure.tres",
+			"res://config/buildings/civilian_house.tres",
+			"res://config/buildings/civilian_warehouse.tres",
 			"res://config/buildings/comms_outpost.tres",
 			"res://config/buildings/comms_relay.tres",
 			"res://config/buildings/repair_depot.tres",
