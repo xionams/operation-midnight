@@ -156,8 +156,29 @@ func get_nearest_refinery(from_position: Vector3, is_player: bool = true,
 			nearest = refinery
 	return nearest
 
-func report_hq_destroyed(faction: Faction) -> void:
+## A headquarters has left the field. `departing` is the one going, so
+## it can be discounted: it is usually still in the tree when this is
+## called.
+##
+## A side is beaten only when its LAST headquarters goes. This used to
+## end the match on ANY of them, which made a second HQ a liability
+## rather than insurance, and meant selling a spare lost you the game.
+## Does this side still hold a headquarters other than `departing`?
+func _has_another_hq(faction: Faction, departing: Node) -> bool:
+	var group: String = "player_buildings" if faction == Faction.PLAYER \
+		else "enemy_buildings"
+	for building in get_tree().get_nodes_in_group(group):
+		if building == departing or not is_instance_valid(building) \
+			or building.is_queued_for_deletion():
+			continue
+		if building is CommandHQ:
+			return true
+	return false
+
+func report_hq_destroyed(faction: Faction, departing: Node = null) -> void:
 	if match_state != MatchState.PLAYING:
+		return
+	if _has_another_hq(faction, departing):
 		return
 	if faction == Faction.PLAYER:
 		match_state = MatchState.DEFEAT
