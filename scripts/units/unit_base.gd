@@ -48,6 +48,10 @@ const STANCE_LEASH: Dictionary = {
 const ACQUIRE_INTERVAL: float = 0.25
 const ACQUIRE_BONUS: float = 5.0
 const MAX_CHASE_DISTANCE: float = 12.0
+## How far off its surface a unit may drift before it is put back, even
+## if it has not moved horizontally at all.
+const SETTLE_DRIFT: float = 0.75
+
 const STUCK_TIME: float = 2.5
 const STUCK_EPSILON: float = 0.4
 ## Jams in a row before a unit stops trying to free itself and changes
@@ -236,6 +240,13 @@ func move_speed() -> float:
 ## RVO hands back a velocity that avoids neighbours; the body moves with
 ## that rather than the raw desired direction.
 func _on_avoidance_velocity(safe_velocity: Vector3) -> void:
+	## Flat, always. RVO works in three dimensions and will happily hand
+	## back a velocity with a vertical component when the agent's path
+	## runs below it - and move_and_slide will faithfully fly the unit up
+	## out of the world. Measured: two patrol boats jammed at their yard
+	## mouth climbed to Y=218 and stayed there, still counted in the
+	## fleet, while the navy waited for ships that were never coming.
+	safe_velocity.y = 0.0
 	velocity = safe_velocity
 	move_and_slide()
 	_remember_blocker()
@@ -749,14 +760,23 @@ func _settle_on_ground() -> void:
 		var dx: float = here.x - _settled_at.x
 		var dz: float = here.z - _settled_at.z
 		if dx * dx + dz * dz < SETTLE_STEP * SETTLE_STEP:
-			return
+			## Skipping the re-settle while a unit has not moved
+			## horizontally is what makes this cheap, but it also meant a
+			## unit pushed VERTICALLY off its surface was never pulled
+			## back - it simply stayed wherever it had drifted to. Cheap
+			## in the common case, still correct in the rare one.
+			if absf(here.y - _resting_height(here)) < SETTLE_DRIFT:
+				return
 	_settled_at = here
-	## Ships ride the surface; a submerged boat sits lower in it.
-	if is_naval():
-		here.y = Water.level - (0.6 if Stealth.is_submerged(self) else 0.0)
-	else:
-		here.y = Terrain.height_at(here.x, here.z)
+	here.y = _resting_height(here)
 	global_position = here
+
+## The height this unit belongs at. Ships ride the surface; a submerged
+## boat sits lower in it; everything else stands on the ground.
+func _resting_height(at: Vector3) -> float:
+	if is_naval():
+		return Water.level - (0.6 if Stealth.is_submerged(self) else 0.0)
+	return Terrain.height_at(at.x, at.z)
 
 func _physics_process(delta: float) -> void:
 	_tick_garrison()
@@ -832,9 +852,19 @@ func _tick_unstick(delta: float) -> void:
 	var destination: Vector3 = nav_agent.target_position
 
 	if _stuck_strikes == 1:
-		## Re-plan only. Re-setting the target makes the agent path from
-		## where it now is instead of from where the old path began.
-		nav_agent.target_position = global_position
+		## Re-plan only: no movement, just a fresh path from where the
+		## unit actually is.
+		##
+		## Via a hair's offset, NOT via global_position. Pointing the
+		## agent at its own position makes is_navigation_finished() true
+		## for that instant, and anything polling it reads the unit as
+		## idle and gives it a new job. The naval AI does exactly that -
+		## it hands its scouting ship a fresh sweep point whenever the
+		## ship reports idle - so a ship that tripped the stuck check
+		## kept being re-tasked and swept the same water forever instead
+		## of reaching the far coast. It cost the AI its naval scouting
+		## about half of all matches.
+		nav_agent.target_position = destination + Vector3(0.01, 0.0, 0.0)
 		nav_agent.target_position = destination
 		return
 
