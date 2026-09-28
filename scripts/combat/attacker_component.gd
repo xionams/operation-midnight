@@ -139,3 +139,5 @@ func _physics_process(delta: float) -> void:
 		if weapon.can_fire():
 			var muzzle: Vector3 = _owner_unit.global_position + Vector3.UP
 			weapon.fire_at(target, muzzle)
+			if _owner_unit.has_method("notify_weapon_fired"):
+				_owner_unit.notify_weapon_fired()

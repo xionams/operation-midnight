@@ -104,6 +104,7 @@ const TRACK_MIN_HEIGHT: float = 1.0
 var _last_track: Vector3 = Vector3.INF
 var _stuck_timer: float = 0.0
 var _stuck_reference: Vector3 = Vector3.ZERO
+var _infantry_anim: InfantryAnimator = null
 var _stuck_strikes: int = 0
 var _shove_timer: float = 0.0
 ## Where we last ground against something, so recovery can steer away
@@ -262,6 +263,9 @@ func _build_visual() -> void:
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
 		ModelAnimator.attach(self, visual)
+		## Infantry models are jointed; everything else has no rig and
+		## gets nothing attached.
+		_infantry_anim = InfantryAnimator.attach(self, visual)
 		_model = visual
 		return
 
@@ -348,6 +352,11 @@ func set_selected(selected: bool) -> void:
 func move_to(target_position: Vector3) -> void:
 	if nav_agent:
 		nav_agent.target_position = target_position
+
+## A weapon on this unit just fired: let the limbs react.
+func notify_weapon_fired() -> void:
+	if _infantry_anim != null and is_instance_valid(_infantry_anim):
+		_infantry_anim.report_fired()
 
 func stop_moving() -> void:
 	if nav_agent:

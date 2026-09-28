@@ -237,41 +237,75 @@ ASSETS = {
 # little large, weapon thick, stance wide - at gameplay zoom a soldier is a
 # dozen pixels and has to read as "a person with a gun", not a peg. The
 # helmet is the Faction slot, the only place team colour goes on a man.
+#
+# JOINTED, not one welded lump. Every limb is its own exported node with
+# its origin ON the joint it turns about, so Godot can pose it at runtime
+# (see scripts/vfx/infantry_animator.gd) without an armature, skinning,
+# or a single baked animation track. A soldier was previously a single
+# "Body" mesh, which is why infantry glided: there was nothing to move.
+#
+# The bind pose is deliberately NEUTRAL - legs together, arms hanging -
+# rather than the old posed stride and -35 degree weapon carry. The
+# animator supplies the carry pose and the stride, so the same rig can
+# stand, walk, run, crouch and fire instead of being frozen in one of
+# them.
 
-def soldier(n, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WHITE,
-            x=0.0, z=0.0, yaw=0.0):
-    def p(px, py, pz):
-        c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
-        return (x + px * c + pz * s, py, z - px * s + pz * c)
-    # boots and legs, in a stride
-    for side, dz in ((-1, -0.12), (1, 0.12)):
-        n.box((0.16, 0.14, 0.26), p(side * 0.12, 0.07, dz - 0.04), "Body", RUBBER, rot_y=yaw)
-        n.box((0.17, 0.72, 0.19), p(side * 0.12, 0.5, dz), "Body", uniform, rot_y=yaw, taper=0.9)
-    # torso with a load vest
-    n.box((0.46, 0.56, 0.28), p(0, 1.14, 0), "Body", uniform, rot_y=yaw, taper=0.92)
-    n.box((0.5, 0.36, 0.32), p(0, 1.12, 0), "Body", gear, rot_y=yaw)
-    n.box((0.34, 0.3, 0.16), p(0, 1.14, 0.2), "Body", gear, rot_y=yaw)  # pack
-    # arms forward onto the weapon
-    for side in (-1, 1):
-        n.box((0.13, 0.46, 0.14), p(side * 0.27, 1.12, -0.12), "Body", uniform, rot_y=yaw, rot_x=-35)
-    # head and helmet
-    n.box((0.2, 0.22, 0.2), p(0, 1.56, 0), "Body", SAND, rot_y=yaw)
-    n.sphere(0.2, p(0, 1.66, 0.01), helmet, helmet_color, rings=4, segments=8, squash=0.75, smooth=False)
-    n.box((0.36, 0.04, 0.38), p(0, 1.62, 0.0), helmet, helmet_color, rot_y=yaw)  # brim
-    return p
+HIP_Y, HIP_X = 0.86, 0.12
+SHOULDER_Y, SHOULDER_X = 1.35, 0.27
+NECK_Y = 1.44
 
 
-def _rifle(n, p, yaw):
-    n.box((0.07, 0.1, 0.9), p(0.08, 1.12, -0.36), "Metal", GUNMETAL, rot_y=yaw)
-    n.box((0.06, 0.16, 0.1), p(0.08, 1.02, -0.3), "Metal", GUNMETAL, rot_y=yaw)
+def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WHITE):
+    """Build the shared jointed soldier rig on `m`.
+
+    Returns the parts by name so a variant can hang its own kit on the
+    right limb - a launcher on the weapon, a toolbox in a hand.
+    """
+    parts = {}
+
+    # --- legs: origin on the hip, geometry hanging below it ---
+    for name, side in (("Leg_L", -1), ("Leg_R", 1)):
+        leg = m.node(name, (side * HIP_X, HIP_Y, 0.0))
+        leg.box((0.17, 0.72, 0.19), (0, -0.36, 0), "Body", uniform, taper=0.9)
+        leg.box((0.16, 0.14, 0.26), (0, -0.79, -0.04), "Body", RUBBER)
+        parts[name] = leg
+
+    # --- torso: origin on the waist, so a lean or a crouch bends here ---
+    torso = m.node("Torso", (0.0, HIP_Y, 0.0))
+    torso.box((0.46, 0.56, 0.28), (0, 0.28, 0), "Body", uniform, taper=0.92)
+    torso.box((0.5, 0.36, 0.32), (0, 0.26, 0), "Body", gear)
+    torso.box((0.34, 0.3, 0.16), (0, 0.28, 0.2), "Body", gear)  # pack
+    parts["Torso"] = torso
+
+    # --- arms: origin on the shoulder, hanging straight down at rest ---
+    for name, side in (("Arm_L", -1), ("Arm_R", 1)):
+        arm = m.node(name, (side * SHOULDER_X, SHOULDER_Y, 0.0))
+        arm.box((0.13, 0.46, 0.14), (0, -0.23, 0), "Body", uniform)
+        parts[name] = arm
+
+    # --- head: origin on the neck, so it can turn and nod ---
+    head = m.node("Head", (0.0, NECK_Y, 0.0))
+    head.box((0.2, 0.22, 0.2), (0, 0.12, 0), "Body", SAND)
+    head.sphere(0.2, (0, 0.22, 0.01), helmet, helmet_color,
+                rings=4, segments=8, squash=0.75, smooth=False)
+    head.box((0.36, 0.04, 0.38), (0, 0.18, 0.0), helmet, helmet_color)
+    parts["Head"] = head
+    return parts
+
+
+def _weapon_node(m, origin=(0.08, 1.12, 0.0)):
+    """The held weapon, its own node so it can recoil and be re-parented
+    onto the firing arm at runtime."""
+    return m.node("Weapon", origin)
 
 
 def rifle_soldier():
     m = Model("rifle_soldier", "units")
     m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
-    n = m.node("Body")
-    p = soldier(n)
-    _rifle(n, p, 0.0)
+    soldier(m)
+    w = _weapon_node(m)
+    w.box((0.07, 0.1, 0.9), (0, 0, -0.36), "Metal", GUNMETAL)
+    w.box((0.06, 0.16, 0.1), (0, -0.1, -0.3), "Metal", GUNMETAL)
     return m
 
 
@@ -280,11 +314,14 @@ def at_squad():
     the back - the tube is what says 'this one kills tanks'."""
     m = Model("at_squad", "units")
     m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
-    n = m.node("Body")
-    p = soldier(n, uniform=FIELD_GREEN)
-    n.cylinder(0.11, 1.3, p(0.2, 1.5, -0.1), "Metal", OLIVE_DARK, axis="z", segments=8)
-    n.cylinder(0.14, 0.2, p(0.2, 1.5, -0.78), "Metal", SHADOW, axis="z", segments=8)
-    n.cylinder(0.08, 0.7, p(-0.05, 1.2, 0.3), "Metal", OLIVE, axis="y", segments=6)
+    parts = soldier(m, uniform=FIELD_GREEN)
+    w = _weapon_node(m, (0.2, 1.5, 0.0))
+    w.cylinder(0.11, 1.3, (0, 0, -0.1), "Metal", OLIVE_DARK, axis="z", segments=8)
+    w.cylinder(0.14, 0.2, (0, 0, -0.78), "Metal", SHADOW, axis="z", segments=8)
+    ## The spare rocket rides on the pack, so it stays with the body
+    ## rather than swinging with the launcher.
+    parts["Torso"].cylinder(0.08, 0.7, (-0.05, 0.34, 0.3), "Metal", OLIVE,
+                            axis="y", segments=6)
     return m
 
 
@@ -293,49 +330,71 @@ def engineer():
     soldier carrying something square."""
     m = Model("engineer", "units")
     m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
-    n = m.node("Body")
-    p = soldier(n, uniform=SAND_DARK, gear=RUST)
-    n.box((0.46, 0.28, 0.2), p(0.3, 0.7, -0.05), "Metal", HAZARD)
-    n.box((0.3, 0.06, 0.06), p(0.3, 0.88, -0.05), "Metal", SHADOW)
-    n.box((0.12, 0.5, 0.12), p(-0.3, 1.0, -0.2), "Metal", STEEL, rot_x=-25)  # wrench
+    parts = soldier(m, uniform=SAND_DARK, gear=RUST)
+    ## Toolbox in the right hand and wrench in the left: hung off the
+    ## arms so they swing with them instead of floating alongside.
+    parts["Arm_R"].box((0.46, 0.28, 0.2), (0.03, -0.65, -0.05), "Metal", HAZARD)
+    parts["Arm_R"].box((0.3, 0.06, 0.06), (0.03, -0.47, -0.05), "Metal", SHADOW)
+    parts["Arm_L"].box((0.12, 0.5, 0.12), (-0.03, -0.35, -0.2), "Metal", STEEL, rot_x=-25)
     return m
 
 
 def spy():
     """Spy: a long coat, a soft cap instead of a helmet, a pistol - a
-    civilian silhouette among soldiers."""
+    civilian silhouette among soldiers. Same rig, different build: the
+    coat makes the hips sit lower than a soldier's."""
     m = Model("spy", "units")
     m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
-    n = m.node("Body")
-    for side in (-1, 1):
-        n.box((0.16, 0.14, 0.26), (side * 0.12, 0.07, -0.04), "Body", RUBBER)
-        n.box((0.16, 0.6, 0.18), (side * 0.12, 0.45, 0), "Body", SHADOW)
-    n.box((0.5, 0.95, 0.34), (0, 1.0, 0), "Body", STEEL, taper=0.82)  # coat
-    n.box((0.54, 0.1, 0.36), (0, 1.42, 0), "Body", STEEL)
-    for side in (-1, 1):
-        n.box((0.13, 0.5, 0.14), (side * 0.29, 1.12, 0), "Body", STEEL)
-    n.box((0.2, 0.22, 0.2), (0, 1.58, 0), "Body", SAND)
-    n.cylinder(0.16, 0.1, (0, 1.72, 0), "Faction", WHITE, segments=8)
-    n.box((0.34, 0.03, 0.34), (0, 1.68, -0.04), "Body", SHADOW)
-    n.box((0.06, 0.1, 0.24), (0.3, 0.9, -0.12), "Metal", GUNMETAL)
+    hip, shoulder, neck = 0.75, 1.37, 1.46
+    for name, side in (("Leg_L", -1), ("Leg_R", 1)):
+        leg = m.node(name, (side * 0.12, hip, 0.0))
+        leg.box((0.16, 0.6, 0.18), (0, -0.3, 0), "Body", SHADOW)
+        leg.box((0.16, 0.14, 0.26), (0, -0.68, -0.04), "Body", RUBBER)
+    torso = m.node("Torso", (0.0, hip, 0.0))
+    torso.box((0.5, 0.95, 0.34), (0, 0.25, 0), "Body", STEEL, taper=0.82)  # coat
+    torso.box((0.54, 0.1, 0.36), (0, 0.67, 0), "Body", STEEL)
+    for name, side in (("Arm_L", -1), ("Arm_R", 1)):
+        arm = m.node(name, (side * 0.29, shoulder, 0.0))
+        arm.box((0.13, 0.5, 0.14), (0, -0.25, 0), "Body", STEEL)
+    head = m.node("Head", (0.0, neck, 0.0))
+    head.box((0.2, 0.22, 0.2), (0, 0.12, 0), "Body", SAND)
+    head.cylinder(0.16, 0.1, (0, 0.26, 0), "Faction", WHITE, segments=8)
+    head.box((0.34, 0.03, 0.34), (0, 0.22, -0.04), "Body", SHADOW)
+    w = _weapon_node(m, (0.3, 0.9, 0.0))
+    w.box((0.06, 0.1, 0.24), (0, 0, -0.12), "Metal", GUNMETAL)
     return m
 
 
 def attack_dog():
-    """Attack dog: low and long, head up, tail out, a faction collar."""
+    """Attack dog: low and long, head up, tail out, a faction collar.
+
+    Jointed like the soldiers so it can run rather than slide: four legs
+    on their own hips, a head that can drop to the scent, a tail that
+    wags. The body is the root part everything else hangs off.
+    """
     m = Model("attack_dog", "units")
     m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
-    n = m.node("Body")
-    n.box((0.3, 0.32, 0.8), (0, 0.56, 0.02), "Body", TIMBER, taper=0.92)
-    n.box((0.24, 0.26, 0.3), (0, 0.78, -0.46), "Body", TIMBER, rot_x=-20)  # neck
-    n.box((0.22, 0.22, 0.28), (0, 0.9, -0.62), "Body", TIMBER)
-    n.box((0.14, 0.12, 0.2), (0, 0.84, -0.8), "Body", SHADOW)  # muzzle
+    torso = m.node("Torso", (0.0, 0.56, 0.0))
+    torso.box((0.3, 0.32, 0.8), (0, 0, 0.02), "Body", TIMBER, taper=0.92)
+    torso.box((0.24, 0.26, 0.3), (0, 0.22, -0.46), "Body", TIMBER, rot_x=-20)  # neck
+
+    head = m.node("Head", (0.0, 0.84, -0.56))
+    head.box((0.22, 0.22, 0.28), (0, 0.06, -0.06), "Body", TIMBER)
+    head.box((0.14, 0.12, 0.2), (0, 0.0, -0.24), "Body", SHADOW)  # muzzle
     for side in (-1, 1):
-        n.box((0.06, 0.12, 0.06), (side * 0.08, 1.05, -0.58), "Body", SHADOW)  # ears
-        for dz in (-0.28, 0.3):
-            n.box((0.08, 0.42, 0.09), (side * 0.1, 0.21, dz), "Body", TIMBER if dz > 0 else SHADOW)
-    n.box((0.26, 0.06, 0.12), (0, 0.8, -0.38), "Faction", WHITE)  # collar
-    n.box((0.06, 0.06, 0.34), (0, 0.72, 0.52), "Body", TIMBER, rot_x=30)  # tail
+        head.box((0.06, 0.12, 0.06), (side * 0.08, 0.21, -0.02), "Body", SHADOW)  # ears
+    head.box((0.26, 0.06, 0.12), (0, -0.04, 0.18), "Faction", WHITE)  # collar
+
+    ## Front legs forward of the shoulder, back legs behind the haunch,
+    ## each on its own hip so a gallop reads from the silhouette.
+    for name, side, dz, shade in (
+            ("Leg_FL", -1, -0.28, SHADOW), ("Leg_FR", 1, -0.28, SHADOW),
+            ("Leg_BL", -1, 0.3, TIMBER), ("Leg_BR", 1, 0.3, TIMBER)):
+        leg = m.node(name, (side * 0.1, 0.42, dz))
+        leg.box((0.08, 0.42, 0.09), (0, -0.21, 0), "Body", shade)
+
+    tail = m.node("Tail", (0.0, 0.72, 0.4))
+    tail.box((0.06, 0.06, 0.34), (0, 0.0, 0.12), "Body", TIMBER, rot_x=30)
     return m
 
 
