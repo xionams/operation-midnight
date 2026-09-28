@@ -201,6 +201,55 @@ static func vehicle_wreck(context: Node, position: Vector3) -> void:
 
 # ------------------------------------------------------------ ongoing
 
+## Flame for a structure that is genuinely on its way out.
+##
+## Smoke alone does not say "this one is nearly gone" - a building at 55%
+## and one at 15% both just smoked, differing in shade. Fire is the tell,
+## and it has to be additive and bright or it disappears against a
+## daylit roof at gameplay zoom.
+##
+## Particles only, deliberately: a flickering light per burning building
+## is what sells fire close up, and also what a mobile renderer cannot
+## afford once half a base is alight.
+static func structure_fire(parent: Node, offset: Vector3, size: float = 1.0) -> CPUParticles3D:
+	if parent == null or not is_instance_valid(parent) or not enabled:
+		return null
+	var fire := CPUParticles3D.new()
+	fire.amount = 14
+	fire.lifetime = 0.7
+	fire.direction = Vector3.UP
+	fire.spread = 14.0
+	fire.initial_velocity_min = 1.4 * size
+	fire.initial_velocity_max = 3.2 * size
+	fire.gravity = Vector3(0.0, 1.4, 0.0)
+	fire.scale_amount_min = 0.5 * size
+	fire.scale_amount_max = 1.5 * size
+	## Emit across the roof rather than from one point, so a big
+	## structure burns along its length instead of sprouting a candle.
+	fire.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	fire.emission_box_extents = Vector3(size * 1.1, 0.2, size * 1.1)
+
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.5))
+	curve.add_point(Vector2(0.3, 1.0))
+	curve.add_point(Vector2(1.0, 0.0))
+	fire.scale_amount_curve = curve
+
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 0.85, 0.35))
+	ramp.set_color(1, Color(0.85, 0.22, 0.05))
+	fire.color_ramp = ramp
+
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	fire.mesh = mesh
+	fire.material_override = _material(Color(1.0, 0.75, 0.35), true)
+
+	parent.add_child(fire)
+	fire.position = offset
+	fire.emitting = true
+	return fire
+
 ## Continuous smoke/fire for a damaged structure. Returns the node so the
 ## caller can free it when the building is repaired.
 ## `size` scales the whole effect. A structure's plume on a tank looks

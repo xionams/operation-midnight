@@ -35,6 +35,7 @@ const REPAIR_CREDITS_PER_HP: float = 0.5
 var _body: MeshInstance3D
 ## The instanced greybox, kept so capture can repaint its faction slot.
 var _visual_root: Node = null
+var _damage_fire: CPUParticles3D = null
 var turret_aim: TurretAim = null
 var _damage_stage: int = -1
 var _damage_plume: Node = null
@@ -344,10 +345,20 @@ func _refresh_damage_plume(stage: int) -> void:
 	if _damage_plume != null and is_instance_valid(_damage_plume):
 		_damage_plume.queue_free()
 		_damage_plume = null
+	if _damage_fire != null and is_instance_valid(_damage_fire):
+		_damage_fire.queue_free()
+		_damage_fire = null
 	if stage <= 0:
 		return
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
 	_damage_plume = VFX.damage_plume(self, Vector3(0, size.y * 0.85, 0), stage)
+	## Only the critical stage burns. Smoke alone could not tell a
+	## structure at 55% from one at 15% - both just smoked, in slightly
+	## different greys - so there was no read on which building was about
+	## to go and therefore no decision to make about saving it.
+	if stage >= 2:
+		_damage_fire = VFX.structure_fire(self, Vector3(0, size.y * 0.7, 0),
+			clampf(maxf(size.x, size.z) / 5.0, 0.6, 1.8))
 
 func _on_died() -> void:
 	VFX.explosion_large(self, global_position + Vector3.UP)

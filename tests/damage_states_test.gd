@@ -76,6 +76,25 @@ func _ready() -> void:
 		await _hurt_to(building, 0.5)
 		_check("Modelled structure smokes below 60% health",
 			_plume_of(building) != null)
+		_check("...but a merely damaged structure is not yet burning",
+			building.get("_damage_fire") == null)
+
+		## Critical has to look different from damaged. Smoke alone could
+		## not tell a structure at 55% from one at 15% - both smoked, in
+		## slightly different greys - so a player had no read on which
+		## building was about to go, and so no decision to make about
+		## saving it.
+		await _hurt_to(building, 0.2)
+		var fire = building.get("_damage_fire")
+		_check("A critically damaged structure burns as well as smokes",
+			fire != null and is_instance_valid(fire) and fire.emitting)
+		_check("...and still smokes", _plume_of(building) != null)
+
+		## Repair has to put it out, or players learn to distrust it.
+		await _hurt_to(building, 1.0)
+		_check("A repaired structure stops burning",
+			building.get("_damage_fire") == null)
+		_check("...and stops smoking", _plume_of(building) == null)
 	_finish()
 
 func _finish() -> void:
