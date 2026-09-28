@@ -48,6 +48,25 @@ func _check(name: String, cond: bool, detail: String = "") -> void:
 	if not cond:
 		_fails.append(name + " " + detail)
 
+## Promotions seen over the whole battle, including by units that were
+## destroyed afterwards. Reported for interest; not asserted, because
+## whether anyone crosses the threshold in one battle is a balance
+## outcome rather than a correctness one.
+var _promotions: int = 0
+
+## Award a survivor enough damage to promote it, and check it does. The
+## accrual is proved by the battle; this proves the threshold fires.
+func _promotion_works(units: Array) -> bool:
+	for u in units:
+		if not is_instance_valid(u):
+			continue
+		var vet: VeterancyComponent = u.get_node_or_null("VeterancyComponent")
+		if vet == null:
+			continue
+		vet.award_damage(VeterancyComponent.ELITE_XP * 10.0)
+		return vet.rank != VeterancyComponent.Rank.REGULAR
+	return false
+
 func _spawn(path: String, player: bool, pos: Vector3) -> Node:
 	var stats: UnitStats = load(path)
 	var u = stats.unit_scene.instantiate()
@@ -55,6 +74,9 @@ func _spawn(path: String, player: bool, pos: Vector3) -> Node:
 	u.is_player_faction = player
 	_main.get_node("Level").add_child(u)
 	u.global_position = pos
+	var vet: VeterancyComponent = u.get_node_or_null("VeterancyComponent")
+	if vet != null:
+		vet.rank_changed.connect(func(_rank): _promotions += 1)
 	return u
 
 func _run() -> void:
@@ -104,14 +126,28 @@ func _run() -> void:
 		players_alive < PER_SIDE and enemies_alive < PER_SIDE,
 		"(player %d/%d, enemy %d/%d)" % [players_alive, PER_SIDE, enemies_alive, PER_SIDE])
 
-	var ranked: int = 0
+	## What this battle can honestly assert about veterancy is that it
+	## ACCRUES from real combat - reliably 20-odd units per run.
+	##
+	## It used to require a promotion as well, which failed on roughly one
+	## run in three: whether anyone crosses the Veteran threshold inside
+	## the test's window depends on how the fight happens to go, and a
+	## unit good enough to be promoted is also the one being shot at.
+	## That is a balance question, not a correctness one. The promotion
+	## MACHINERY is tested below instead, where the input is known.
+	var experienced: int = 0
+	var best: float = 0.0
 	for u in players + enemies:
 		if not is_instance_valid(u):
 			continue
 		var vet: VeterancyComponent = u.get_node_or_null("VeterancyComponent")
-		if vet != null and vet.rank != VeterancyComponent.Rank.REGULAR:
-			ranked += 1
-	_check("Survivors earned veterancy", ranked > 0, "(%d promoted)" % ranked)
+		if vet != null and vet.experience > 0.0:
+			experienced += 1
+			best = maxf(best, vet.experience)
+	_check("Units earn veterancy experience in a battle", experienced > 0,
+		"(%d earning, best %.0f xp)" % [experienced, best])
+	_check("Promotions happen when the experience is there", _promotion_works(players),
+		"(%d promoted in the battle itself)" % _promotions)
 
 	## Deadlock means "still not moving after time to resolve", so sample
 	## positions and re-check rather than reading one frame.
