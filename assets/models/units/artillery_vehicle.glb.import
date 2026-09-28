@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://d2ka0t8oe7gb5"
-path="res://.godot/imported/artillery_vehicle.glb-f1d13524e2a9131ff210906de43422db.scn"
+uid="uid://dj3fu8wl4mgi0"
+path="res://.godot/imported/artillery_vehicle.glb-7b924305c3d6775dbc2322f26e8f0ebd.scn"
 
 [deps]
 
-source_file="res://assets/models/artillery_vehicle.glb"
-dest_files=["res://.godot/imported/artillery_vehicle.glb-f1d13524e2a9131ff210906de43422db.scn"]
+source_file="res://assets/models/units/artillery_vehicle.glb"
+dest_files=["res://.godot/imported/artillery_vehicle.glb-7b924305c3d6775dbc2322f26e8f0ebd.scn"]
 
 [params]
 

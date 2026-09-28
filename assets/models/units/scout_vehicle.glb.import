@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://ctflxkn3cm4g7"
-path="res://.godot/imported/harvester.glb-6574196b9ed465f1ec6f8d451d051026.scn"
+uid="uid://b4d8xecgqn6g1"
+path="res://.godot/imported/scout_vehicle.glb-09ddb7e6d0c870087095b722ccffbd0a.scn"
 
 [deps]
 
-source_file="res://assets/models/harvester.glb"
-dest_files=["res://.godot/imported/harvester.glb-6574196b9ed465f1ec6f8d451d051026.scn"]
+source_file="res://assets/models/units/scout_vehicle.glb"
+dest_files=["res://.godot/imported/scout_vehicle.glb-09ddb7e6d0c870087095b722ccffbd0a.scn"]
 
 [params]
 

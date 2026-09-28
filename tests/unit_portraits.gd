@@ -45,7 +45,9 @@ func _ready() -> void:
 	camera.current = true
 
 	for id in IDS:
-		var scene = load("res://assets/models/%s.glb" % id)
+		## The model the game actually spawns, wherever it lives.
+		var stats = load("res://config/units/%s.tres" % id)
+		var scene: PackedScene = stats.visual_scene if stats != null else null
 		if scene == null:
 			print("PORTRAIT| missing ", id)
 			continue

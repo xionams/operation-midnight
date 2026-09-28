@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://c3hhrml21p46e"
-path="res://.godot/imported/main_battle_tank.glb-dcab21f9ff35e0263502a159dd8d8853.scn"
+uid="uid://dihc87655lwif"
+path="res://.godot/imported/assault_vehicle.glb-ac69429ba35b060a7c95f47792ac69d1.scn"
 
 [deps]
 
-source_file="res://assets/models/main_battle_tank.glb"
-dest_files=["res://.godot/imported/main_battle_tank.glb-dcab21f9ff35e0263502a159dd8d8853.scn"]
+source_file="res://assets/models/units/assault_vehicle.glb"
+dest_files=["res://.godot/imported/assault_vehicle.glb-ac69429ba35b060a7c95f47792ac69d1.scn"]
 
 [params]
 

@@ -4,7 +4,7 @@
 [ext_resource type="Resource" path="res://config/weapons/assault_cannon.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/assault_vehicle.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/assault_vehicle.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/assault_vehicle.glb" id="10"]
 
 [resource]
 script = ExtResource("1")

@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/harvester.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/harvester.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/harvester.glb" id="10"]
 
 [resource]
 script = ExtResource("1")

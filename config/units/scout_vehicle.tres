@@ -4,7 +4,7 @@
 [ext_resource type="Resource" path="res://config/weapons/scout_gun.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/scout_vehicle.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/scout_vehicle.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/scout_vehicle.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
