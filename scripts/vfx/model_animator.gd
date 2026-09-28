@@ -28,6 +28,19 @@ var _wake: CPUParticles3D = null
 var _bubbles: CPUParticles3D = null
 var _speed: float = 0.0
 var _primed: bool = false
+## Heel. A ship that turns without leaning reads as a sprite being
+## dragged round rather than a hull with water pushing back on it.
+var _last_yaw: float = 0.0
+var _heel: float = 0.0
+## How far the drawn hull still has to catch up with a dive or a surface.
+## Gameplay moves the body the instant the order lands; only the picture
+## takes the moment a submarine actually needs to go under.
+var _dive_lag: float = 0.0
+var _last_host_y: float = INF
+## The wake as VFX built it, so speed scales from the authored size
+## rather than compounding frame on frame.
+var _wake_scale: Vector2 = Vector2.ONE
+var _wake_throw: float = 1.0
 
 static func attach(host: Node3D, visual: Node) -> ModelAnimator:
 	if visual == null or not (visual is Node3D):
@@ -54,6 +67,10 @@ static func attach(host: Node3D, visual: Node) -> ModelAnimator:
 	if anim._afloat and host.get("stats") is UnitStats:
 		var size: Vector3 = host.stats.body_size
 		anim._wake = VFX.wake(host, Vector3(0, 0.05, size.z * 0.5), size.x)
+		if anim._wake != null:
+			anim._wake_scale = Vector2(anim._wake.scale_amount_min,
+				anim._wake.scale_amount_max)
+			anim._wake_throw = anim._wake.initial_velocity_max
 		if host.stats.submerged_stealth:
 			anim._bubbles = VFX.bubbles(host, size.z)
 	## Desynchronise identical buildings so a base is not a metronome.
@@ -115,15 +132,47 @@ func _process(delta: float) -> void:
 	if _wake != null:
 		## A submerged boat leaves no surface wake: that is the point of it.
 		_wake.emitting = speed > 0.6 and not submerged
+		## ...and a wake that is the same size at two knots as at full
+		## ahead tells the player nothing. Scale it with what the hull is
+		## actually doing.
+		if _wake.emitting:
+			## Scaled through size and throw, not amount_ratio: that is a
+			## GPUParticles3D property and silently invalid here, and not
+			## through `amount`, which reallocates the whole buffer.
+			var drive: float = clampf(speed / 6.0, 0.3, 1.0)
+			_wake.scale_amount_min = _wake_scale.x * drive
+			_wake.scale_amount_max = _wake_scale.y * drive
+			_wake.initial_velocity_max = _wake_throw * (0.5 + drive * 0.8)
 	if _bubbles != null:
 		_bubbles.emitting = submerged
 	if _afloat:
 		## Swell: a slow heave plus pitch and roll, damped under way so a
 		## moving ship looks driven rather than adrift.
 		var calm: float = 1.0 / (1.0 + speed * 0.4)
-		_visual.position.y = sin(_t * 1.3) * 0.07 * calm
+
+		## Heel into the turn. Taken from how fast the hull is actually
+		## yawing rather than from its steering order, so it is right for
+		## a ship being pushed off course as well as one turning.
+		var yaw: float = _host.global_rotation.y
+		if _last_yaw != 0.0 or _primed:
+			var rate: float = wrapf(yaw - _last_yaw, -PI, PI) / maxf(delta, 0.001)
+			var wanted: float = -clampf(rate, -2.5, 2.5) * 0.10 * clampf(speed / 4.0, 0.0, 1.0)
+			_heel = lerpf(_heel, wanted, clampf(delta * 3.0, 0.0, 1.0))
+		_last_yaw = yaw
+
+		## A dive should take a moment. The body drops the instant the
+		## order lands - it has to, everything from targeting to sonar
+		## keys off it - so the hull is lagged behind it and catches up,
+		## which is the only part a player can see anyway.
+		var host_y: float = _host.global_position.y
+		if _last_host_y != INF and absf(host_y - _last_host_y) > 0.15:
+			_dive_lag += _last_host_y - host_y
+		_last_host_y = host_y
+		_dive_lag = move_toward(_dive_lag, 0.0, delta * 1.6)
+
+		_visual.position.y = sin(_t * 1.3) * 0.07 * calm + _dive_lag
 		_visual.rotation.x = sin(_t * 0.9 + 0.7) * 0.03 * calm - minf(speed, 6.0) * 0.006
-		_visual.rotation.z = sin(_t * 1.1) * 0.035 * calm
+		_visual.rotation.z = sin(_t * 1.1) * 0.035 * calm + _heel
 
 func _is_powered() -> bool:
 	if not (_host is BuildingBase):
