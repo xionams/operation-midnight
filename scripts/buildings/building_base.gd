@@ -324,6 +324,8 @@ func _refresh_damage_visual() -> void:
 	## return at its first line for every real building in the game, and
 	## the damage states have been invisible since models were introduced.
 	_refresh_damage_plume(stage)
+	if _visual_root != null:
+		VFX.damage_tint(_visual_root, stage)
 	if _body == null:
 		return
 	var material := _body.material_override as StandardMaterial3D

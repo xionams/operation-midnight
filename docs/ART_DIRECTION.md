@@ -924,6 +924,15 @@ same materials, so draw calls stay flat as unit counts grow.
   - **MBT:** tracked, wide hull, heavy turret, long barrel.
   - **Artillery:** tracked, long-barrelled gun on an open mount.
   - **Harvester:** high industrial cab, `HAZARD` ore hopper, no gun.
+- **Infantry:** about 1.8 m, with RTS proportions: a slightly large helmet
+  and a thick weapon, so a dozen pixels still reads as a person with a gun.
+  The helmet is the only `Faction` surface. Roles differ by what they
+  carry:
+  - **Rifleman:** a rifle.
+  - **AT team:** a launcher tube on the shoulder.
+  - **Engineer:** a `HAZARD` toolbox and no rifle.
+  - **Spy:** a long coat and a soft cap.
+  - **Dog:** low and long, with a faction collar.
 - **Buildings:** each is a concrete plinth with one tall element that names
   its role at a glance:
   - **HQ:** radar mast.
@@ -932,6 +941,14 @@ same materials, so draw calls stay flat as unit counts grow.
   - **Refinery:** silo and conveyor.
   - **War factory:** tall roller door and gantry.
   - **Naval Yard:** crane arm over a slipway.
+  - **Forward post:** sandbag ring and a flagged mast.
+  - **Radar centre:** lattice tower with a rotating antenna.
+  - **Tech centre:** a dome, the only rounded roof.
+  - **MG tower:** a tall stalk with a sandbagged cupola.
+  - **AT turret:** a squat casemate with twin tubes.
+  - **Repair depot:** an open hoist bay.
+  - **Supply depot:** crates under camouflage netting.
+  - **Comms outpost:** a guyed needle mast.
   
   Footprint edges stay rectangular so placement reads honestly.
 - **Naval:** sharp bow, flat stern. The superstructure sits aft of centre so
@@ -969,3 +986,41 @@ Civilian models carry none. That absence is what marks them as neutral.
 
 A missing node degrades gracefully: the part does not animate, and nothing
 fails.
+
+`Gantry` (the Naval Yard's travelling crane) is driven the same way. A
+floating model rides the swell (heave, pitch and roll, damped under way)
+without any node naming, because ModelAnimator knows it is afloat from
+its stats.
+
+### 18.8 Sea and coast
+
+- **Water surface** (`shaders/water.gdshader`) is a single pass with no
+  textures or screen reads, so it runs on the Compatibility renderer.
+  `main.gd` builds it as a grid (3 m over the playable area, 12 m over the
+  skirt) and bakes depth and shore contact into vertex colours. The shader
+  uses them for a shallow-to-deep tint, a breathing foam line, and
+  transparency. The shallows show the seabed and a submerged hull. Open
+  sea and unexplored water are opaque. Sun glints come from an analytic
+  swell normal. Fog of war converges on the same near-black as land.
+- **Coast on the ground shader:** the terrain bakes a coast mask (distance
+  to shore) into its vertex colours. Within that band, ground just above
+  the waterline turns to sand, a wet band sits at the waterline, and the
+  seabed fades to silt with depth. Height alone was tried first, and it
+  put sand on every low inland field.
+- **Naval Yard orientation:** the model's berth is built on +X.
+  BuildingBase turns the visual in quarter turns so the berth faces open
+  water, and ProductionQueue launches ships out of the berth mouth.
+
+### 18.9 Effects and damage
+
+| Event | Effect |
+|---|---|
+| Shell or bullet hits water | water splash (white column plus spray ring), no scorch |
+| Ship under way | wake: world-space foam trail, off below 0.6 m/s |
+| Submarine submerged | ghosted hull (existing) plus rising bubbles; no surface wake |
+| Damage 60% / 30% | multiply overlay darkens the model (worn / burnt) plus existing smoke / fire |
+| Damage below 30% | sparks added to the fire |
+
+The damage tint is a `material_overlay` with multiply blending, so models
+keep sharing their five materials and the extra pass is paid only by
+damaged objects.

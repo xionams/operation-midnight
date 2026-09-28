@@ -62,6 +62,8 @@ var _acquire_timer: float = 0.0
 ## save, or a repaired-then-hurt vehicle) still runs the first refresh
 ## instead of matching stage 0 and doing nothing.
 var _damage_stage: int = -1
+## The instantiated model, when there is one (damage tint target).
+var _model: Node = null
 var _damage_plume: Node = null
 
 ## A particle system per damaged vehicle costs about 5 FPS once a
@@ -240,6 +242,7 @@ func _build_visual() -> void:
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
 		ModelAnimator.attach(self, visual)
+		_model = visual
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)
@@ -630,6 +633,7 @@ func _refresh_damage_visual() -> void:
 	if stage == _damage_stage:
 		return
 	_damage_stage = stage
+	VFX.damage_tint(_model, stage)
 	if _damage_plume != null and is_instance_valid(_damage_plume):
 		_damage_plume.queue_free()
 		_damage_plume = null

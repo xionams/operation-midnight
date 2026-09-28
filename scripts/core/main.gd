@@ -216,10 +216,10 @@ var _water_baking: bool = false
 func _build_sea() -> void:
 	if not Water.has_water():
 		return
-	## A deep, slightly green-grey blue: the first cut was a saturated
-	## pool blue that out-shouted every unit on it.
-	var surface_material := _make_fog_material(Color(0.05, 0.12, 0.17))
-	surface_material.set_shader_parameter("roughness_value", 0.55)
+	var surface_material := ShaderMaterial.new()
+	surface_material.shader = WATER_SHADER
+	surface_material.set_shader_parameter("fog_tex", FogOfWar.get_texture())
+	surface_material.set_shader_parameter("map_size", map_size)
 	for poly in Water.polygons():
 		## Grown a little past the waterline so it tucks under the beach
 		## rather than leaving a seam where the two meet.
@@ -227,7 +227,7 @@ func _build_sea() -> void:
 		var outline: PackedVector2Array = grown[0] if not grown.is_empty() else poly
 		var surface := MeshInstance3D.new()
 		surface.name = "WaterSurface"
-		surface.mesh = _flat_polygon_mesh(outline, Water.level)
+		surface.mesh = _sea_grid_mesh(outline, Water.level)
 		surface.material_override = surface_material
 		surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_level.add_child(surface)
@@ -250,32 +250,50 @@ func _build_sea() -> void:
 	_level.add_child(_water_nav)
 	_bake_water_nav(false)
 
-static func _flat_polygon_mesh(poly: PackedVector2Array, y: float) -> ArrayMesh:
-	var indices := Geometry2D.triangulate_polygon(poly)
-	var vertices := PackedVector3Array()
+## The sea surface as a grid over `poly`, with the seabed baked into the
+## vertex colours for water.gdshader: r = depth (0 at the waterline, 1 in
+## open sea), g = shore contact. A grid rather than one big polygon so
+## depth can vary across it; cells are fine over the playable area and
+## coarse over the skirt beyond it, where nobody looks closely.
+func _sea_grid_mesh(poly: PackedVector2Array, y: float) -> ArrayMesh:
+	var box := Rect2(poly[0], Vector2.ZERO)
 	for point in poly:
-		vertices.append(Vector3(point.x, y, point.y))
-	var normals := PackedVector3Array()
-	normals.resize(vertices.size())
-	normals.fill(Vector3.UP)
-	## Wind every triangle to face up, whichever way the polygon was drawn.
-	var wound := PackedInt32Array()
-	for i in range(0, indices.size(), 3):
-		var a: Vector3 = vertices[indices[i]]
-		var b: Vector3 = vertices[indices[i + 1]]
-		var c: Vector3 = vertices[indices[i + 2]]
-		if (b - a).cross(c - a).y > 0.0:
-			wound.append_array([indices[i], indices[i + 2], indices[i + 1]])
-		else:
-			wound.append_array([indices[i], indices[i + 1], indices[i + 2]])
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = wound
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+		box = box.expand(point)
+	var half: float = map_size * 0.5 + 24.0
+	var play := Rect2(Vector2(-half, -half), Vector2(half * 2.0, half * 2.0))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var depth_span: float = Water.level - Water.SEA_FLOOR
+	var sample := func(x: float, z: float) -> Color:
+		var wet: bool = Water.is_water(x, z)
+		var shore: float = Water.distance_to_shore(x, z) if wet else 0.0
+		var depth: float = clampf((Water.level - Terrain.height_at(x, z)) / depth_span, 0.0, 1.0) if wet else 0.0
+		return Color(depth, 1.0 - clampf(shore / 2.5, 0.0, 1.0), 0.0)
+	for band in 2:
+		## band 0: the playable square at 3 m; band 1: everything else at 12 m.
+		var cell: float = 3.0 if band == 0 else 12.0
+		var x0: float = floorf(box.position.x / cell) * cell
+		var z0: float = floorf(box.position.y / cell) * cell
+		var x: float = x0
+		while x < box.end.x:
+			var z: float = z0
+			while z < box.end.y:
+				var centre := Vector2(x + cell * 0.5, z + cell * 0.5)
+				var inside_play: bool = play.has_point(centre)
+				if (band == 0) == inside_play and Geometry2D.is_point_in_polygon(centre, poly):
+					var corners := [Vector2(x, z), Vector2(x + cell, z), Vector2(x + cell, z + cell), Vector2(x, z + cell)]
+					var colors: Array = []
+					for c in corners:
+						colors.append(sample.call(c.x, c.y) if band == 0 else Color(1, 0, 0))
+					for tri in [[0, 1, 2], [0, 2, 3]]:  # wound to face up
+						for k in tri:
+							st.set_color(colors[k])
+							st.set_normal(Vector3.UP)
+							st.add_vertex(Vector3(corners[k].x, y, corners[k].y))
+				z += cell
+			x += cell
+	st.index()
+	return st.commit()
 
 ## The sea navmesh: the water polygons, minus a hull's clearance, minus
 ## anything standing in the water (shipyards, buoys).
@@ -326,6 +344,7 @@ func _bake_water_nav(async: bool) -> void:
 		_water_nav.navigation_mesh = mesh
 
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
+const WATER_SHADER: Shader = preload("res://shaders/water.gdshader")
 
 ## The battlefield's surfacing. Only the ground plane gets these; the
 ## scenery materials share the same shader but leave the samplers unset,
@@ -354,6 +373,8 @@ func _make_ground_material() -> ShaderMaterial:
 		return _make_fog_material(Color(0.24, 0.34, 0.2))
 	var material := _make_fog_material(Color(1, 1, 1))
 	material.set_shader_parameter("textured", 1.0)
+	if Water.has_water():
+		material.set_shader_parameter("water_level", Water.level)
 	material.set_shader_parameter("macro_tex", GROUND_MACRO)
 	material.set_shader_parameter("detail_tex", GROUND_DETAIL)
 	material.set_shader_parameter("normal_tex", GROUND_NORMAL)

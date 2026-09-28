@@ -129,11 +129,17 @@ static func artillery_flash(context: Node, position: Vector3, direction: Vector3
 # ------------------------------------------------------------- impacts
 
 static func impact(context: Node, position: Vector3) -> void:
+	if _on_water(position):
+		water_splash(context, position, 0.5)
+		return
 	var root := _scene_root(context)
 	_burst(root, position, 5, SPARK_WHITE, 0.18, 4.5, 0.22, -6.0, true, Vector3.UP, 70.0)
 	_burst(root, position, 4, DUST_TAN, 0.45, 1.6, 0.5, -1.0, false, Vector3.UP, 70.0)
 
 static func shell_impact(context: Node, position: Vector3) -> void:
+	if _on_water(position):
+		water_splash(context, position, 1.0)
+		return
 	var root := _scene_root(context)
 	_burst(root, position, 8, FIRE_ORANGE, 0.8, 5.0, 0.3, -2.0, true, Vector3.UP, 60.0)
 	_burst(root, position, 10, DUST_TAN, 1.2, 3.0, 0.9, -1.5, false, Vector3.UP, 75.0)
@@ -146,7 +152,10 @@ static func explosion_small(context: Node, position: Vector3) -> void:
 	var root := _scene_root(context)
 	_burst(root, position, 12, FIRE_ORANGE, 1.3, 6.0, 0.45, -2.0, true, Vector3.UP, 80.0)
 	_burst(root, position, 10, SMOKE_GREY, 1.8, 2.5, 1.4, 0.8, false, Vector3.UP, 60.0)
-	GroundMarks.scorch(context, position, 1.8)
+	if _on_water(position):
+		water_splash(context, position, 1.4)
+	else:
+		GroundMarks.scorch(context, position, 1.8)
 
 ## Shakes whatever camera is watching, if it can see the blast.
 static func _shake(context: Node, position: Vector3, strength: float) -> void:
@@ -238,7 +247,135 @@ static func damage_plume(parent: Node, offset: Vector3, severity: int,
 		fire.material_override = _material(FIRE_ORANGE, true)
 		particles.add_child(fire)
 		fire.position = Vector3(0, -offset.y * 0.35, 0)
+		## ...and throws sparks: the "about to go" cue that smoke alone,
+		## which stage 1 also has, cannot give.
+		var sparks := CPUParticles3D.new()
+		sparks.amount = 5
+		sparks.lifetime = 0.5
+		sparks.explosiveness = 0.6
+		sparks.direction = Vector3.UP
+		sparks.spread = 70.0
+		sparks.initial_velocity_min = 2.5 * size
+		sparks.initial_velocity_max = 5.0 * size
+		sparks.gravity = Vector3(0, -9.0, 0)
+		sparks.scale_amount_min = 0.08 * size
+		sparks.scale_amount_max = 0.18 * size
+		sparks.mesh = mesh
+		sparks.material_override = _material(SPARK_WHITE, true)
+		particles.add_child(sparks)
+		sparks.position = Vector3(0, -offset.y * 0.2, 0)
 	return particles
+
+# ---------------------------------------------------------------- water
+
+const FOAM_WHITE: Color = Color(0.88, 0.93, 0.95)
+const SPRAY_BLUE: Color = Color(0.62, 0.78, 0.84)
+
+static func _on_water(position: Vector3) -> bool:
+	return Water.has_water() and Water.is_water(position.x, position.z) \
+		and position.y < Water.level + 2.0
+
+## A shell into the sea: a white column and a ring of spray instead of
+## dust and a scorch mark the seabed would never show.
+static func water_splash(context: Node, position: Vector3, size: float = 1.0) -> void:
+	var root := _scene_root(context)
+	var at := Vector3(position.x, Water.level + 0.05, position.z)
+	_burst(root, at, int(8 * size) + 4, FOAM_WHITE, 0.7 * size, 7.5 * size, 0.8, -9.0,
+		false, Vector3.UP, 12.0)
+	_burst(root, at, int(10 * size) + 4, SPRAY_BLUE, 0.9 * size, 3.5 * size, 0.7, -4.0,
+		false, Vector3.UP, 80.0)
+
+## The foam trail behind a moving hull. One small emitter per ship,
+## emitting only while under way (ModelAnimator toggles it), in world
+## space so the trail stays where the ship has been.
+static func wake(parent: Node3D, stern: Vector3, width: float) -> CPUParticles3D:
+	if parent == null or not enabled:
+		return null
+	var p := CPUParticles3D.new()
+	p.name = "Wake"
+	p.local_coords = false
+	p.emitting = false
+	p.amount = 20
+	p.lifetime = 2.0
+	p.direction = Vector3(0, 0, 1)
+	p.spread = 35.0
+	p.initial_velocity_min = 0.2
+	p.initial_velocity_max = 0.9
+	p.gravity = Vector3.ZERO
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(width * 0.4, 0.0, 0.2)
+	p.scale_amount_min = width * 0.5
+	p.scale_amount_max = width * 0.9
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.4))
+	curve.add_point(Vector2(1.0, 1.6))
+	curve.max_value = 2.0
+	p.scale_amount_curve = curve
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0.75))
+	ramp.set_color(1, Color(1, 1, 1, 0.0))
+	p.color_ramp = ramp
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	p.mesh = mesh
+	p.material_override = _material(FOAM_WHITE, false)
+	parent.add_child(p)
+	p.position = stern
+	return p
+
+## Bubbles over a submerged submarine: the owner's cue that it is down
+## (the enemy never sees them - they hide with the hull).
+static func bubbles(parent: Node3D, length: float) -> CPUParticles3D:
+	if parent == null or not enabled:
+		return null
+	var p := CPUParticles3D.new()
+	p.name = "Bubbles"
+	p.emitting = false
+	p.amount = 10
+	p.lifetime = 1.1
+	p.direction = Vector3.UP
+	p.spread = 10.0
+	p.initial_velocity_min = 0.6
+	p.initial_velocity_max = 1.2
+	p.gravity = Vector3.ZERO
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.3, 0.1, length * 0.4)
+	p.scale_amount_min = 0.07
+	p.scale_amount_max = 0.16
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0.7))
+	fade.set_color(1, Color(1, 1, 1, 0.0))
+	p.color_ramp = fade
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	p.mesh = mesh
+	p.material_override = _material(FOAM_WHITE, false)
+	parent.add_child(p)
+	p.position = Vector3(0, 0.4, 0)
+	return p
+
+# ----------------------------------------------------------- damage tint
+
+static var _tints: Array = []
+
+## Darkens a MODEL as it takes damage: 0 clean, 1 worn, 2 burnt. An
+## overlay rather than a new material, so every model keeps sharing its
+## five materials, and the tint costs one extra pass only on what is
+## actually damaged.
+static func damage_tint(root: Node, stage: int) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	if _tints.is_empty():
+		for c in [Color(0.70, 0.68, 0.66), Color(0.42, 0.37, 0.34)]:
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+			m.albedo_color = c
+			m.disable_receive_shadows = true
+			_tints.append(m)
+	var overlay: Material = null if stage <= 0 else _tints[mini(stage, 2) - 1]
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		(node as MeshInstance3D).material_overlay = overlay
 
 # ------------------------------------------------------------- utility
 

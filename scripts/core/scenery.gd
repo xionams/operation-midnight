@@ -184,6 +184,11 @@ func _fog_paint(node: Node3D, detailed: bool = false,
 					colour = ROCK_PALETTE[name]
 				elif NATURE_PALETTE.has(name):
 					colour = NATURE_PALETTE[name]
+			## The detail sheet brightens by up to 1.45x on its high grain,
+			## which took pale concrete to glare white under the match sun
+			## and made every base pad the brightest thing on screen.
+			if detailed:
+				colour = colour.darkened(0.3 if colour.get_luminance() < 0.4 else 0.5)
 			mesh_instance.set_surface_override_material(
 				surface, _fog_material(colour, fog_texture, detailed))
 

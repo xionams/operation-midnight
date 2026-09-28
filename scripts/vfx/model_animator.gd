@@ -24,6 +24,10 @@ var _propeller: Node3D
 var _afloat: bool = false
 var _t: float = 0.0
 var _last_pos: Vector3
+var _wake: CPUParticles3D = null
+var _bubbles: CPUParticles3D = null
+var _speed: float = 0.0
+var _primed: bool = false
 
 static func attach(host: Node3D, visual: Node) -> ModelAnimator:
 	if visual == null or not (visual is Node3D):
@@ -47,6 +51,11 @@ static func attach(host: Node3D, visual: Node) -> ModelAnimator:
 		return null
 	if anim._gantry != null:
 		anim._gantry_home = anim._gantry.position
+	if anim._afloat and host.get("stats") is UnitStats:
+		var size: Vector3 = host.stats.body_size
+		anim._wake = VFX.wake(host, Vector3(0, 0.05, size.z * 0.5), size.x)
+		if host.stats.submerged_stealth:
+			anim._bubbles = VFX.bubbles(host, size.z)
 	## Desynchronise identical buildings so a base is not a metronome.
 	anim._t = randf() * 20.0
 	host.add_child(anim)
@@ -85,10 +94,29 @@ func _process(delta: float) -> void:
 	var speed: float = 0.0
 	if _propeller != null or _afloat:
 		var here: Vector3 = _host.global_position
-		speed = Vector2(here.x - _last_pos.x, here.z - _last_pos.z).length() / maxf(delta, 0.001)
+		## Movement happens on physics ticks, so a render frame can see
+		## none of it: smooth, or the wake flickers on and off.
+		## The first frame only primes the position: the host is placed
+		## after it enters the tree, and measuring from where it was
+		## created read as a burst of speed (a phantom wake at spawn).
+		## Teleports (save restore, spawn) are clamped out the same way.
+		var measured: float = 0.0
+		if _primed:
+			measured = Vector2(here.x - _last_pos.x, here.z - _last_pos.z).length() / maxf(delta, 0.001)
+			if measured > 40.0:
+				measured = 0.0
+		_primed = true
 		_last_pos = here
+		_speed = lerpf(_speed, measured, clampf(delta * 4.0, 0.0, 1.0))
+		speed = _speed
 	if _propeller != null:
 		_propeller.rotate_z(delta * (1.0 + speed * 3.0))
+	var submerged: bool = _bubbles != null and Stealth.is_submerged(_host)
+	if _wake != null:
+		## A submerged boat leaves no surface wake: that is the point of it.
+		_wake.emitting = speed > 0.6 and not submerged
+	if _bubbles != null:
+		_bubbles.emitting = submerged
 	if _afloat:
 		## Swell: a slow heave plus pitch and roll, damped under way so a
 		## moving ship looks driven rather than adrift.
