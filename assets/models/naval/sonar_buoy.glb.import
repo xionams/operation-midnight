@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://d4nasivwvdpou"
-path="res://.godot/imported/gate.glb-29e8655d8f16ec950f9e00dcef01184e.scn"
+uid="uid://deo3xjyvgi4bo"
+path="res://.godot/imported/sonar_buoy.glb-58125cfa6ed80585442c4eda9f4b121f.scn"
 
 [deps]
 
-source_file="res://assets/models/gate.glb"
-dest_files=["res://.godot/imported/gate.glb-29e8655d8f16ec950f9e00dcef01184e.scn"]
+source_file="res://assets/models/naval/sonar_buoy.glb"
+dest_files=["res://.godot/imported/sonar_buoy.glb-58125cfa6ed80585442c4eda9f4b121f.scn"]
 
 [params]
 

@@ -239,6 +239,7 @@ func _build_visual() -> void:
 		## Models built with a Turret node aim it; everything else
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
+		ModelAnimator.attach(self, visual)
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)

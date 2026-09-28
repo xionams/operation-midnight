@@ -47,7 +47,7 @@ func _build_collision() -> void:
 	shape.position = Vector3(0, 1, 0)
 	add_child(shape)
 
-const ORE_MODEL: PackedScene = preload("res://assets/models/ore_field.glb")
+const ORE_MODEL: PackedScene = preload("res://assets/models/props/ore_field.glb")
 
 func _build_visual() -> void:
 	var crystals := Node3D.new()

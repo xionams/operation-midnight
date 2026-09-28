@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/civilian_structure.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/civilian_structure.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/civilian/civilian_house.glb" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -27,4 +27,3 @@ body_color = Color(0.6, 0.58, 0.52, 1)
 body_size = Vector3(3.8, 3.6, 3.8)
 visual_scene = ExtResource("3")
 scene = ExtResource("2")
-visual_scale = Vector3(0.76, 0.8, 0.76)

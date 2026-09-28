@@ -43,8 +43,10 @@ func _init() -> void:
 		var box := _aabb_of(node)
 		## Origin at ground centre is the contract that makes a greybox
 		## swappable without touching gameplay code.
-		## Nature props are sunk on purpose so roots never float on slopes.
-		_check("%s sits on the ground" % name, name.begins_with("nature/") or box.position.y > -TOLERANCE,
+		## Nature props are sunk on purpose so roots never float on slopes;
+		## naval models have their origin at the waterline, hull below it.
+		var grounded: bool = not (name.begins_with("nature/") or name.begins_with("naval/"))
+		_check("%s sits on the ground" % name, not grounded or box.position.y > -TOLERANCE,
 			"(min y %.2f)" % box.position.y)
 		for m in meshes:
 			total_tris += m.mesh.get_faces().size() / 3

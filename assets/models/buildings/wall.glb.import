@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b8n32e0ifw4rv"
-path="res://.godot/imported/war_factory.glb-c459679dd715ea7889043bcb6f0e28c6.scn"
+uid="uid://dvi4cbgipj4hb"
+path="res://.godot/imported/wall.glb-6800a28aeaaad607a97629c9c19a3039.scn"
 
 [deps]
 
-source_file="res://assets/models/war_factory.glb"
-dest_files=["res://.godot/imported/war_factory.glb-c459679dd715ea7889043bcb6f0e28c6.scn"]
+source_file="res://assets/models/buildings/wall.glb"
+dest_files=["res://.godot/imported/wall.glb-6800a28aeaaad607a97629c9c19a3039.scn"]
 
 [params]
 

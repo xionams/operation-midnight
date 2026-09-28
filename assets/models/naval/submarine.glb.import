@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cltkp5smh2drn"
-path="res://.godot/imported/barracks.glb-c0a81d0068af1d65f45834fc49b762b0.scn"
+uid="uid://pi5jx7olaqya"
+path="res://.godot/imported/submarine.glb-7b3c1819f8f72fdc017f078615a21587.scn"
 
 [deps]
 
-source_file="res://assets/models/barracks.glb"
-dest_files=["res://.godot/imported/barracks.glb-c0a81d0068af1d65f45834fc49b762b0.scn"]
+source_file="res://assets/models/naval/submarine.glb"
+dest_files=["res://.godot/imported/submarine.glb-7b3c1819f8f72fdc017f078615a21587.scn"]
 
 [params]
 

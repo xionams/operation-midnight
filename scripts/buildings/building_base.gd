@@ -106,6 +106,8 @@ func _build_visual() -> void:
 		## Models built with a Turret node aim it; everything else
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
+		ModelAnimator.attach(self, visual)
+		_face_open_water.call_deferred()
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -130,6 +132,27 @@ func _build_visual() -> void:
 	indicator_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_indicator.material_override = indicator_material
 	add_child(_indicator)
+
+## A shore structure (the Naval Yard) is modelled with its berth on +X.
+## Turn the model, never the footprint, in quarter turns so the berth
+## opens onto the sea where ships are launched rather than onto the beach.
+func _face_open_water() -> void:
+	if stats == null or not stats.requires_shore or not (_visual_root is Node3D) \
+			or not is_inside_tree():
+		return
+	var best_room: float = -1.0
+	var best_angle: float = 0.0
+	var reach: float = maxf(stats.footprint.x, stats.footprint.y) * 0.5 + 4.0
+	for i in 4:
+		## Quarter turn i sends model +X to world (cos, -sin).
+		var a: float = PI * 0.5 * float(i)
+		var dir := Vector3(cos(a), 0.0, -sin(a))
+		var p: Vector3 = global_position + dir * reach
+		var room: float = Water.distance_to_shore(p.x, p.z) if Water.is_water(p.x, p.z) else -1.0
+		if room > best_room:
+			best_room = room
+			best_angle = a
+	(_visual_root as Node3D).rotation.y = best_angle
 
 func _build_health_bar() -> void:
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)

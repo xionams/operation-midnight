@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bemqx4bf6hsph"
-path="res://.godot/imported/refinery.glb-4105bdbcc685e05713b44a76edac2427.scn"
+uid="uid://bwx6oiv8us6qa"
+path="res://.godot/imported/war_factory.glb-3f3463e0cd6a7db92ec427ca304979bf.scn"
 
 [deps]
 
-source_file="res://assets/models/refinery.glb"
-dest_files=["res://.godot/imported/refinery.glb-4105bdbcc685e05713b44a76edac2427.scn"]
+source_file="res://assets/models/buildings/war_factory.glb"
+dest_files=["res://.godot/imported/war_factory.glb-3f3463e0cd6a7db92ec427ca304979bf.scn"]
 
 [params]
 

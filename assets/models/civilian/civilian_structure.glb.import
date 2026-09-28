@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://fs0mvk6shnue"
-path="res://.godot/imported/power_plant.glb-ea5b06db3926e6c0d700a0276257d2df.scn"
+uid="uid://fix441rg3lwn"
+path="res://.godot/imported/civilian_structure.glb-3c345ff535fe3a0a0784f02a8a4b7388.scn"
 
 [deps]
 
-source_file="res://assets/models/power_plant.glb"
-dest_files=["res://.godot/imported/power_plant.glb-ea5b06db3926e6c0d700a0276257d2df.scn"]
+source_file="res://assets/models/civilian/civilian_structure.glb"
+dest_files=["res://.godot/imported/civilian_structure.glb-3c345ff535fe3a0a0784f02a8a4b7388.scn"]
 
 [params]
 

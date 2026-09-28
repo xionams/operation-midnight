@@ -269,7 +269,7 @@ class Node:
         faces += [tuple(range(n)), tuple(range(n, 2 * n))[::-1]]
         return self._finish(v, faces, material, color, smooth=True)
 
-    def sphere(self, radius, center, material="Metal", color=STEEL, rings=6, segments=10, squash=1.0):
+    def sphere(self, radius, center, material="Metal", color=STEEL, rings=6, segments=10, squash=1.0, smooth=True):
         pts = [(0, -radius * squash, 0)]
         for r in range(1, rings):
             phi = math.pi * r / rings
@@ -293,7 +293,7 @@ class Node:
         last = 1 + (rings - 2) * segments
         for s in range(segments):
             faces.append((last + s, last + (s + 1) % segments, top))
-        return self._finish(v, faces, material, color, smooth=True)
+        return self._finish(v, faces, material, color, smooth=smooth)
 
 
 class Model:
@@ -346,12 +346,18 @@ def _bevel(obj, width, segments=1):
     bpy.ops.object.modifier_apply(modifier="Bevel")
 
 
-def _bake_ao(objects, samples=24, floor=0.28):
+def _bake_ao(objects, samples=24, floor=0.28, ground_z=-0.02):
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.samples = samples
     scene.render.bake.target = "VERTEX_COLORS"
+    # AO reach: Cycles defaults to 10 m, at which a roof overhang shades a
+    # whole wall (every corner occluded, so the face interpolates dark).
+    # Contact shadow in creases and under hulls is what AO is for here.
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("World")
+    scene.world.light_settings.distance = 1.1
     ao_layers = []
     for obj in objects:
         attr = obj.data.color_attributes.new("AO", "FLOAT_COLOR", "CORNER")
@@ -359,9 +365,12 @@ def _bake_ao(objects, samples=24, floor=0.28):
         ao_layers.append(attr)
     # a ground plane so the underside of a hull is occluded like the real
     # thing sitting on terrain; removed after the bake
-    bpy.ops.mesh.primitive_plane_add(size=200.0, location=(0, 0, -0.02))
-    ground = bpy.context.active_object
-    ground.data.materials.append(_material("Body"))
+    # (ships float: their models set ao_ground = None and bake in open air)
+    ground = None
+    if ground_z is not None:
+        bpy.ops.mesh.primitive_plane_add(size=200.0, location=(0, 0, ground_z))
+        ground = bpy.context.active_object
+        ground.data.materials.append(_material("Body"))
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
         obj.select_set(True)
@@ -370,7 +379,8 @@ def _bake_ao(objects, samples=24, floor=0.28):
         bpy.ops.object.bake(type="AO")
     except RuntimeError as err:
         print("  AO bake failed: %s" % err)
-    bpy.data.objects.remove(ground, do_unlink=True)
+    if ground is not None:
+        bpy.data.objects.remove(ground, do_unlink=True)
     for obj in objects:
         col = obj.data.color_attributes["Col"]
         ao = obj.data.color_attributes["AO"]
@@ -384,6 +394,7 @@ def _bake_ao(objects, samples=24, floor=0.28):
 
 
 def build(model, out_path, bevel=0.06, ao=True):
+    ground_z = getattr(model, "ao_ground", -0.02)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     objects = []
     for node in model.nodes:
@@ -402,7 +413,7 @@ def build(model, out_path, bevel=0.06, ao=True):
         for obj in objects:
             _bevel(obj, bevel)
     if ao:
-        _bake_ao(objects)
+        _bake_ao(objects, ground_z=ground_z)
     tris = 0
     for obj in objects:
         obj.data.calc_loop_triangles()

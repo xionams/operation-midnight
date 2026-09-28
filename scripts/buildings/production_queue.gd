@@ -148,6 +148,15 @@ func _spawn_point(building: Node3D, stats: UnitStats) -> Vector3:
 	var reach: float = maxf(half.x, half.y) + 4.0
 	var best: Vector3 = Water.nearest_water(default)
 	var best_room: float = -1.0
+	## Out of the berth mouth when the model has been turned to the sea
+	## (BuildingBase._face_open_water): the ship visibly leaves the yard.
+	var visual = building.get("_visual_root")
+	if visual is Node3D:
+		var a: float = (visual as Node3D).rotation.y
+		var mouth: Vector3 = building.global_position + Vector3(cos(a), 0.0, -sin(a)) * reach
+		if Water.is_water(mouth.x, mouth.z) and Water.distance_to_shore(mouth.x, mouth.z) > 2.0:
+			mouth.y = Water.level
+			return mouth
 	for i in 16:
 		var a: float = TAU * float(i) / 16.0
 		var p: Vector3 = building.global_position + Vector3(cos(a), 0.0, sin(a)) * reach

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://d3vlvtut0kwha"
-path="res://.godot/imported/ore_field.glb-c9b28a8c3294ea93cedeb3e6eb4ceb64.scn"
+uid="uid://c6ngdso31807u"
+path="res://.godot/imported/power_plant.glb-e62e90b96febb42a953d2d9a07fc42cd.scn"
 
 [deps]
 
-source_file="res://assets/models/ore_field.glb"
-dest_files=["res://.godot/imported/ore_field.glb-c9b28a8c3294ea93cedeb3e6eb4ceb64.scn"]
+source_file="res://assets/models/buildings/power_plant.glb"
+dest_files=["res://.godot/imported/power_plant.glb-e62e90b96febb42a953d2d9a07fc42cd.scn"]
 
 [params]
 

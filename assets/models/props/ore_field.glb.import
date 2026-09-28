@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dooqdufbf2yw6"
-path="res://.godot/imported/civilian_structure.glb-0a4207cfb028e507397a344979869047.scn"
+uid="uid://db2xb8n5ryglt"
+path="res://.godot/imported/ore_field.glb-fac6b86e200180f339a499186e57d777.scn"
 
 [deps]
 
-source_file="res://assets/models/civilian_structure.glb"
-dest_files=["res://.godot/imported/civilian_structure.glb-0a4207cfb028e507397a344979869047.scn"]
+source_file="res://assets/models/props/ore_field.glb"
+dest_files=["res://.godot/imported/ore_field.glb-fac6b86e200180f339a499186e57d777.scn"]
 
 [params]
 
