@@ -301,7 +301,7 @@ func _bake_water_nav(async: bool) -> void:
 	if _water_nav == null or _water_baking:
 		return
 	var source := NavigationMeshSourceGeometryData3D.new()
-	for poly in Water.polygons():
+	for poly in Water.navigable_polygons():
 		var indices := Geometry2D.triangulate_polygon(poly)
 		var faces := PackedVector3Array()
 		for i in range(0, indices.size(), 3):
@@ -695,7 +695,10 @@ func _road_route() -> Array:
 func _grade_terrain() -> void:
 	Terrain.reset()
 	## Before any levelling is baked: the sea shapes the ground last.
-	Water.configure(map.water_polygons, map.water_level)
+	## Same rectangle the camera may pan over, so no ship can reach sea
+	## the player cannot look at.
+	Water.configure(map.water_polygons, map.water_level,
+		Rect2(_bounds_min, _bounds_max - _bounds_min))
 	for base in [map.player_base, map.enemy_base]:
 		Terrain.level(base, 20.0, 12.0)
 	for position in map.civilian_positions:

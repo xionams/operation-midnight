@@ -27,10 +27,27 @@ const BEACH: float = 8.0
 
 static var _polygons: Array = []
 static var _bounds: Array = []
+## The stretch of sea a ship may actually operate in.
+##
+## A map's water polygons run far past the map itself on purpose, so the
+## sea reaches the horizon instead of ending in a visible edge - on
+## Coastline they span x -270..270 on a 220m map. That is a VISUAL
+## extent, and baking the naval navmesh straight from it let ships sail
+## a hundred metres off the map, somewhere the camera is not allowed to
+## follow and the player can neither see nor select them.
+##
+## So the sea has two extents: the drawn one (is_water, used by terrain
+## shaping, the minimap, scenery and effects) and this navigable one
+## (is_navigable, used by anything deciding where a ship may BE). Main
+## sets it from the same rectangle it gives the camera, so the fleet can
+## never reach water the camera cannot centre on.
+static var _navigable: Rect2 = Rect2(-1e9, -1e9, 2e9, 2e9)
 
-static func configure(polygons: Array, water_level: float = -0.9) -> void:
+static func configure(polygons: Array, water_level: float = -0.9,
+		navigable: Rect2 = Rect2(-1e9, -1e9, 2e9, 2e9)) -> void:
 	_polygons.clear()
 	_bounds.clear()
+	_navigable = navigable
 	level = water_level
 	for poly in polygons:
 		var packed := poly as PackedVector2Array
@@ -50,6 +67,30 @@ static func has_water() -> bool:
 
 static func polygons() -> Array:
 	return _polygons
+
+## The sea a ship may operate in: wet AND inside the playable area.
+static func is_navigable(x: float, z: float) -> bool:
+	return _navigable.has_point(Vector2(x, z)) and is_water(x, z)
+
+static func navigable_bounds() -> Rect2:
+	return _navigable
+
+## The water polygons trimmed to the playable area, for baking the sea
+## navmesh. Clipping the NAVMESH is what actually keeps ships on the map;
+## everything else is a guard against putting one outside in the first
+## place.
+static func navigable_polygons() -> Array:
+	var clip := PackedVector2Array([
+		Vector2(_navigable.position.x, _navigable.position.y),
+		Vector2(_navigable.end.x, _navigable.position.y),
+		Vector2(_navigable.end.x, _navigable.end.y),
+		Vector2(_navigable.position.x, _navigable.end.y)])
+	var out: Array = []
+	for poly in _polygons:
+		for piece in Geometry2D.intersect_polygons(poly, clip):
+			if (piece as PackedVector2Array).size() >= 3:
+				out.append(piece)
+	return out
 
 static func is_water(x: float, z: float) -> bool:
 	var p := Vector2(x, z)
@@ -101,12 +142,15 @@ static func shape_height(x: float, z: float, height: float) -> float:
 ## by walking outward. Used to put a unit built by a shipyard, or nudged
 ## by the unstick logic, somewhere it can actually float.
 static func nearest_water(point: Vector3, max_reach: float = 30.0) -> Vector3:
-	if is_water(point.x, point.z):
+	## Navigable, not merely wet: this places ships, and a hull dropped on
+	## water outside the playable area is stranded where the camera cannot
+	## reach it.
+	if is_navigable(point.x, point.z):
 		return point
 	for r in range(2, int(max_reach) + 1, 2):
 		for step in 16:
 			var a: float = TAU * float(step) / 16.0
 			var c := point + Vector3(cos(a), 0.0, sin(a)) * float(r)
-			if is_water(c.x, c.z):
+			if is_navigable(c.x, c.z):
 				return c
 	return point

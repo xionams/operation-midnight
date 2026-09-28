@@ -131,6 +131,12 @@ func _last() -> Array:
 func _run() -> void:
 	var water_nav: NavigationRegion3D = _main.get_node_or_null("Level/WaterNav")
 	var map_rid: RID = _main.get_viewport().get_world_3d().navigation_map
+	## Both nav bakes run on worker threads. These first checks used to
+	## query the maps straight away and raced them: the land waterline
+	## assertion failed intermittently, and both it and the sea crossing
+	## reported zero-length paths whenever the bake happened to be slower.
+	## Nothing below can mean anything until the bakes have landed.
+	await _settle_nav()
 
 	# --- 1. the sea exists as a gameplay layer ---
 	_check("Coastline has a sea", Water.has_water() and _wet(Vector3(0, 0, 60)) and not _wet(Vector3(0, 0, -20)))
