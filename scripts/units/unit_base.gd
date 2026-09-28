@@ -357,6 +357,17 @@ func move_to(target_position: Vector3) -> void:
 func notify_weapon_fired() -> void:
 	if _infantry_anim != null and is_instance_valid(_infantry_anim):
 		_infantry_anim.report_fired()
+	if turret_aim != null and is_instance_valid(turret_aim):
+		turret_aim.report_fired()
+
+## Where a shot should leave this unit. A modelled gun answers with its
+## own muzzle; everything else with a point above the hull, which is what
+## the whole game used before barrels existed - and why tank flashes used
+## to bloom out of the middle of the chassis.
+func muzzle_position() -> Vector3:
+	if turret_aim != null and is_instance_valid(turret_aim):
+		return turret_aim.muzzle_point()
+	return global_position + Vector3.UP
 
 func stop_moving() -> void:
 	if nav_agent:

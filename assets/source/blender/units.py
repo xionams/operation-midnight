@@ -110,10 +110,11 @@ def main_battle_tank():
     t.plan(ring, 0.0, 0.62, "Body", FIELD_GREEN, taper=0.86)
     t.box((1.5, 0.28, 0.5), (0.0, 0.28, 1.15), "Body", OLIVE_DARK)  # bustle rack
     # gun: mantlet, barrel, bore evacuator, muzzle brake - exaggerated length
-    t.box((0.46, 0.36, 0.3), (0.0, 0.34, -1.35), "Body", OLIVE_DARK)
-    t.tube((0.0, 0.34, -1.4), (0.0, 0.36, -3.3), 0.1, "Metal", GUNMETAL, segments=10)
-    t.cylinder(0.15, 0.36, (0.0, 0.355, -2.35), "Metal", GUNMETAL, axis="z", segments=10)
-    t.cylinder(0.14, 0.22, (0.0, 0.36, -3.25), "Metal", SHADOW, axis="z", segments=8)
+    g = m.node("Barrel", (0.0, 1.49, -1.30))
+    g.box((0.46, 0.36, 0.3), (0.0, 0.0, 0.0), "Body", OLIVE_DARK)
+    g.tube((0.0, 0.0, -0.05), (0.0, 0.02, -1.95), 0.1, "Metal", GUNMETAL, segments=10)
+    g.cylinder(0.15, 0.36, (0.0, 0.015, -1.0), "Metal", GUNMETAL, axis="z", segments=10)
+    g.cylinder(0.14, 0.22, (0.0, 0.02, -1.9), "Metal", SHADOW, axis="z", segments=8)
     # commander's cupola with MG, loader hatch, smoke dischargers, sights
     t.cylinder(0.26, 0.2, (0.42, 0.72, 0.25), "Body", OLIVE_DARK, segments=10)
     t.tube((0.42, 0.9, 0.2), (0.42, 0.92, -0.45), 0.03, "Metal", SHADOW, segments=6)
@@ -149,9 +150,13 @@ def assault_vehicle():
     t = m.node("Turret", (0.0, 1.28, -0.1))
     t.plan([(-0.55, -0.5), (0.55, -0.5), (0.7, 0.15), (0.55, 0.6), (-0.55, 0.6), (-0.7, 0.15)],
            0.0, 0.44, "Body", OLIVE, taper=0.85)
-    t.box((0.3, 0.24, 0.22), (0.0, 0.24, -0.58), "Body", OLIVE_DARK)
-    t.tube((0.0, 0.24, -0.6), (0.0, 0.26, -2.0), 0.055, "Metal", GUNMETAL, segments=8)
-    t.cylinder(0.08, 0.2, (0.0, 0.26, -1.95), "Metal", SHADOW, axis="z", segments=8)
+    ## The gun is its own node, pivoting on the trunnion, so it can
+    ## recoil. Exported flat and re-parented onto the turret at load; see
+    ## scripts/combat/turret_aim.gd.
+    g = m.node("Barrel", (0.0, 1.52, -0.68))
+    g.box((0.3, 0.24, 0.22), (0.0, 0.0, 0.0), "Body", OLIVE_DARK)
+    g.tube((0.0, 0.0, -0.02), (0.0, 0.02, -1.42), 0.055, "Metal", GUNMETAL, segments=8)
+    g.cylinder(0.08, 0.2, (0.0, 0.02, -1.37), "Metal", SHADOW, axis="z", segments=8)
     t.box((0.2, 0.18, 0.24), (0.36, 0.52, 0.1), "Glass", GLASS_DARK)
     t.box((0.7, 0.03, 0.4), (0.0, 0.45, 0.2), "Faction", WHITE)
     m.bevel = 0.05
@@ -211,11 +216,12 @@ def artillery_vehicle():
     n.box((1.0, 0.03, 0.4), (0.0, 1.07, -1.1), "Faction", WHITE)
     t = m.node("Turret", (0.0, 1.05, 0.35))
     t.plan([(-0.95, -0.9), (0.95, -0.9), (0.95, 1.2), (-0.95, 1.2)], 0.0, 0.95, "Body", OLIVE, taper=0.9)
-    t.box((0.52, 0.52, 0.5), (0.0, 0.62, -1.05), "Body", OLIVE_DARK)
+    g = m.node("Barrel", (0.0, 1.67, -0.70))
+    g.box((0.52, 0.52, 0.5), (0.0, 0.0, 0.0), "Body", OLIVE_DARK)
     # the howitzer, elevated: long, thick, a big muzzle brake
-    t.tube((0.0, 0.7, -1.2), (0.0, 1.55, -3.6), 0.13, "Metal", GUNMETAL, segments=10)
-    t.cylinder(0.2, 0.34, (0.0, 1.54, -3.58), "Metal", SHADOW, axis="z", segments=10, rot_y=0)
-    t.box((0.3, 0.1, 0.9), (0.0, 0.62, -1.7), "Metal", STEEL, rot_x=-19)  # recuperator
+    g.tube((0.0, 0.08, -0.15), (0.0, 0.93, -2.55), 0.13, "Metal", GUNMETAL, segments=10)
+    g.cylinder(0.2, 0.34, (0.0, 0.92, -2.53), "Metal", SHADOW, axis="z", segments=10, rot_y=0)
+    g.box((0.3, 0.1, 0.9), (0.0, 0.0, -0.65), "Metal", STEEL, rot_x=-19)  # recuperator
     t.box((1.2, 0.03, 0.6), (0.0, 0.96, 0.6), "Faction", WHITE)
     t.cylinder(0.22, 0.2, (0.5, 1.05, 0.7), "Body", OLIVE_DARK, segments=10)
     m.bevel = 0.05

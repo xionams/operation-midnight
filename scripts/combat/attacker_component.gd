@@ -137,7 +137,9 @@ func _physics_process(delta: float) -> void:
 			_owner_unit.call("stop_moving")
 			_owner_unit.call("face_towards", target.global_position)
 		if weapon.can_fire():
-			var muzzle: Vector3 = _owner_unit.global_position + Vector3.UP
+			var muzzle: Vector3 = _owner_unit.muzzle_position() \
+				if _owner_unit.has_method("muzzle_position") \
+				else _owner_unit.global_position + Vector3.UP
 			weapon.fire_at(target, muzzle)
 			if _owner_unit.has_method("notify_weapon_fired"):
 				_owner_unit.notify_weapon_fired()
