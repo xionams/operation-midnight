@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/radar_center.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/radar_center.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/radar_center.glb" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -12,7 +12,7 @@ prerequisites = PackedStringArray("Power Plant", "Resource Refinery")
 population_provided = 0
 category = "BUILDINGS"
 is_wall = false
-build_radius_bonus = 8.0
+build_radius_bonus = 15.0
 weapon_stats = null
 is_defensive = false
 max_health = 800.0

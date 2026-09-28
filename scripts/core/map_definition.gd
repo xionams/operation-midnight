@@ -32,9 +32,19 @@ class_name MapDefinition
 
 @export_group("Neutral structures")
 @export var civilian_positions: Array[Vector3] = []
+## Which kind of civilian building stands at each position, by index:
+## "house" (garrison 2), "structure" (4) or "warehouse" (8). Missing or
+## unknown entries fall back to "structure", so older maps are unchanged.
+@export var civilian_kinds: PackedStringArray = PackedStringArray()
 @export var comms_outpost: Vector3 = Vector3.ZERO
 @export var repair_depot: Vector3 = Vector3.ZERO
 @export var supply_depot: Vector3 = Vector3.ZERO
+
+@export_group("Sea")
+## Water regions as (x, z) polygons, anticlockwise or clockwise. Empty on
+## land-only maps. See Water.
+@export var water_polygons: Array[PackedVector2Array] = []
+@export var water_level: float = -0.9
 
 @export_group("Terrain")
 ## Impassable masses as (position, size) pairs, flattened: even indices

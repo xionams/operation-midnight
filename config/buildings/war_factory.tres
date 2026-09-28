@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/war_factory.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/war_factory.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/war_factory.glb" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -12,7 +12,7 @@ prerequisites = PackedStringArray()
 population_provided = 15
 category = "BUILDINGS"
 is_wall = false
-build_radius_bonus = 8.0
+build_radius_bonus = 20.0
 weapon_stats = null
 is_defensive = false
 max_health = 1500.0

@@ -3,11 +3,12 @@
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/spy.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/spy.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/spy.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Spy"
+role = "Disguised infiltrator: steals credits, sabotages production and power."
 cost = 700
 prerequisites = PackedStringArray("Barracks")
 population = 1

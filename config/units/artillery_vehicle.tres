@@ -3,11 +3,12 @@
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 [ext_resource type="Resource" path="res://config/weapons/artillery_gun.tres" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/units/artillery_vehicle.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/artillery_vehicle.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/artillery_vehicle.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Artillery Vehicle"
+role = "Long-range siege: razes structures and packed infantry, helpless up close."
 cost = 1600
 prerequisites = PackedStringArray("Vehicle Factory", "Radar Center")
 population = 3

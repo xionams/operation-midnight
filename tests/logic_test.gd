@@ -39,6 +39,13 @@ func _ready() -> void:
 	## These checks are about combat and ability rules. Fog would hide the
 	## test subjects and is covered by its own suite, so switch it off here.
 	FogOfWar.enabled = false
+	## Same isolation as depth_test: the strategic commander pools loose
+	## enemy units and walks them off. The crush check's victim is exactly
+	## such a unit, and was intermittently ordered 40m away before the tank
+	## reached it. The director has its own suites.
+	var director = get_parent().get_node_or_null("AIDirector")
+	if director != null:
+		director.enabled = false
 	await _run()
 	print("TEST| ---- %d failure(s) ----" % _fails.size())
 	for f in _fails:

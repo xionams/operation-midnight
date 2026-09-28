@@ -61,7 +61,7 @@ func _ready() -> void:
 	_register_power()
 
 func _build_garrison() -> void:
-	if stats == null or not stats.garrisonable:
+	if stats == null or not (stats.garrisonable or stats.garrison_capacity > 0):
 		return
 	var garrison := GarrisonComponent.new()
 	garrison.name = "GarrisonComponent"
@@ -100,10 +100,14 @@ func _build_visual() -> void:
 		var visual := stats.visual_scene.instantiate()
 		add_child(visual)
 		_visual_root = visual
+		if visual is Node3D and stats.visual_scale != Vector3.ONE:
+			(visual as Node3D).scale = stats.visual_scale
 		FactionPaint.apply(visual, _faction_color())
 		## Models built with a Turret node aim it; everything else
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
+		ModelAnimator.attach(self, visual)
+		_face_open_water.call_deferred()
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -128,6 +132,27 @@ func _build_visual() -> void:
 	indicator_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_indicator.material_override = indicator_material
 	add_child(_indicator)
+
+## A shore structure (the Naval Yard) is modelled with its berth on +X.
+## Turn the model, never the footprint, in quarter turns so the berth
+## opens onto the sea where ships are launched rather than onto the beach.
+func _face_open_water() -> void:
+	if stats == null or not stats.requires_shore or not (_visual_root is Node3D) \
+			or not is_inside_tree():
+		return
+	var best_room: float = -1.0
+	var best_angle: float = 0.0
+	var reach: float = maxf(stats.footprint.x, stats.footprint.y) * 0.5 + 4.0
+	for i in 4:
+		## Quarter turn i sends model +X to world (cos, -sin).
+		var a: float = PI * 0.5 * float(i)
+		var dir := Vector3(cos(a), 0.0, -sin(a))
+		var p: Vector3 = global_position + dir * reach
+		var room: float = Water.distance_to_shore(p.x, p.z) if Water.is_water(p.x, p.z) else -1.0
+		if room > best_room:
+			best_room = room
+			best_angle = a
+	(_visual_root as Node3D).rotation.y = best_angle
 
 func _build_health_bar() -> void:
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
@@ -184,6 +209,36 @@ func set_faction(player: bool) -> void:
 	_on_faction_changed()
 	EventBus.building_captured.emit(self, is_player_faction)
 
+## The reverse of a capture, for structures that belong to whoever is
+## standing in them: an emptied civilian building is nobody's again, so
+## either side can occupy it next.
+func release_to_neutral() -> void:
+	if is_neutral:
+		return
+	_on_faction_changing()
+	_unregister_power()
+	remove_from_group("player_buildings" if is_player_faction else "enemy_buildings")
+	is_neutral = true
+	add_to_group("neutral_buildings")
+	if _indicator != null:
+		var material := _indicator.material_override as StandardMaterial3D
+		if material != null:
+			material.albedo_color = _faction_color()
+	if _visual_root != null:
+		FactionPaint.apply(_visual_root, _faction_color())
+	if get_node_or_null("FogHideable") == null:
+		_build_fog_visibility()
+	## Nobody may keep a neutral structure selected.
+	SelectionManager.notify_unit_removed(self)
+	_on_faction_changed()
+
+## Anyone carried inside (a garrison) walks out rather than vanishing
+## with a structure that is sold.
+func _release_occupants() -> void:
+	for child in get_children():
+		if child is OccupantHold:
+			(child as OccupantHold).exit_all()
+
 ## Overridden by buildings that register themselves somewhere on _ready.
 func _on_faction_changing() -> void:
 	pass
@@ -223,6 +278,7 @@ func sell() -> void:
 	if not is_player_faction:
 		return
 	GameState.add_credits_for(true, int(round(stats.cost * SELL_REFUND)))
+	_release_occupants()
 	_unregister_power()
 	EventBus.building_sold.emit(self)
 	queue_free()
@@ -268,6 +324,8 @@ func _refresh_damage_visual() -> void:
 	## return at its first line for every real building in the game, and
 	## the damage states have been invisible since models were introduced.
 	_refresh_damage_plume(stage)
+	if _visual_root != null:
+		VFX.damage_tint(_visual_root, stage)
 	if _body == null:
 		return
 	var material := _body.material_override as StandardMaterial3D

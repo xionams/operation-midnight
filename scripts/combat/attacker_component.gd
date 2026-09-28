@@ -37,7 +37,10 @@ func is_searching() -> bool:
 func _ready() -> void:
 	_owner_unit = get_parent() as Node3D
 
-func set_target(new_target: Node) -> void:
+## `ordered` is true for a direct attack order. Self-chosen targets must
+## be worth the trip (Weapon.can_damage); an ordered one only has to be
+## something this weapon can hurt at all (Weapon.can_attack).
+func set_target(new_target: Node, ordered: bool = false) -> void:
 	if not is_instance_valid(new_target):
 		return
 	var health: HealthComponent = new_target.get_node_or_null("HealthComponent")
@@ -45,10 +48,15 @@ func set_target(new_target: Node) -> void:
 		return
 	## Refuse targets this weapon cannot meaningfully hurt, so a dog does
 	## not chase a tank forever doing nothing.
-	if weapon != null and weapon.stats != null and not weapon.can_damage(new_target):
-		return
+	if weapon != null and weapon.stats != null:
+		var acceptable: bool = weapon.can_attack(new_target) if ordered \
+			else weapon.can_damage(new_target)
+		if not acceptable:
+			return
 	## Cannot order an attack on something the player cannot see.
 	if _owner_unit != null and _owner_unit.is_player_faction and FogHideable.is_hidden(new_target):
+		return
+	if _owner_unit != null and not Stealth.visible_to(new_target, _owner_unit.is_player_faction):
 		return
 	target = new_target as Node3D
 	_last_chase_position = Vector3.INF
@@ -78,6 +86,13 @@ func _physics_process(delta: float) -> void:
 		target = null
 		return
 
+	## A submarine that dives out of sonar is gone - it cannot be tracked,
+	## and a gun that could reach it surfaced cannot reach it submerged.
+	if not Stealth.visible_to(target, _owner_unit.is_player_faction) \
+		or not weapon.stats.reaches(CombatTarget.domain_of(target)):
+		target = null
+		return
+
 	## The target walked into fog. The player does not get to track it -
 	## the unit advances on where it last saw the target and gives up if
 	## nothing is there.
@@ -94,7 +109,9 @@ func _physics_process(delta: float) -> void:
 		_owner_unit.call("move_to", _last_known_position)
 		return
 
-	var distance: float = _owner_unit.global_position.distance_to(target.global_position)
+	## Measured to the target's edge, so a structure is engaged from where
+	## its wall is in range rather than its centre - see CombatTarget.
+	var distance: float = CombatTarget.distance(_owner_unit.global_position, target)
 
 	## Defensive structures mount this same component but cannot move, so
 	## every movement call is optional. A turret simply drops a target
@@ -108,7 +125,7 @@ func _physics_process(delta: float) -> void:
 		_owner_unit.call("move_to", _owner_unit.global_position + away * weapon.stats.minimum_range)
 		return
 
-	if distance > weapon.stats.attack_range:
+	if distance > weapon.attack_range():
 		if not mobile:
 			target = null
 			return

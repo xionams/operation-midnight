@@ -21,15 +21,32 @@ class_name BuildingStats
 ## the normal build panel listing order.
 @export var is_wall: bool = false
 
-## Extends the area the owner may build in, in metres.
+## Construction territory this structure grants: a circle of this radius
+## around its centre, in metres (see BuildTerritory). Sized per type -
+## large for the HQ, medium-large for production, small for defences -
+## and 0 for walls, which extend nothing.
 @export var build_radius_bonus: float = 8.0
 
 ## Defensive structures mount a weapon and are disabled by low power.
 @export var weapon_stats: WeaponStats = null
 @export var is_defensive: bool = false
 
+## LAND or WATER (PlacementDomain.Domain): which the whole footprint must
+## stand on. `requires_shore` additionally keeps a water structure
+## against the coast - a shipyard is built off a beach, not mid-ocean.
+@export var placement_domain: int = 0
+@export var requires_shore: bool = false
+## Exposes enemy submarines within this range (see Stealth).
+@export var sonar_range: float = 0.0
+## Short line on the build tile and info panel, as UnitStats.role.
+@export var role: String = ""
+
 ## Infantry can occupy this structure and fire from inside it.
 @export var garrisonable: bool = false
+## How many infantry fit inside. Scales with the structure: a house holds
+## a couple, a warehouse a platoon. 0 on a garrisonable building means
+## GarrisonComponent.DEFAULT_CAPACITY.
+@export var garrison_capacity: int = 0
 @export var max_health: float = 500.0
 @export var build_time: float = 0.0 ## Instant in Milestone 1; wired for later.
 @export var power_generation: int = 0
@@ -46,6 +63,9 @@ class_name BuildingStats
 
 ## Replace with a Blender-authored PackedScene later.
 @export var visual_scene: PackedScene = null
+## Lets one model serve several sizes of structure (a house and a
+## warehouse share the civilian block, scaled).
+@export var visual_scale: Vector3 = Vector3.ONE
 
 ## Scene to instance when this building is placed via the build menu.
 @export var scene: PackedScene = null

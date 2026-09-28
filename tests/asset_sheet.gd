@@ -35,16 +35,12 @@ func _ready() -> void:
 	env.environment = environment
 	add_child(env)
 
-	var dir := DirAccess.open("res://assets/models")
-	var names: Array = []
-	for file in dir.get_files():
-		if file.ends_with(".glb"):
-			names.append(file.get_basename())
-	names.sort()
+	var paths: Array = preload("res://tests/model_catalog.gd").all_paths()
 
 	var index: int = 0
-	for name in names:
-		var scene = load("res://assets/models/%s.glb" % name)
+	for path in paths:
+		var name: String = path.get_file().get_basename()
+		var scene = load(path)
 		if scene == null:
 			continue
 		var node = scene.instantiate()

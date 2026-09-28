@@ -4,11 +4,12 @@
 [ext_resource type="Resource" path="res://config/weapons/tank_cannon.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/main_battle_tank.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/main_battle_tank.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/main_battle_tank.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Main Battle Tank"
+role = "Heavy armour: breaks other vehicles and holds the line."
 cost = 1800
 prerequisites = PackedStringArray("Vehicle Factory", "Technology Center")
 population = 3

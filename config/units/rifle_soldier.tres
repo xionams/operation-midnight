@@ -4,11 +4,12 @@
 [ext_resource type="Resource" path="res://config/weapons/rifle.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/rifle_soldier.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/rifle_soldier.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/rifle_soldier.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Rifle Squad"
+role = "Line infantry: cheap, shreds infantry, can garrison buildings. Crouch to hit harder."
 cost = 300
 prerequisites = PackedStringArray("Barracks")
 population = 1

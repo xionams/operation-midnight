@@ -94,7 +94,9 @@ static func _graded_height(x: float, z: float) -> float:
 		var weight: float = 1.0 - clampf((distance - disc[1]) / disc[2], 0.0, 1.0)
 		weight = weight * weight * (3.0 - 2.0 * weight)
 		height = lerpf(height, disc[3], weight)
-	return height
+	## The sea shapes the ground last: a levelled pad never floats over a
+	## bay, and every coast becomes a beach running into the water.
+	return Water.shape_height(x, z, height)
 
 ## --- baked lookup -----------------------------------------------------
 ##
@@ -172,9 +174,15 @@ static func build_mesh(extent: float, step: float = 6.0) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	## r = coast mask for fog_terrain.gdshader: 1 on and near the shore,
+	## 0 inland, so the sand band follows the beach rather than every
+	## low-lying field that happens to sit near sea level.
+	var colors := PackedColorArray()
 	vertices.resize((cells + 1) * (cells + 1))
 	normals.resize(vertices.size())
 	uvs.resize(vertices.size())
+	colors.resize(vertices.size())
+	var coast_reach: float = Water.BEACH + 4.0
 
 	var index: int = 0
 	for row in cells + 1:
@@ -184,6 +192,11 @@ static func build_mesh(extent: float, step: float = 6.0) -> ArrayMesh:
 			vertices[index] = Vector3(x, height_at(x, z), z)
 			normals[index] = normal_at(x, z)
 			uvs[index] = Vector2(float(column) / cells, float(row) / cells)
+			var coast: float = 0.0
+			if Water.has_water():
+				coast = 1.0 if Water.is_water(x, z) \
+					else 1.0 - clampf(Water.distance_to_shore(x, z) / coast_reach, 0.0, 1.0)
+			colors[index] = Color(coast, 0.0, 0.0)
 			index += 1
 
 	var indices := PackedInt32Array()
@@ -208,6 +221,7 @@ static func build_mesh(extent: float, step: float = 6.0) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_INDEX] = indices
 
 	var mesh := ArrayMesh.new()

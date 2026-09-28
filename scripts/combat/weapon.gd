@@ -17,6 +17,13 @@ func _process(delta: float) -> void:
 func can_fire() -> bool:
 	return stats != null and _cooldown_remaining <= 0.0
 
+## Reach after the wielder's posture. Everything that asks "am I in range"
+## goes through here rather than reading stats.attack_range directly.
+func attack_range() -> float:
+	if stats == null:
+		return 0.0
+	return stats.attack_range * InfantryStance.modifiers_of(get_parent()).range_multiplier
+
 ## True when this weapon can meaningfully hurt the target at all. Used so
 ## a unit does not walk across the map to plink uselessly at armour its
 ## weapon cannot scratch.
@@ -27,24 +34,50 @@ func can_fire() -> bool:
 ## Dog would happily chase a Main Battle Tank and die achieving nothing.
 const MIN_USEFUL_MULTIPLIER: float = 0.25
 
+##
+## This is the bar for choosing a target by ITSELF (idle defence,
+## attack-move, towers). A direct order from the player is judged by
+## can_attack instead: a rifleman told to shoot a tank should shoot it,
+## however little it achieves - that is the player's call to make.
 func can_damage(target: Node) -> bool:
+	if not can_attack(target):
+		return false
+	var health: HealthComponent = target.get_node_or_null("HealthComponent")
+	return stats.multiplier_for(health.armor_type) >= MIN_USEFUL_MULTIPLIER
+
+## True when this weapon can hurt the target at all and is not the kind
+## of weapon that refuses that armor outright (see WeaponStats.excluded_armor).
+func can_attack(target: Node) -> bool:
 	if stats == null or not is_instance_valid(target):
 		return false
 	var health: HealthComponent = target.get_node_or_null("HealthComponent")
 	if health == null:
 		return false
-	return stats.multiplier_for(health.armor_type) >= MIN_USEFUL_MULTIPLIER
+	if stats.excludes(health.armor_type):
+		return false
+	if not stats.reaches(CombatTarget.domain_of(target)):
+		return false
+	return stats.multiplier_for(health.armor_type) > 0.0
 
 func fire_at(target: Node3D, from_position: Vector3) -> void:
 	if not can_fire() or not is_instance_valid(target):
 		return
-	_cooldown_remaining = stats.attack_cooldown
-
 	var attacker := get_parent()
+	## A submarine has to come up to shoot, which is what lets it be
+	## answered (see Stealth).
+	var stealth: Stealth = attacker.get_node_or_null("Stealth")
+	if stealth != null:
+		stealth.surface()
+	## Posture (RUN / CROUCH) scales rate of fire and damage here, once,
+	## the same way rank does - see InfantryStance.
+	var posture: StanceModifiers = InfantryStance.modifiers_of(attacker)
+	_cooldown_remaining = stats.attack_cooldown / maxf(posture.fire_rate_multiplier, 0.01)
+
 	## Veteran crews hit harder. The multiplier is applied once, here, so
 	## every weapon benefits without each unit script knowing about rank.
 	var veterancy: VeterancyComponent = attacker.get_node_or_null("VeterancyComponent")
 	var bonus: float = veterancy.damage_multiplier() if veterancy else 1.0
+	bonus *= posture.damage_multiplier
 
 	if stats.splash_radius > 0.0:
 		_apply_splash(target.global_position, bonus, attacker, veterancy)

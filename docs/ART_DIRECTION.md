@@ -835,3 +835,192 @@ self-shadowing shows almost nothing.
 > Winding matters. Get the triangle order backwards and the sheet is
 > backface-culled — it still shades and still occludes, so it reads as a
 > *black* ground rather than a missing one, which is slow to diagnose.
+
+---
+
+## 18. Phase 3 visual language — the modelled kit
+
+Phase 3 replaced the greybox kit with authored models. They are still
+low-poly and flat-shaded, but each one has a readable silhouette, bevelled
+edges, and baked ambient occlusion. Everything in this section is enforced
+by `assets/source/blender/om_kit.py`: a colour or material outside the kit
+has to be added there first, where it is visible and reviewable.
+
+### 18.1 Pipeline (reproducible, no hand edits)
+
+```
+assets/source/blender/
+  om_kit.py      palette, material slots, primitives, bevel + AO bake, glTF export
+  units.py       land vehicles           -> assets/models/units/
+  buildings.py   faction structures      -> assets/models/buildings/
+  naval.py       ships, subs, naval base -> assets/models/naval/
+  civilian.py    houses, blocks, sheds   -> assets/models/civilian/
+  build.py       registry + CLI (--only ids, --list)
+```
+
+`python assets/source/blender/build.py` needs a Python with `bpy`
+(`pip install bpy==4.2.0` on Python 3.11) or `blender --background --python`.
+A glb is never edited by hand; change the script and rebuild.
+
+Every model goes through the same steps:
+
+1. Author in **game space** (+Y up, front −Z, metres, origin at the ground
+   centre). The kit converts to Blender axes.
+2. Each part stores its palette colour in the `Col` vertex colour, in
+   **sRGB** (Godot reads glTF COLOR_0 as sRGB; storing linear values made
+   everything about 5× too dark).
+3. Apply a bevel modifier (angle-limited to 40°, 0.05–0.08 m) so that edges
+   catch the light at RTS distance.
+4. Bake a Cycles AO pass into the vertex colours, with a temporary ground
+   plane so the underside darkens. Floor it at 0.28 so creases never go black.
+5. Export glTF with named nodes. Nodes with a name are part of the contract
+   (below).
+
+Review happens in the real game, not in a studio render.
+`tests/model_review.tscn` (with `OM_REVIEW=<glb list>` and `OM_SHOT=<dir>`)
+places the models on the actual terrain, under match lighting and fog, then
+shoots a close-up of each and a row at the default and maximum RTS zoom. An
+asset is done only when it reads at gameplay zoom (§14).
+
+### 18.2 Material slots (five, shared by every model)
+
+| Slot | Use | Notes |
+|---|---|---|
+| `Body` | painted hull, walls, roofs | vertex colour × triplanar detail (ModelSurfacing) |
+| `Metal` | tracks, barrels, rails, machinery | darker, slightly metallic |
+| `Glass` | windows, vision blocks, canopies | dark, glossy |
+| `Faction` | team panels only | recoloured at runtime by FactionPaint |
+| `Emissive` | lamps, status lights, screens | the only self-lit surfaces |
+
+Five slots give at most five surfaces per model, and every model shares the
+same materials, so draw calls stay flat as unit counts grow.
+
+### 18.3 Palette (kit constants)
+
+- **Military ground:** `OLIVE` / `OLIVE_DARK` / `FIELD_GREEN` for vehicles;
+  `GUNMETAL` / `STEEL` for running gear and weapons; `RUBBER` for tyres
+  and track pads.
+- **Structures:** `CONCRETE` (light / mid / dark) is the base of every
+  faction building. Colour is added with `RUST`, `SAND` and `HAZARD`
+  stripes, never with a painted wall.
+- **Naval:** `NAVY_GREY` topsides, `NAVY_DARK` superstructure detail,
+  `DECK` for walkable surfaces, `HULL_RED` antifouling below the waterline.
+  Submarines are `SUB_BLACK` with no other colour except the faction band.
+- **Civilian:** `BRICK`, `PLASTER`, `ROOF_TILE`, `ROOF_TIN`, `TIMBER`.
+  These are warm and domestic, and never appear on a military asset. At a
+  glance a player can tell neutral buildings from enemy buildings.
+- **Resources:** `ORE` / `ORE_DARK`, the only saturated yellow-orange in
+  the world besides `AMBER` lamps.
+
+### 18.4 Shape language
+
+- **Vehicles:** low and wide. Tracks or wheels are visible from the RTS
+  camera, so a vehicle never hides its running gear under a slab. Weapon
+  vehicles carry a separate `Turret` node that TurretAim rotates; the gun is
+  long enough to show facing at maximum zoom. Roles differ by silhouette,
+  not colour:
+  - **Scout:** open top, roll cage, pintle MG, four big wheels.
+  - **Assault vehicle:** six-wheel APC, boxy casemate, small turret.
+  - **MBT:** tracked, wide hull, heavy turret, long barrel.
+  - **Artillery:** tracked, long-barrelled gun on an open mount.
+  - **Harvester:** high industrial cab, `HAZARD` ore hopper, no gun.
+- **Infantry:** about 1.8 m, with RTS proportions: a slightly large helmet
+  and a thick weapon, so a dozen pixels still reads as a person with a gun.
+  The helmet is the only `Faction` surface. Roles differ by what they
+  carry:
+  - **Rifleman:** a rifle.
+  - **AT team:** a launcher tube on the shoulder.
+  - **Engineer:** a `HAZARD` toolbox and no rifle.
+  - **Spy:** a long coat and a soft cap.
+  - **Dog:** low and long, with a faction collar.
+- **Buildings:** each is a concrete plinth with one tall element that names
+  its role at a glance:
+  - **HQ:** radar mast.
+  - **Power plant:** twin cooling stacks.
+  - **Barracks:** long hall with a flag.
+  - **Refinery:** silo and conveyor.
+  - **War factory:** tall roller door and gantry.
+  - **Naval Yard:** crane arm over a slipway.
+  - **Forward post:** sandbag ring and a flagged mast.
+  - **Radar centre:** lattice tower with a rotating antenna.
+  - **Tech centre:** a dome, the only rounded roof.
+  - **MG tower:** a tall stalk with a sandbagged cupola.
+  - **AT turret:** a squat casemate with twin tubes.
+  - **Repair depot:** an open hoist bay.
+  - **Supply depot:** crates under camouflage netting.
+  - **Comms outpost:** a guyed needle mast.
+  
+  Footprint edges stay rectangular so placement reads honestly.
+- **Naval:** sharp bow, flat stern. The superstructure sits aft of centre so
+  heading reads even when the ship is stationary. The submarine is a long
+  cigar with a sail. When submerged it renders translucent and darker with
+  bubbles, and it stays visible to its owner.
+
+### 18.5 Emissive use
+
+`Emissive` is reserved for information: lamps on buildings (base lit at
+night), a status light on production buildings, and navigation lights on
+ships. It is never used as decoration. Nothing emissive is larger than a
+window.
+
+### 18.6 Faction markings
+
+Every faction model carries at least one `Faction` panel large enough to
+read at maximum zoom:
+
+- vehicles: on the turret roof and the engine deck
+- buildings: on the roof or a banner
+- ships: on the deck band
+
+Civilian models carry none. That absence is what marks them as neutral.
+
+### 18.7 Named-node contract
+
+| Node | Consumer |
+|---|---|
+| `Turret` | TurretAim (yaw toward target) |
+| `Radar` / `Spinner` | BuildingAnimator (constant spin) |
+| `Crane` | Naval Yard crane sweep |
+| `Machinery` | refinery bob while harvesting |
+| `Propeller` | ship/sub screw spin |
+
+A missing node degrades gracefully: the part does not animate, and nothing
+fails.
+
+`Gantry` (the Naval Yard's travelling crane) is driven the same way. A
+floating model rides the swell (heave, pitch and roll, damped under way)
+without any node naming, because ModelAnimator knows it is afloat from
+its stats.
+
+### 18.8 Sea and coast
+
+- **Water surface** (`shaders/water.gdshader`) is a single pass with no
+  textures or screen reads, so it runs on the Compatibility renderer.
+  `main.gd` builds it as a grid (3 m over the playable area, 12 m over the
+  skirt) and bakes depth and shore contact into vertex colours. The shader
+  uses them for a shallow-to-deep tint, a breathing foam line, and
+  transparency. The shallows show the seabed and a submerged hull. Open
+  sea and unexplored water are opaque. Sun glints come from an analytic
+  swell normal. Fog of war converges on the same near-black as land.
+- **Coast on the ground shader:** the terrain bakes a coast mask (distance
+  to shore) into its vertex colours. Within that band, ground just above
+  the waterline turns to sand, a wet band sits at the waterline, and the
+  seabed fades to silt with depth. Height alone was tried first, and it
+  put sand on every low inland field.
+- **Naval Yard orientation:** the model's berth is built on +X.
+  BuildingBase turns the visual in quarter turns so the berth faces open
+  water, and ProductionQueue launches ships out of the berth mouth.
+
+### 18.9 Effects and damage
+
+| Event | Effect |
+|---|---|
+| Shell or bullet hits water | water splash (white column plus spray ring), no scorch |
+| Ship under way | wake: world-space foam trail, off below 0.6 m/s |
+| Submarine submerged | ghosted hull (existing) plus rising bubbles; no surface wake |
+| Damage 60% / 30% | multiply overlay darkens the model (worn / burnt) plus existing smoke / fire |
+| Damage below 30% | sparks added to the fire |
+
+The damage tint is a `material_overlay` with multiply blending, so models
+keep sharing their five materials and the extra pass is paid only by
+damaged objects.

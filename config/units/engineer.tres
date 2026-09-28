@@ -3,11 +3,12 @@
 [ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/engineer.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/engineer.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/engineer.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Engineer"
+role = "Captures enemy and neutral structures intact. Unarmed."
 cost = 500
 prerequisites = PackedStringArray("Barracks")
 population = 1

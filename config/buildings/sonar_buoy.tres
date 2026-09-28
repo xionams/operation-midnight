@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingStats" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/sonar_buoy.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/naval/sonar_buoy.glb" id="20"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Sonar Buoy"
+role = "Offshore listening post: exposes enemy submarines within 22m. Anywhere on open water in your territory."
+cost = 300
+prerequisites = PackedStringArray("Naval Yard")
+population_provided = 0
+category = "DEFENSE"
+is_wall = false
+build_radius_bonus = 0.0
+weapon_stats = null
+is_defensive = false
+max_health = 300.0
+build_time = 4.0
+power_generation = 0
+power_consumption = 5
+vision_range = 12.0
+footprint = Vector2(3, 3)
+body_color = Color(0.7, 0.5, 0.1, 1)
+body_size = Vector3(1.4, 2.6, 1.4)
+placement_domain = 1
+requires_shore = false
+sonar_range = 22.0
+scene = ExtResource("2")
+visual_scene = ExtResource("20")

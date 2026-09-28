@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/command_hq.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/command_hq.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/command_hq.glb" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -12,7 +12,7 @@ prerequisites = PackedStringArray()
 population_provided = 20
 category = "BUILDINGS"
 is_wall = false
-build_radius_bonus = 20.0
+build_radius_bonus = 32.0
 weapon_stats = null
 is_defensive = false
 max_health = 3000.0

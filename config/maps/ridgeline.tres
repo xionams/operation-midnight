@@ -12,6 +12,7 @@ enemy_base = Vector3(76, 0, -70)
 start_reveal_radius = 34.0
 resource_fields = Array[Vector3]([Vector3(-56, 16000, 34), Vector3(-18, 20000, -44), Vector3(6, 28000, 6), Vector3(54, 16000, -42)])
 civilian_positions = Array[Vector3]([Vector3(-14, 0, 18), Vector3(2, 0, -24), Vector3(38, 0, -6), Vector3(-46, 0, -30)])
+civilian_kinds = PackedStringArray("house", "structure", "warehouse", "structure")
 comms_outpost = Vector3(-30, 0, -6)
 repair_depot = Vector3(30, 0, 34)
 supply_depot = Vector3(-8, 0, 48)

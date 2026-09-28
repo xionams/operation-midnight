@@ -6,6 +6,7 @@ const MAPS: Array[String] = [
 	"res://config/maps/ridgeline.tres",
 	"res://config/maps/dry_basin.tres",
 	"res://config/maps/cold_corridor.tres",
+	"res://config/maps/coastline.tres",
 ]
 
 func _ready() -> void:

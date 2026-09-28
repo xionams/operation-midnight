@@ -32,6 +32,25 @@ class_name WeaponStats
 
 @export var can_target_air: bool = false
 
+## Armor classes (Armor.Type values) this weapon will never engage,
+## whatever the damage table says. An Attack Dog's bite shares the
+## small-arms row with rifles, but a dog does not chew through a tank or a
+## wall - it lists everything except INFANTRY here. Everything else leaves
+## this empty and defers to the table.
+@export var excluded_armor: Array[int] = []
+
+## Which battlefield layers this weapon reaches (CombatTarget.Domain
+## bits): Land=1, Naval=2, Submerged=4. Guns and rockets reach land and
+## surface ships but not a submarine under water; a torpedo reaches only
+## ships and submarines.
+@export_flags("Land", "Naval", "Submerged") var target_domains: int = 3
+
+func reaches(domain: int) -> bool:
+	return (target_domains & domain) != 0
+
+func excludes(armor: int) -> bool:
+	return excluded_armor.has(armor)
+
 func multiplier_for(armor: int) -> float:
 	return DamageTypes.multiplier(damage_type, armor)
 

@@ -95,6 +95,7 @@ var enabled: bool = true
 var strategy: int = Strategy.ECONOMY
 var memory: AIMemory
 var economy: AIEconomy
+var navy: AINavy
 
 var _nav_region: Node
 var _level: Node
@@ -145,6 +146,11 @@ func setup(nav_region: Node, level: Node, base: Vector3, _player_base: Vector3) 
 
 	strategy = _pick_strategy()
 
+	navy = AINavy.new()
+	navy.name = "AINavy"
+	add_child(navy)
+	navy.setup(self, is_player, _player_base)
+
 func _pick_strategy() -> int:
 	var total: int = 0
 	for weight in STRATEGY_WEIGHTS.values():
@@ -181,6 +187,7 @@ func _think() -> void:
 	_run_scouting()
 	_run_defence()
 	_run_offense()
+	navy.think(_tuning()[0], _match_time)
 
 # ------------------------------------------------------------- helpers
 
@@ -219,6 +226,9 @@ func _combat_units() -> Array:
 		if not is_instance_valid(unit) or unit.stats == null:
 			continue
 		if unit.stats.is_harvester or unit.get_node_or_null("AttackerComponent") == null:
+			continue
+		## The fleet is AINavy's. A ship in a land wave sails into the beach.
+		if AINavy.is_ship(unit):
 			continue
 		list.append(unit)
 	return list
@@ -354,7 +364,7 @@ func _run_construction() -> void:
 ## a field is known elsewhere. A post on its own earns nothing, so the
 ## build order follows it with a refinery out there.
 func _should_expand() -> bool:
-	if _own("Forward Command Post") != null:
+	if _ore_post() != null:
 		return false
 	if memory.known_resource_fields.size() < 2:
 		return false
@@ -381,15 +391,25 @@ func _expansion_is_urgent() -> bool:
 
 ## Where the forward base actually is, whether this commander placed it
 ## this match or is resuming one.
+## The forward post out at an ore field - not the one AINavy puts on the
+## shore to reach the sea, which would otherwise read as "already expanded".
+func _ore_post() -> Node:
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
+		if is_instance_valid(building) and building.stats != null \
+			and building.stats.display_name == "Forward Command Post" \
+			and not building.has_meta("coastal"):
+			return building
+	return null
+
 func _expansion_anchor() -> Vector3:
-	var post := _own("Forward Command Post")
+	var post := _ore_post()
 	if post != null:
 		return post.global_position
 	return _expansion_at
 
 func _needs_expansion_refinery() -> bool:
 	var anchor := _expansion_anchor()
-	if anchor == Vector3.ZERO or _own("Forward Command Post") == null:
+	if anchor == Vector3.ZERO or _ore_post() == null:
 		return false
 	for refinery in economy.refineries():
 		if refinery.global_position.distance_to(anchor) < 34.0:
@@ -466,17 +486,37 @@ func _power_shortfall() -> int:
 
 ## A ring of slots that expands outward, wide enough that structures
 ## never seal the AI's own harvesters inside the base.
+##
+## A slot whose footprint would stand in the sea, or on another structure,
+## is skipped for the next one. On a land-only map every slot is legal and
+## this is exactly the old ring; on a coast it keeps the base on land.
 func _place(stats: BuildingStats) -> void:
-	var angle: float = TAU * float(_build_slot % 7) / 7.0
-	var ring: float = BUILD_SPACING + float(_build_slot / 7) * 9.0
-	_build_slot += 1
-	var offset := Vector3(cos(angle), 0, sin(angle)) * ring
+	var offset := Vector3.ZERO
+	for attempt in 21:
+		var angle: float = TAU * float(_build_slot % 7) / 7.0
+		var ring: float = BUILD_SPACING + float(_build_slot / 7) * 9.0
+		_build_slot += 1
+		offset = Vector3(cos(angle), 0, sin(angle)) * ring
+		if _slot_is_legal(stats, base_position + offset):
+			break
 	var building = stats.scene.instantiate()
 	building.stats = stats
 	building.is_player_faction = is_player
 	_nav_region.add_child(building)
 	building.global_position = base_position + offset
 	EventBus.building_placed.emit(building)
+
+func _slot_is_legal(stats: BuildingStats, point: Vector3) -> bool:
+	if not PlacementDomain.error_for(stats, point).is_empty():
+		return false
+	for other in get_tree().get_nodes_in_group("buildings"):
+		if not is_instance_valid(other) or other.stats == null:
+			continue
+		var gap: Vector2 = (stats.footprint + other.stats.footprint) * 0.5
+		if absf(point.x - other.global_position.x) < gap.x \
+			and absf(point.z - other.global_position.z) < gap.y:
+			return false
+	return true
 
 # ---------------------------------------------------------- production
 

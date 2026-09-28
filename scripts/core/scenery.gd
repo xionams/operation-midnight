@@ -184,6 +184,11 @@ func _fog_paint(node: Node3D, detailed: bool = false,
 					colour = ROCK_PALETTE[name]
 				elif NATURE_PALETTE.has(name):
 					colour = NATURE_PALETTE[name]
+			## The detail sheet brightens by up to 1.45x on its high grain,
+			## which took pale concrete to glare white under the match sun
+			## and made every base pad the brightest thing on screen.
+			if detailed:
+				colour = colour.darkened(0.3 if colour.get_luminance() < 0.4 else 0.5)
 			mesh_instance.set_surface_override_material(
 				surface, _fog_material(colour, fog_texture, detailed))
 
@@ -224,7 +229,19 @@ func _exclude(centre: Vector3, radius: float) -> void:
 ## meant to be visibly clear.
 const COVER_MIN_CLEARANCE: float = 4.0
 
+## Nothing grows in the sea, and a beach stays open sand: props within a
+## few metres of the waterline would sit half-submerged.
+const SHORE_CLEARANCE: float = 5.0
+
+func _is_dry(point: Vector3) -> bool:
+	if not Water.has_water():
+		return true
+	return not Water.is_water(point.x, point.z) \
+		and Water.distance_to_shore(point.x, point.z) > SHORE_CLEARANCE
+
 func _is_clear_for_cover(point: Vector3) -> bool:
+	if not _is_dry(point):
+		return false
 	var floor_sq: float = COVER_MIN_CLEARANCE * COVER_MIN_CLEARANCE
 	for entry in _exclusions:
 		if entry[1] < floor_sq:
@@ -234,6 +251,8 @@ func _is_clear_for_cover(point: Vector3) -> bool:
 	return true
 
 func _is_clear(point: Vector3) -> bool:
+	if not _is_dry(point):
+		return false
 	for entry in _exclusions:
 		if point.distance_squared_to(entry[0]) < entry[1]:
 			return false

@@ -46,12 +46,25 @@ uniform float macro_scale = 96.0;
 uniform float detail_scale = 8.0;
 uniform float normal_strength = 0.7;
 
+// --- Coast ---------------------------------------------------------------
+// Height bands relative to the sea: the shaped beach (Water.shape_height
+// eases it down to just above the waterline) reads as sand, and the
+// seabed below reads as wet sand fading to dark silt with depth. On a
+// map without sea water_level stays far below the world and this is off.
+uniform float water_level = -1000.0;
+uniform vec3 sand_color : source_color = vec3(0.58, 0.52, 0.39);
+uniform vec3 silt_color : source_color = vec3(0.20, 0.23, 0.20);
+
 const float EXPLORED_SHADE = 0.392; // 100/255
 
 varying vec3 world_position;
+varying float coast;
 
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// Terrain bakes its coast mask into COLOR.r; props without vertex
+	// colours read white here, and only the ground sets water_level.
+	coast = COLOR.r;
 }
 
 void fragment() {
@@ -82,6 +95,13 @@ void fragment() {
 		vec3 macro = texture(macro_tex, world_position.xz / macro_scale).rgb;
 		grain = texture(detail_tex, world_position.xz / detail_scale).r;
 		surface = base_color * macro * (0.55 + 0.9 * grain);
+		float above = world_position.y - water_level;
+		float beach = (1.0 - smoothstep(0.42, 0.72, above)) * smoothstep(0.0, 0.5, coast);
+		vec3 sand = sand_color * (0.78 + 0.3 * grain);
+		// wet band at the waterline, then silt with depth
+		sand = mix(sand, sand * 0.62, 1.0 - smoothstep(-0.15, 0.45, above));
+		sand = mix(sand, silt_color * (0.8 + 0.3 * grain), smoothstep(-0.4, -3.0, above));
+		surface = mix(surface, sand, beach);
 		NORMAL_MAP = texture(normal_tex, world_position.xz / detail_scale).rgb;
 		// Fade the relief out with visibility. A normal map picked out by
 		// the sun inside the shroud would draw terrain the player has not

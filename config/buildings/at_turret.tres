@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/defense_tower.tscn" id="2"]
 [ext_resource type="Resource" path="res://config/weapons/turret_at.tres" id="3"]
-[ext_resource type="PackedScene" path="res://assets/models/at_turret.glb" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/at_turret.glb" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -13,7 +13,7 @@ prerequisites = PackedStringArray("Radar Center")
 population_provided = 0
 category = "DEFENSE"
 is_wall = false
-build_radius_bonus = 4.0
+build_radius_bonus = 9.0
 weapon_stats = ExtResource("3")
 is_defensive = true
 max_health = 850.0

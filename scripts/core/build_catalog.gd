@@ -15,6 +15,7 @@ const BUILDINGS: Array[String] = [
 	"res://config/buildings/radar_center.tres",
 	"res://config/buildings/tech_center.tres",
 	"res://config/buildings/forward_post.tres",
+	"res://config/buildings/naval_yard.tres",
 ]
 
 const DEFENSES: Array[String] = [
@@ -22,6 +23,7 @@ const DEFENSES: Array[String] = [
 	"res://config/buildings/gate.tres",
 	"res://config/buildings/mg_tower.tres",
 	"res://config/buildings/at_turret.tres",
+	"res://config/buildings/sonar_buoy.tres",
 ]
 
 const INFANTRY: Array[String] = [
@@ -40,15 +42,22 @@ const VEHICLES: Array[String] = [
 	"res://config/units/artillery_vehicle.tres",
 ]
 
+## Warships, trained at a Naval Yard.
+const NAVAL: Array[String] = [
+	"res://config/units/patrol_boat.tres",
+	"res://config/units/submarine.tres",
+]
+
 var _cache: Dictionary = {}
 
 func _ready() -> void:
-	for category in ["BUILDINGS", "DEFENSE", "INFANTRY", "VEHICLES"]:
+	for category in categories():
 		_cache[category] = []
 	_load_into("BUILDINGS", BUILDINGS)
 	_load_into("DEFENSE", DEFENSES)
 	_load_into("INFANTRY", INFANTRY)
 	_load_into("VEHICLES", VEHICLES)
+	_load_into("NAVAL", NAVAL)
 
 func _load_into(category: String, paths: Array[String]) -> void:
 	for path in paths:
@@ -57,7 +66,7 @@ func _load_into(category: String, paths: Array[String]) -> void:
 			_cache[category].append(resource)
 
 func categories() -> Array:
-	return ["BUILDINGS", "DEFENSE", "INFANTRY", "VEHICLES"]
+	return ["BUILDINGS", "DEFENSE", "INFANTRY", "VEHICLES", "NAVAL"]
 
 func items(category: String) -> Array:
 	return _cache.get(category, [])

@@ -49,6 +49,23 @@ func progress() -> float:
 		return 1.0
 	return clampf(1.0 - _remaining / total, 0.0, 1.0)
 
+## Why `stats` cannot be queued here right now, or "" if it can. The
+## sidebar reports this instead of a tile that silently does nothing.
+func enqueue_error(stats: UnitStats) -> String:
+	if stats == null:
+		return "Nothing to build"
+	var owner_is_player: bool = get_parent().is_player_faction
+	if is_full():
+		return "%s queue is full (%d)" % [get_parent().stats.display_name, MAX_QUEUED]
+	if not TechTree.is_available(stats, owner_is_player):
+		return "%s is not available yet" % stats.display_name
+	if not TechTree.has_population_for(stats, owner_is_player):
+		return "Unit cap reached (%d/%d) - build more structures" % [
+			TechTree.population_used(owner_is_player), TechTree.population_cap(owner_is_player)]
+	if GameState.balance_of(owner_is_player) < stats.cost:
+		return "Insufficient funds for %s" % stats.display_name
+	return ""
+
 func enqueue(stats: UnitStats, scene: PackedScene) -> bool:
 	if stats == null or scene == null or is_full():
 		return false
@@ -120,6 +137,38 @@ func _throughput() -> float:
 			same += 1
 	return 1.0 + 0.35 * float(maxi(0, same - 1))
 
+## Land units roll out of the door (spawn_offset). A ship is launched
+## onto open water beside the yard: the first spot round the building that
+## is water with room to float, so it never appears on the beach.
+func _spawn_point(building: Node3D, stats: UnitStats) -> Vector3:
+	var default: Vector3 = building.global_position + spawn_offset
+	if stats == null or stats.movement_domain != PlacementDomain.Domain.WATER:
+		return default
+	var half: Vector2 = building.stats.footprint * 0.5 if building.get("stats") != null else Vector2(5, 5)
+	var reach: float = maxf(half.x, half.y) + 4.0
+	var best: Vector3 = Water.nearest_water(default)
+	var best_room: float = -1.0
+	## Out of the berth mouth when the model has been turned to the sea
+	## (BuildingBase._face_open_water): the ship visibly leaves the yard.
+	var visual = building.get("_visual_root")
+	if visual is Node3D:
+		var a: float = (visual as Node3D).rotation.y
+		var mouth: Vector3 = building.global_position + Vector3(cos(a), 0.0, -sin(a)) * reach
+		if Water.is_water(mouth.x, mouth.z) and Water.distance_to_shore(mouth.x, mouth.z) > 2.0:
+			mouth.y = Water.level
+			return mouth
+	for i in 16:
+		var a: float = TAU * float(i) / 16.0
+		var p: Vector3 = building.global_position + Vector3(cos(a), 0.0, sin(a)) * reach
+		if not Water.is_water(p.x, p.z):
+			continue
+		var room: float = Water.distance_to_shore(p.x, p.z)
+		if room > best_room:
+			best_room = room
+			best = p
+	best.y = Water.level
+	return best
+
 func _complete_front() -> void:
 	var stats: UnitStats = _orders.pop_front()
 	var scene: PackedScene = _scenes.pop_front()
@@ -133,7 +182,7 @@ func _complete_front() -> void:
 	unit.stats = stats
 	unit.is_player_faction = building.is_player_faction
 	building.get_parent().add_child(unit)
-	unit.global_position = building.global_position + spawn_offset
+	unit.global_position = _spawn_point(building, stats)
 
 	## Newly produced units walk to the building's rally point if one is
 	## set, so a factory can feed a staging area without micromanagement.

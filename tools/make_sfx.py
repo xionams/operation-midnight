@@ -169,6 +169,26 @@ def drone(rng, combat=False):
     return loop_crossfade(out)
 
 
+def refuse(rng):
+    """The Feedback channel's 'no': two short low triangle thuds with a
+    relay tick, flat and unmistakable, never a musical sting."""
+    out = [0.0] * int(0.26 * RATE)
+    for i in range(2):
+        start = int(i * 0.11 * RATE)
+        add(out, body(0.09, 150, 0.045, True), start, 0.8)
+        add(out, relay_click(rng, 0.03, 0.6), start, 0.5)
+    return out
+
+
+def affirm(rng):
+    """The Feedback channel's 'done': a quick rising two-step blip."""
+    out = [0.0] * int(0.2 * RATE)
+    add(out, body(0.07, 740, 0.04), 0, 0.55)
+    add(out, body(0.10, 990, 0.06), int(0.06 * RATE), 0.6)
+    add(out, relay_click(rng, 0.025, 0.4), 0, 0.3)
+    return out
+
+
 def build():
     cues = [
         ("rifle_shot.wav", 1, make_rifle, -14),
@@ -190,6 +210,8 @@ def build():
         ("low_power.wav", 17, lambda r: low_power(r), -12),
         ("victory.wav", 18, lambda r: match_sting(r, True), -8),
         ("defeat.wav", 19, lambda r: match_sting(r, False), -8),
+        ("error.wav", 23, lambda r: refuse(r), -16),
+        ("confirm.wav", 24, lambda r: affirm(r), -17),
     ]
     for name, seed, maker, gain in cues:
         write_wav(name, maker(random.Random(seed)), gain)

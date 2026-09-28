@@ -1,68 +1,81 @@
-extends Node
+extends OccupantHold
 class_name GarrisonComponent
 
 ## Lets infantry occupy a structure and fight from inside it.
 ##
-## Garrisoned squads are removed from the world rather than simulated
-## inside the building: they stop being shootable, and the structure
-## fires on their behalf with their weapon. That keeps a garrison cheap
-## at army scale and makes the counter obvious - you cannot shoot the
-## men, so you must knock the building down.
+## Built on OccupantHold, which owns capacity, boarding, leaving and the
+## collapse. This adds only what is specific to a building:
+##   - a neutral structure is open to whoever reaches it first, and
+##     occupying it claims it; once the last occupant walks out it goes
+##     back to being neutral, so the other side can take it next
+##   - the structure fires on its occupants' behalf with their weapon,
+##     from a raised position that adds reach
+##
+## Capacity comes from BuildingStats.garrison_capacity, so a house, a
+## block and a warehouse differ by data, not by script.
+##
+## Reserved for later phases (carried as data now, not yet applied):
+## occupant_damage_multiplier and occupant_protection. Per-slot firing
+## positions would hang off the same occupants array.
 
-signal occupancy_changed(count: int)
-
-const CAPACITY: int = 5
-const DAMAGE_REDUCTION: float = 0.6
+const DEFAULT_CAPACITY: int = 4
 const RANGE_BONUS: float = 1.2
-const EVACUATION_DAMAGE: float = 0.4
 
-var occupants: Array = []
+@export var occupant_damage_multiplier: float = 1.0
+@export var occupant_protection: float = 0.0
 
 var _building: BuildingBase
 var _weapon: Weapon
 var _attacker: AttackerComponent
+## A civilian structure reverts when abandoned; a building someone built
+## or captured with an Engineer stays theirs.
+var _started_neutral: bool = false
 
 func _ready() -> void:
+	super._ready()
 	_building = get_parent() as BuildingBase
-	if _building != null and _building.health != null:
-		_building.health.died.connect(_evacuate)
+	if _building == null:
+		return
+	_started_neutral = _building.is_neutral
+	if _building.stats != null:
+		capacity = _building.stats.garrison_capacity if _building.stats.garrison_capacity > 0 \
+			else DEFAULT_CAPACITY
+	if _building.health != null:
+		_building.health.died.connect(eject_on_destruction)
 
-func has_room() -> bool:
-	return occupants.size() < CAPACITY
-
-func occupancy() -> int:
-	return occupants.size()
-
-## The squad is stored, not simulated. Its stats drive the building's
-## borrowed weapon so a garrison of riflemen shoots like riflemen.
-func enter(unit: Node) -> bool:
-	if not has_room() or unit == null or unit.stats == null or not unit.stats.is_infantry:
-		return false
-	## A neutral structure is open to whoever reaches it first; an owned
-	## one only to its owner.
+## A neutral structure is open to whoever reaches it first; an owned one
+## only to its owner.
+func _accepts_side(unit: UnitBase) -> bool:
 	if _building == null:
 		return false
-	if not _building.is_neutral and _building.is_player_faction != unit.is_player_faction:
-		return false
-	## Occupying a neutral building claims it, so the defenders inside are
-	## unambiguously somebody's.
+	return _building.is_neutral or _building.is_player_faction == unit.is_player_faction
+
+## Occupying a neutral building claims it, so the defenders inside are
+## unambiguously somebody's.
+func _on_entering(unit: UnitBase) -> void:
 	if _building.is_neutral:
 		_building.set_faction(unit.is_player_faction)
 
-	occupants.append({
-		"stats": unit.stats,
-		"health": unit.health.current_health if unit.health else unit.stats.max_health,
-	})
+func _on_entered(unit: UnitBase) -> void:
 	_ensure_weapon(unit.stats)
-	SelectionManager.notify_unit_removed(unit)
-	unit.queue_free()
-	occupancy_changed.emit(occupants.size())
-	return true
+
+## When the last man leaves, the building stops shooting and a civilian
+## structure is up for grabs again.
+func _on_emptied() -> void:
+	if _attacker != null:
+		_attacker.queue_free()
+		_attacker = null
+	if _weapon != null:
+		_weapon.queue_free()
+		_weapon = null
+	if _started_neutral and _building != null and _building.health != null \
+		and not _building.health.is_dead():
+		_building.release_to_neutral()
 
 ## Occupants fire through the structure, with the extra reach a raised
 ## firing position gives them.
 func _ensure_weapon(stats: UnitStats) -> void:
-	if _weapon != null or stats.weapon_stats == null:
+	if _weapon != null or stats == null or stats.weapon_stats == null:
 		return
 	var borrowed: WeaponStats = stats.weapon_stats.duplicate()
 	borrowed.attack_range *= RANGE_BONUS
@@ -83,28 +96,9 @@ func _process(_delta: float) -> void:
 	for candidate in get_tree().get_nodes_in_group(group):
 		if not is_instance_valid(candidate):
 			continue
-		if _building.global_position.distance_to(candidate.global_position) > _weapon.stats.attack_range:
+		if _building.global_position.distance_to(candidate.global_position) > _weapon.attack_range():
 			continue
 		if not _weapon.can_damage(candidate):
 			continue
 		_attacker.set_target(candidate)
 		return
-
-## Losing the building costs the squad inside a share of its health, and
-## anything already hurt does not make it out.
-func _evacuate() -> void:
-	for entry in occupants:
-		var stats: UnitStats = entry["stats"]
-		var remaining: float = entry["health"] * (1.0 - EVACUATION_DAMAGE)
-		if remaining <= 0.0 or stats.unit_scene == null:
-			continue
-		var unit = stats.unit_scene.instantiate()
-		unit.stats = stats
-		unit.is_player_faction = _building.is_player_faction
-		_building.get_parent().add_child(unit)
-		unit.global_position = _building.global_position \
-			+ Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0))
-		if unit.health != null:
-			unit.health.current_health = remaining
-	occupants.clear()
-	occupancy_changed.emit(0)

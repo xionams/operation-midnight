@@ -62,6 +62,8 @@ var _acquire_timer: float = 0.0
 ## save, or a repaired-then-hurt vehicle) still runs the first refresh
 ## instead of matching stage 0 and doing nothing.
 var _damage_stage: int = -1
+## The instantiated model, when there is one (damage tint target).
+var _model: Node = null
 var _damage_plume: Node = null
 
 ## A particle system per damaged vehicle costs about 5 FPS once a
@@ -109,10 +111,19 @@ func _ready() -> void:
 	var infantry: bool = stats != null and stats.is_infantry
 	collision_layer = INFANTRY_COLLISION_LAYER if infantry else UNIT_COLLISION_LAYER
 	collision_mask = GROUND_COLLISION_LAYER if infantry else (GROUND_COLLISION_LAYER | UNIT_COLLISION_LAYER)
+	## Ships float below the flat ground collider's top (y=0), so they
+	## must not collide with it or move_and_slide would shove them ashore.
+	if is_naval():
+		collision_mask = UNIT_COLLISION_LAYER
+	if stats != null and stats.submerged_stealth:
+		var stealth := Stealth.new()
+		stealth.name = "Stealth"
+		add_child(stealth)
 
 	_build_fog_visibility()
 	_build_collision()
 	_build_nav_agent()
+	_build_infantry_stance()
 	_build_health()
 	_build_weapon()
 	_build_visual()
@@ -169,9 +180,38 @@ func _build_nav_agent() -> void:
 	nav_agent.neighbor_distance = 6.0
 	nav_agent.max_neighbors = 8
 	nav_agent.avoidance_priority = 0.5 if stats != null and stats.is_infantry else 1.0
-	nav_agent.max_speed = stats.move_speed if stats else 5.0
+	nav_agent.max_speed = move_speed()
+	## The shared ground, plus this side's own layer - which is what gate
+	## passages are on, so a unit can use its own gates and never the
+	## enemy's.
+	nav_agent.navigation_layers = NavLayers.for_unit(stats, is_player_faction)
 	nav_agent.velocity_computed.connect(_on_avoidance_velocity)
 	add_child(nav_agent)
+
+## Infantry can run or crouch. The posture only ever reaches movement
+## through move_speed() and weapons through Weapon, so nothing else here
+## knows it exists.
+func _build_infantry_stance() -> void:
+	if stats == null or not stats.is_infantry:
+		return
+	var posture := InfantryStance.new()
+	posture.name = "InfantryStance"
+	if stats.run_stance != null:
+		posture.run_profile = stats.run_stance
+	if stats.crouch_stance != null:
+		posture.crouch_profile = stats.crouch_stance
+	add_child(posture)
+	## RVO clamps to max_speed, so it has to follow the posture or a
+	## running squad would be held to its crouched pace (or the reverse).
+	posture.mode_changed.connect(func(_mode): if nav_agent: nav_agent.max_speed = move_speed())
+
+func is_naval() -> bool:
+	return stats != null and stats.movement_domain == PlacementDomain.Domain.WATER
+
+## Current ground speed: the unit's own figure scaled by its posture.
+func move_speed() -> float:
+	var base: float = stats.move_speed if stats else 5.0
+	return base * InfantryStance.modifiers_of(self).move_speed_multiplier
 
 ## RVO hands back a velocity that avoids neighbours; the body moves with
 ## that rather than the raw desired direction.
@@ -201,6 +241,8 @@ func _build_visual() -> void:
 		## Models built with a Turret node aim it; everything else
 		## simply has no turret to turn.
 		turret_aim = TurretAim.attach(self, visual)
+		ModelAnimator.attach(self, visual)
+		_model = visual
 		return
 
 	var size: Vector3 = stats.body_size if stats else Vector3(1.5, 1.0, 2.2)
@@ -293,11 +335,15 @@ func stop_moving() -> void:
 	velocity = Vector3.ZERO
 
 func face_towards(target_position: Vector3) -> void:
+	## A turreted vehicle aims with the turret and leaves the hull where
+	## it is, which is what makes the turret worth modelling.
+	if turret_aim != null:
+		return
 	var direction: Vector3 = target_position - global_position
 	direction.y = 0.0
 	if direction.length_squared() < 0.0001:
 		return
-	var desired_rotation: float = atan2(direction.x, direction.z)
+	var desired_rotation: float = atan2(-direction.x, -direction.z)  # models face -Z
 	var turn_speed: float = stats.turn_speed if stats else 6.0
 	rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * get_physics_process_delta_time(), 0.0, 1.0))
 
@@ -326,7 +372,7 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 			move_to(position)
 		CommandTypes.Type.ATTACK:
 			if attacker:
-				attacker.set_target(target)
+				attacker.set_target(target, true)
 			elif target is Node3D:
 				move_to((target as Node3D).global_position)
 		CommandTypes.Type.ATTACK_MOVE:
@@ -344,9 +390,15 @@ func _handle_command(type: int, position: Vector3, target: Node) -> void:
 			stop_moving()
 		CommandTypes.Type.GARRISON:
 			## Only infantry can occupy; everyone else just walks there.
-			if stats != null and stats.is_infantry and target != null:
+			## A soldier on his way in is not fighting: drop any target so
+			## the order is not abandoned at the first enemy he sees.
+			if attacker:
+				attacker.clear_target()
+			garrison_target = null
+			if stats != null and stats.is_infantry and target != null \
+				and _hold_of(target) != null:
 				garrison_target = target
-				move_to(position)
+				move_to((target as Node3D).global_position)
 			else:
 				move_to(position)
 		CommandTypes.Type.PATROL:
@@ -388,14 +440,24 @@ func _tick_combat_behavior(delta: float) -> void:
 
 	_tick_patrol()
 	_tick_guard()
-	_tick_garrison()
+	## Heading for a door is a movement order, not a hunt.
+	if current_command == CommandTypes.Type.GARRISON and is_instance_valid(garrison_target):
+		return
+	## Nor is a plain move. A unit that stopped to shoot at whatever it
+	## passed abandoned the move (the attacker halts it to fire), which is
+	## what made move orders feel ignored in a fight - the classic RTS
+	## answer is that MOVE means move and ATTACK-MOVE means fight on the
+	## way. It picks targets again the moment it arrives.
+	if current_command == CommandTypes.Type.MOVE and nav_agent != null \
+		and not nav_agent.is_navigation_finished():
+		return
 
 	_acquire_timer -= delta
 	if _acquire_timer > 0.0:
 		return
 	_acquire_timer = ACQUIRE_INTERVAL
 
-	var acquisition: float = attacker.weapon.stats.attack_range \
+	var acquisition: float = attacker.weapon.attack_range() \
 		+ STANCE_ACQUIRE_BONUS.get(stance, ACQUIRE_BONUS)
 	var found := _nearest_hostile(acquisition, attacker)
 	if found == null:
@@ -427,16 +489,40 @@ func _should_return_home() -> bool:
 	return global_position.distance_to(_guard_origin) > leash
 
 ## Walk in once close enough. Entering removes the unit from the world,
-## so this is the last thing it does.
+## so this is the last thing it does. Runs every physics tick for every
+## unit, not from the combat scan - that scan returns early for unarmed
+## infantry and for anyone who has a target, which meant an Engineer could
+## never garrison and a rifleman who spotted an enemy never arrived.
 func _tick_garrison() -> void:
-	if current_command != CommandTypes.Type.GARRISON or not is_instance_valid(garrison_target):
+	if current_command != CommandTypes.Type.GARRISON or garrison_target == null:
 		return
-	if global_position.distance_to(garrison_target.global_position) > 6.0:
+	if not is_instance_valid(garrison_target):
+		garrison_target = null
 		return
-	var garrison = garrison_target.get_node_or_null("GarrisonComponent")
+	var hold := _hold_of(garrison_target)
+	if hold == null:
+		garrison_target = null
+		return
+	if not hold.in_entry_range(self):
+		return
+	var building := garrison_target
 	garrison_target = null
-	if garrison != null:
-		garrison.enter(self)
+	if not hold.enter(self):
+		## Full, or it changed hands on the way: stand at the door.
+		stop_moving()
+		current_command = CommandTypes.Type.STOP
+		command_target = null
+	elif building != null:
+		command_target = building
+
+## The garrison/transport a node carries, if any.
+func _hold_of(node: Node) -> OccupantHold:
+	if not is_instance_valid(node):
+		return null
+	for child in node.get_children():
+		if child is OccupantHold:
+			return child
+	return null
 
 ## Patrol turns around at each end, so a unit sweeps a line indefinitely
 ## and re-engages anything that wanders into it.
@@ -496,11 +582,12 @@ func _nearest_in_group(group: String, radius: float, attacker: AttackerComponent
 			continue
 		if is_player_faction and FogHideable.is_hidden(candidate):
 			continue
-		if not DisguiseAbility.visible_to(candidate, is_player_faction):
+		if not DisguiseAbility.visible_to(candidate, is_player_faction) \
+			or not Stealth.visible_to(candidate, is_player_faction):
 			continue
 		if not attacker.weapon.can_damage(candidate):
 			continue
-		var dist: float = global_position.distance_to(candidate.global_position)
+		var dist: float = CombatTarget.distance(global_position, candidate)
 		if dist > radius or dist >= best_dist:
 			continue
 		## The leash keeps a unit holding a position from wandering off
@@ -546,6 +633,7 @@ func _refresh_damage_visual() -> void:
 	if stage == _damage_stage:
 		return
 	_damage_stage = stage
+	VFX.damage_tint(_model, stage)
 	if _damage_plume != null and is_instance_valid(_damage_plume):
 		_damage_plume.queue_free()
 		_damage_plume = null
@@ -573,7 +661,7 @@ func _refresh_damage_visual() -> void:
 ## explosions but not of movement, so a field that armour had crossed all
 ## match looked untouched between the craters.
 func _lay_tracks() -> void:
-	if stats == null or stats.body_size.y < TRACK_MIN_HEIGHT:
+	if stats == null or stats.body_size.y < TRACK_MIN_HEIGHT or is_naval():
 		return
 	if _last_track.is_finite() \
 		and global_position.distance_to(_last_track) < TRACK_STEP:
@@ -623,10 +711,17 @@ func _settle_on_ground() -> void:
 		if dx * dx + dz * dz < SETTLE_STEP * SETTLE_STEP:
 			return
 	_settled_at = here
-	here.y = Terrain.height_at(here.x, here.z)
+	## Ships ride the surface; a submerged boat sits lower in it.
+	if is_naval():
+		here.y = Water.level - (0.6 if Stealth.is_submerged(self) else 0.0)
+	else:
+		here.y = Terrain.height_at(here.x, here.z)
 	global_position = here
 
 func _physics_process(delta: float) -> void:
+	_tick_garrison()
+	if not is_inside_tree():
+		return
 	_refresh_damage_visual()
 	_lay_tracks()
 	_settle_on_ground()
@@ -643,10 +738,10 @@ func _physics_process(delta: float) -> void:
 	direction.y = 0.0
 
 	if direction.length() > 0.05:
-		var desired_rotation: float = atan2(direction.x, direction.z)
+		var desired_rotation: float = atan2(-direction.x, -direction.z)  # models face -Z
 		var turn_speed: float = stats.turn_speed if stats else 6.0
 		rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * delta, 0.0, 1.0))
-		var speed: float = stats.move_speed if stats else 5.0
+		var speed: float = move_speed()
 		velocity = direction.normalized() * speed
 	else:
 		velocity = Vector3.ZERO
@@ -676,7 +771,11 @@ func _tick_unstick(delta: float) -> void:
 	var destination: Vector3 = nav_agent.target_position
 	## Nudge sideways before re-pathing, so a unit pressed flat against a
 	## wall has somewhere to go rather than immediately re-jamming.
-	global_position += Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+	## ...but never out of the unit's own domain: a nudged boat must stay
+	## afloat and a nudged tank must not end up in the sea.
+	var nudged: Vector3 = global_position + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
+	if Water.is_water(nudged.x, nudged.z) == is_naval():
+		global_position = nudged
 	nav_agent.target_position = destination
 
 ## Armour flattens enemy infantry it drives over. Vehicles pass through
@@ -710,7 +809,9 @@ func _on_died() -> void:
 	if stats != null and not stats.is_infantry:
 		VFX.vehicle_wreck(self, global_position)
 		AudioDirector.play("explosion_small")
-		Wreckage.spawn_vehicle(self, global_position)
+		## Ships sink; there is no hulk to leave on the water.
+		if not is_naval():
+			Wreckage.spawn_vehicle(self, global_position)
 	else:
 		VFX.impact(self, global_position + Vector3.UP * 0.6)
 	MatchStats.record_unit_death(is_player_faction)

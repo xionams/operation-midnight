@@ -5,6 +5,9 @@ class_name UnitStats
 ## never in gameplay scripts.
 
 @export var display_name: String = "Unit"
+## One line on what the unit is FOR, shown on its build tile and in the
+## info panel. A unit whose job the player cannot name does not get built.
+@export var role: String = ""
 @export var cost: int = 0
 
 ## Structures required before this unit can be produced.
@@ -34,7 +37,7 @@ class_name UnitStats
 @export var body_color: Color = Color.WHITE
 @export var body_size: Vector3 = Vector3(1.5, 1.0, 2.2)
 
-## Optional weapon. Leave null for unarmed units (scout, harvester).
+## Optional weapon. Leave null for unarmed units (Engineer, Spy, harvester).
 @export var weapon_stats: WeaponStats = null
 
 ## What this unit counts as when something shoots it.
@@ -46,6 +49,21 @@ class_name UnitStats
 @export var is_infantry: bool = false
 @export var can_be_crushed: bool = false
 @export var can_crush: bool = false
+
+## LAND units path on the land navmesh, WATER units on the sea navmesh
+## (PlacementDomain.Domain). See NavLayers.
+@export var movement_domain: int = 0
+## Sonar: exposes enemy submerged units (see Stealth) within this range.
+## 0 for everything that carries no sonar.
+@export var sonar_range: float = 0.0
+## Submarines: runs submerged and hidden unless exposed (see Stealth).
+@export var submerged_stealth: bool = false
+
+## Infantry posture profiles (see InfantryStance). Left null, infantry use
+## the shared defaults in config/stances/; set them to give one unit type
+## its own RUN / CROUCH trade-off. Ignored for non-infantry.
+@export var run_stance: StanceModifiers = null
+@export var crouch_stance: StanceModifiers = null
 
 ## Harvester-only fields. Ignored by other unit types.
 @export var is_harvester: bool = false

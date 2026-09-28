@@ -28,9 +28,23 @@ func _ready() -> void:
 	if _entity == null:
 		return
 	_saved_layer = _entity.collision_layer
-	FogOfWar.fog_updated.connect(_refresh)
+	_connect_fog()
 	# Start hidden until proven visible, so nothing flashes on spawn.
 	_refresh()
+
+## _ready runs once, but an entity can leave the tree and come back (a
+## soldier stepping out of a garrison). The fog subscription is dropped on
+## exit, so it has to be picked up again on re-entry or the returning unit
+## would never hide in fog again.
+func _enter_tree() -> void:
+	if _entity == null:
+		return
+	_connect_fog()
+	_refresh()
+
+func _connect_fog() -> void:
+	if not FogOfWar.fog_updated.is_connected(_refresh):
+		FogOfWar.fog_updated.connect(_refresh)
 
 func _exit_tree() -> void:
 	if FogOfWar.fog_updated.is_connected(_refresh):
@@ -41,6 +55,10 @@ func _refresh() -> void:
 		return
 	var seen: bool = FogOfWar.is_explored_at(_entity.global_position) if persists_once_explored \
 		else FogOfWar.is_visible_at(_entity.global_position)
+	## A submerged submarine is hidden even inside vision unless sonar or
+	## its own firing has exposed it - the same removal from the player's
+	## world as fog, so it cannot be seen, clicked or targeted either.
+	seen = seen and Stealth.visible_to(_entity, true)
 	if seen == (not hidden_by_fog):
 		return
 	_set_hidden(not seen)

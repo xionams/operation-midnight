@@ -4,11 +4,12 @@
 [ext_resource type="Resource" path="res://config/weapons/dog_bite.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/attack_dog.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/attack_dog.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/attack_dog.glb" id="10"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Attack Dog"
+role = "Fast infantry hunter; sniffs out disguised Spies. Cannot hurt vehicles or buildings."
 cost = 300
 prerequisites = PackedStringArray("Barracks")
 population = 1

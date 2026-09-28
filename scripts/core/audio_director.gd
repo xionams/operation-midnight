@@ -20,6 +20,10 @@ const AUDIO_DIR: String = "res://assets/audio/"
 const CUES: Dictionary = {
 	"select":         [660.0, 0.06, "square", -20.0],
 	"order":          [880.0, 0.07, "sine",   -18.0],
+	## Placeholder tones for the Feedback channel: a low buzz for "no",
+	## a short rising blip for a confirmed special action.
+	"error":          [150.0, 0.14, "square", -16.0],
+	"confirm":        [990.0, 0.09, "sine",   -17.0],
 	"build_place":    [330.0, 0.16, "square", -14.0],
 	"build_done":     [520.0, 0.22, "sine",   -13.0],
 	"unit_ready":     [740.0, 0.16, "sine",   -15.0],
@@ -83,6 +87,7 @@ func _ready() -> void:
 	EventBus.building_sold.connect(func(_b): play("sell"))
 	EventBus.construction_ready.connect(func(_s): play("build_done"))
 	EventBus.building_captured.connect(func(_b, _p): play("capture"))
+	EventBus.feedback.connect(_on_feedback)
 	EventBus.low_power_changed.connect(func(low): if low: play("low_power"))
 	GameState.selection_changed.connect(func(s): if not s.is_empty(): play("select"))
 	GameState.match_ended.connect(_on_match_ended)
@@ -115,6 +120,12 @@ func _make_bed(name: String) -> AudioStreamPlayer:
 	return player
 
 ## Round-robin voices so a burst of events never cuts itself off.
+func _on_feedback(_text: String, kind: int, _position: Vector3) -> void:
+	if kind == Feedback.Kind.REJECT:
+		play("error")
+	elif kind == Feedback.Kind.OK:
+		play("confirm")
+
 func play(cue: String) -> void:
 	if not enabled or not _streams.has(cue):
 		return

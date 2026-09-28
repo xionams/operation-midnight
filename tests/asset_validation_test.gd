@@ -28,16 +28,12 @@ func _aabb_of(node: Node) -> AABB:
 	return box
 
 func _init() -> void:
-	var dir := DirAccess.open("res://assets/models")
-	var names: Array = []
-	for file in dir.get_files():
-		if file.ends_with(".glb"):
-			names.append(file.get_basename())
-	names.sort()
+	var paths: Array = preload("res://tests/model_catalog.gd").all_paths()
 
 	var total_tris: int = 0
-	for name in names:
-		var scene = load("res://assets/models/%s.glb" % name)
+	for path in paths:
+		var name: String = path.trim_prefix("res://assets/models/").get_basename()
+		var scene = load(path)
 		_check("%s loads" % name, scene != null)
 		if scene == null:
 			continue
@@ -47,12 +43,15 @@ func _init() -> void:
 		var box := _aabb_of(node)
 		## Origin at ground centre is the contract that makes a greybox
 		## swappable without touching gameplay code.
-		_check("%s sits on the ground" % name, box.position.y > -TOLERANCE,
+		## Nature props are sunk on purpose so roots never float on slopes;
+		## naval models have their origin at the waterline, hull below it.
+		var grounded: bool = not (name.begins_with("nature/") or name.begins_with("naval/"))
+		_check("%s sits on the ground" % name, not grounded or box.position.y > -TOLERANCE,
 			"(min y %.2f)" % box.position.y)
 		for m in meshes:
 			total_tris += m.mesh.get_faces().size() / 3
 		node.free()
 
-	print("ASSET| %d models, %d triangles" % [names.size(), total_tris])
+	print("ASSET| %d models, %d triangles" % [paths.size(), total_tris])
 	print("ASSET| ---- %d failure(s) ----" % _fails.size())
 	quit(1 if _fails.size() > 0 else 0)

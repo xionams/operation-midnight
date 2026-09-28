@@ -22,8 +22,55 @@ func _ready() -> void:
 	size = Vector2(SIZE, SIZE)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_sea_timer -= delta
+	if _sea_timer <= 0.0:
+		_sea_timer = 0.25
+		_refresh_sea()
 	queue_redraw()
+
+## The sea on the minimap, where explored. Recomputed from the fog grid a
+## few times a second rather than drawn as polygons, so unexplored ocean
+## stays as black as unexplored land - the coastline is something a
+## player discovers, not something the minimap gives away.
+var _sea_timer: float = 0.0
+var _water_mask: PackedByteArray = PackedByteArray()
+var _sea_image: Image = null
+var _sea_texture: ImageTexture = null
+
+func _refresh_sea() -> void:
+	if not Water.has_water():
+		_sea_texture = null
+		return
+	var side: int = FogOfWar._side
+	var map_size: float = FogOfWar.get_map_size()
+	if _water_mask.size() != side * side:
+		_water_mask.resize(side * side)
+		for cy in side:
+			for cx in side:
+				var x: float = (float(cx) + 0.5) * FogOfWar.CELL_SIZE - map_size * 0.5
+				var z: float = (float(cy) + 0.5) * FogOfWar.CELL_SIZE - map_size * 0.5
+				_water_mask[cy * side + cx] = 1 if Water.is_water(x, z) else 0
+		_sea_image = Image.create(side, side, false, Image.FORMAT_RGBA8)
+	var data := PackedByteArray()
+	data.resize(side * side * 4)
+	for i in side * side:
+		if _water_mask[i] == 0:
+			continue
+		var cx: int = i % side
+		var cy: int = i / side
+		if not FogOfWar.is_cell_explored(cx, cy):
+			continue
+		var lit: bool = FogOfWar.is_cell_visible(cx, cy)
+		data[i * 4] = 40 if lit else 22
+		data[i * 4 + 1] = 110 if lit else 60
+		data[i * 4 + 2] = 185 if lit else 105
+		data[i * 4 + 3] = 255
+	_sea_image.set_data(side, side, false, Image.FORMAT_RGBA8, data)
+	if _sea_texture == null:
+		_sea_texture = ImageTexture.create_from_image(_sea_image)
+	else:
+		_sea_texture.update(_sea_image)
 
 func _draw() -> void:
 	var rect := Rect2(Vector2.ZERO, Vector2(SIZE, SIZE))
@@ -35,6 +82,8 @@ func _draw() -> void:
 		## white visible. Tinting it green reads as terrain rather than
 		## as a data visualisation.
 		draw_texture_rect(texture, rect, false, Color(0.35, 0.62, 0.3))
+	if _sea_texture != null:
+		draw_texture_rect(_sea_texture, rect, false)
 
 	_draw_entities("resource_nodes", _dot_resource, 2.5)
 	_draw_entities("player_buildings", _dot_building, 3.0)
