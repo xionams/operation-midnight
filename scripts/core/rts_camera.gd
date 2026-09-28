@@ -81,9 +81,7 @@ func _process(delta: float) -> void:
 	if move != Vector3.ZERO:
 		pan_target += move.normalized() * pan_speed * delta
 
-	pan_target.x = clamp(pan_target.x, bounds_min.x, bounds_max.x)
-	pan_target.z = clamp(pan_target.z, bounds_min.y, bounds_max.y)
-	zoom_distance = clamp(zoom_distance, min_zoom, max_zoom)
+	_clamp_targets()
 
 	## Frame-rate independent: the old clamp(speed * delta) reached 1 at
 	## 8 FPS and a slow device snapped instead of easing. The delta cap
@@ -162,12 +160,29 @@ func _touch_distance() -> float:
 		return 0.0
 	return (values[0] as Vector2).distance_to(values[1] as Vector2)
 
+## Hold the pan and zoom targets inside their legal range.
+##
+## Shared with snap() deliberately. When this clamp lived only in
+## _process, snap() copied an UNCLAMPED pan_target into _current_pan and
+## the next frame clamped the target underneath it - so the camera
+## snapped to the requested point and then slid away over the following
+## frames toward the legal one. Focusing on anything outside the bounds
+## therefore never held still: measured after one snap(), a fixed world
+## point drifted 428px to 120px across ten frames.
+func _clamp_targets() -> void:
+	pan_target.x = clamp(pan_target.x, bounds_min.x, bounds_max.x)
+	pan_target.z = clamp(pan_target.z, bounds_min.y, bounds_max.y)
+	zoom_distance = clamp(zoom_distance, min_zoom, max_zoom)
+
 ## Finish the current glide now: the view lands where it was going. For
 ## harness code that needs stable screen positions right after aiming the
 ## camera (play itself always eases).
+##
+## Clamps FIRST, so the position it lands on is one _process will keep.
 func snap() -> void:
+	_clamp_targets()
 	_current_pan = pan_target
-	_current_zoom = clamp(zoom_distance, min_zoom, max_zoom)
+	_current_zoom = zoom_distance
 	_apply_transform()
 
 func focus_on(world_position: Vector3) -> void:
