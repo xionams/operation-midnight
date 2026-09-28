@@ -21,6 +21,12 @@ class_name WeaponStats
 @export var is_hitscan: bool = true
 @export var projectile_speed: float = 40.0
 @export var tracer_color: Color = Color.ORANGE
+## How this weapon looks firing, travelling and landing. Stated rather
+## than derived: the damage table has five types and the wrong five for
+## this purpose - a rifle and a machine gun share SMALL_ARMS, a tank gun
+## and a deck gun share CANNON - while what tells them apart on screen is
+## cadence, trail and arc. See WeaponVisuals.
+@export var visual_class: WeaponVisuals.Class = WeaponVisuals.Class.RIFLE
 
 ## Weapons that must halt to shoot. Artillery sets this; nothing else
 ## should, or the army stops every time it acquires a target.

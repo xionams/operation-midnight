@@ -13,6 +13,7 @@ attack_cooldown = 1.6
 is_hitscan = true
 projectile_speed = 40.0
 tracer_color = Color(1, 0.45, 0.15, 1)
+visual_class = 3
 requires_setup = false
 splash_radius = 0.0
 can_target_air = false

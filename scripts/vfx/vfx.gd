@@ -119,6 +119,17 @@ static func cannon_flash(context: Node, position: Vector3, direction: Vector3) -
 	_burst(root, position, 6, SMOKE_GREY, 0.9, 2.2, 0.55, 0.4, false,
 		direction.normalized(), 40.0)
 
+## A launcher's signature is the back-blast: smoke out of the REAR of
+## the tube, away from the target. It is the only muzzle effect on the
+## field that throws its smoke backwards, which is what lets an
+## anti-armour team be told from a rifleman at a glance.
+static func rocket_backblast(context: Node, position: Vector3, direction: Vector3) -> void:
+	var root := _scene_root(context)
+	var forward: Vector3 = direction.normalized()
+	_burst(root, position, 4, FLASH_YELLOW, 0.36, 3.0, 0.1, 0.0, true, forward, 14.0)
+	_burst(root, position - forward * 0.4, 9, SMOKE_GREY, 1.1, 3.4, 0.7, 0.35,
+		false, -forward, 34.0)
+
 static func artillery_flash(context: Node, position: Vector3, direction: Vector3) -> void:
 	_shake(context, position, 0.10)
 	var root := _scene_root(context)
