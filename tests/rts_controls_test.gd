@@ -63,6 +63,18 @@ func _motion(pos: Vector2) -> void:
 	Input.parse_input_event(m)
 	await get_tree().process_frame
 
+## Screen positions are only meaningful once the camera has stopped
+## easing. These tests used to pass only because the old per-frame clamp
+## snapped the camera in one frame at software-rendering frame rates.
+func _settle_camera() -> void:
+	var cam = get_tree().get_first_node_in_group("rts_camera")
+	for i in 240:
+		if cam._current_pan.distance_to(cam.pan_target) < 0.02 \
+				and absf(cam._current_zoom - cam.zoom_distance) < 0.02:
+			break
+		await get_tree().process_frame
+	await get_tree().process_frame
+
 func _run() -> void:
 	var base := Vector3(-78, 0, 62)
 
@@ -73,7 +85,7 @@ func _run() -> void:
 	var enemy = _spawn(TANK, TANK_STATS, false, base + Vector3(9, 0, -8))
 	await get_tree().process_frame
 	FogOfWar.update_now()
-	await get_tree().process_frame
+	await _settle_camera()
 
 	var pa := _screen_of(a)
 	var pb := _screen_of(b)

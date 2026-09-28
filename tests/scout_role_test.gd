@@ -58,6 +58,7 @@ func _flat(a: Vector3, b: Vector3) -> float:
 func _right_click_on(node: Node3D) -> void:
 	var cam := get_tree().get_first_node_in_group("rts_camera") as Camera3D
 	cam.focus_on(node.global_position)
+	cam.snap()
 	await get_tree().process_frame
 	await get_tree().physics_frame
 	var pos: Vector2 = cam.unproject_position(node.global_position + Vector3.UP * (node.stats.body_size.y - 0.1))

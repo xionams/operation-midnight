@@ -111,6 +111,7 @@ func _screen(world: Vector3) -> Vector2:
 
 func _look(world: Vector3) -> void:
 	_cam().focus_on(world)
+	_cam().snap()
 	await _frames(4)
 
 func _settle_nav() -> void:

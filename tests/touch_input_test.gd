@@ -71,6 +71,7 @@ func _run() -> void:
 
 	var first = units[0]
 	_camera.focus_on(first.global_position)
+	_camera.snap()
 	await _frames(20)
 
 	# --- tap to select ---

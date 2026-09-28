@@ -70,6 +70,7 @@ func _mouse_button(pos: Vector2, pressed: bool) -> void:
 func _drag(stats: BuildingStats, from: Vector3, to: Vector3) -> Array:
 	var cam := get_tree().get_first_node_in_group("rts_camera") as Camera3D
 	cam.focus_on((from + to) * 0.5)
+	cam.snap()
 	for i in 3:
 		await get_tree().process_frame
 	## Aim at cell centres, as the snapped ghost invites the player to:
@@ -415,6 +416,7 @@ func _run() -> void:
 		for view in [["enclosure", centre], ["corner_and_cross", (corner_at + Wall.snap(t0)) * 0.5],
 				["straight_lines", (mid_h + mid_v) * 0.5]]:
 			cam.focus_on(view[1])
+			cam.snap()
 			for i in 20:
 				await get_tree().process_frame
 			get_viewport().get_texture().get_image().save_png(shot_dir.path_join("walls_%s.png" % view[0]))

@@ -68,6 +68,18 @@ func _spawn_building(stats: BuildingStats, player: bool, pos: Vector3, neutral :
 func _cam() -> Camera3D:
 	return get_tree().get_first_node_in_group("rts_camera") as Camera3D
 
+## Screen positions are only meaningful once the camera has stopped
+## easing. These tests used to pass only because the old per-frame clamp
+## snapped the camera in one frame at software-rendering frame rates.
+func _settle_camera() -> void:
+	var cam = get_tree().get_first_node_in_group("rts_camera")
+	for i in 240:
+		if cam._current_pan.distance_to(cam.pan_target) < 0.02 \
+				and absf(cam._current_zoom - cam.zoom_distance) < 0.02:
+			break
+		await get_tree().process_frame
+	await get_tree().process_frame
+
 func _frames(n: int) -> void:
 	for i in n:
 		await get_tree().process_frame
@@ -115,7 +127,7 @@ func _run() -> void:
 		var tank = _spawn(TANK, true, hollow)
 		await _wait(0.3)
 		_cam().focus_on(tank.global_position)
-		await _frames(4)
+		await _settle_camera()
 		## The lower hull: visible (the terrain is lower still) but under
 		## the flat collider's top at y=0.
 		var screen: Vector2 = _cam().unproject_position(tank.global_position + Vector3.UP * 0.3)
@@ -157,7 +169,7 @@ func _run() -> void:
 	var soldier = _spawn(SOLDIER, true, Vector3(-60, 0, 50))
 	await _wait(0.2)
 	_cam().focus_on(soldier.global_position)
-	await _frames(4)
+	await _settle_camera()
 	var near_miss: Vector2 = _cam().unproject_position(soldier.global_position + Vector3.UP * 0.9) + Vector2(14, 10)
 	SelectionManager.clear_selection()
 	await _click(near_miss)
@@ -172,7 +184,7 @@ func _run() -> void:
 	SelectionManager._select_unit(dog)
 	_feedback.clear()
 	_cam().focus_on(wall_target.global_position)
-	await _frames(4)
+	await _settle_camera()
 	await _click(_cam().unproject_position(wall_target.global_position + Vector3.UP * 2.8), MOUSE_BUTTON_RIGHT)
 	var fb := _last_feedback()
 	_check("Dog on a building: the order is refused with a reason",
@@ -233,7 +245,7 @@ func _run() -> void:
 	SelectionManager._select_unit(extra)
 	_feedback.clear()
 	_cam().focus_on(house.global_position)
-	await _frames(4)
+	await _settle_camera()
 	await _click(_cam().unproject_position(house.global_position + Vector3.UP * 3.0), MOUSE_BUTTON_RIGHT)
 	_check("Right-click on a full house: refused, says it is full",
 		_last_feedback()[1] == Feedback.Kind.REJECT and String(_last_feedback()[0]).contains("full"),
@@ -256,7 +268,7 @@ func _run() -> void:
 	_check("Unit order buttons disable with only a building selected",
 		hud._attack_move_button.disabled)
 	_cam().focus_on(barracks.global_position)
-	await _frames(4)
+	await _settle_camera()
 	await _click(_cam().unproject_position(barracks.global_position + Vector3(10, 0, 6)), MOUSE_BUTTON_RIGHT)
 	_check("Right-click with a Barracks selected sets its rally point",
 		barracks.rally_point != Vector3.ZERO and String(_last_feedback()[0]).contains("Rally"))
@@ -272,7 +284,7 @@ func _run() -> void:
 	placer.construction_queue = null
 	_feedback.clear()
 	_cam().focus_on(barracks.global_position)
-	await _frames(4)
+	await _settle_camera()
 	var on_barracks: Vector2 = _cam().unproject_position(Vector3(barracks.global_position.x, 0, barracks.global_position.z))
 	var m := InputEventMouseMotion.new()
 	m.position = on_barracks

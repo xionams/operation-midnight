@@ -85,7 +85,10 @@ func _process(delta: float) -> void:
 	pan_target.z = clamp(pan_target.z, bounds_min.y, bounds_max.y)
 	zoom_distance = clamp(zoom_distance, min_zoom, max_zoom)
 
-	var t: float = clamp(follow_speed * delta, 0.0, 1.0)
+	## Frame-rate independent: the old clamp(speed * delta) reached 1 at
+	## 8 FPS and a slow device snapped instead of easing. The delta cap
+	## keeps a single long frame (a shader compile) from doing the same.
+	var t: float = 1.0 - exp(-follow_speed * minf(delta, 0.1))
 	_current_pan = _current_pan.lerp(pan_target, t)
 	_current_zoom = lerp(_current_zoom, zoom_distance, t)
 
@@ -158,6 +161,14 @@ func _touch_distance() -> float:
 	if values.size() < 2:
 		return 0.0
 	return (values[0] as Vector2).distance_to(values[1] as Vector2)
+
+## Finish the current glide now: the view lands where it was going. For
+## harness code that needs stable screen positions right after aiming the
+## camera (play itself always eases).
+func snap() -> void:
+	_current_pan = pan_target
+	_current_zoom = clamp(zoom_distance, min_zoom, max_zoom)
+	_apply_transform()
 
 func focus_on(world_position: Vector3) -> void:
 	pan_target = Vector3(world_position.x, 0.0, world_position.z)

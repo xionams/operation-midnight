@@ -229,6 +229,7 @@ func _count_walls() -> int:
 func _drag_wall(from: Vector3, to: Vector3) -> void:
 	var cam := get_tree().get_first_node_in_group("rts_camera") as Camera3D
 	cam.focus_on((from + to) * 0.5)
+	cam.snap()
 	for i in 3:
 		await get_tree().process_frame
 	_placer.start_placement(WALL)

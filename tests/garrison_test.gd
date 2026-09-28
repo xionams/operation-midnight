@@ -69,6 +69,7 @@ func _camera() -> Camera3D:
 func _right_click_on(node: Node3D) -> void:
 	var cam := _camera()
 	cam.focus_on(node.global_position)
+	cam.snap()
 	await get_tree().process_frame
 	await get_tree().physics_frame
 	var aim: Vector3 = node.global_position + Vector3.UP * (node.stats.body_size.y - 0.3)

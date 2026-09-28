@@ -82,6 +82,7 @@ func _ready() -> void:
 
 	# --- camera reaction ---
 	camera.focus_on(Vector3.ZERO)
+	camera.snap()
 	await _wait(1.0)
 
 	## Measured on the shake offset itself, not on world position: the
@@ -116,10 +117,23 @@ func _ready() -> void:
 	await _wait(1.5)
 
 	# --- camera easing ---
+	## Measured from where the camera is the instant before the order, not
+	## from `resting` above: that was taken before a shake and 1.8 s of
+	## waiting while the rig could still be settling from an earlier move,
+	## so the old reading (56.6 m) was drift plus easing, not one step.
+	## One frame after the order the camera must be part of the way there,
+	## at whatever frame rate the machine manages (this suite renders in
+	## software at ~6 FPS, where the old per-frame clamp snapped).
+	var start_pos: Vector3 = camera.global_position
 	camera.focus_on(Vector3(40, 0, 40))
-	await _wait(0.03)
-	var moved: float = camera.global_position.distance_to(resting)
-	_check("Focusing eases rather than teleporting", moved < 30.0, "(%.1f m)" % moved)
+	await get_tree().process_frame
+	var moved: float = camera.global_position.distance_to(start_pos)
+	var total: float = Vector2(start_pos.x - 40.0, start_pos.z - 40.0).length()
+	_check("Focusing eases rather than teleporting", moved < total * 0.7,
+		"(%.1f of ~%.1f m in one %.3f s frame)" % [moved, total, get_process_delta_time()])
+	await _wait(3.0)
+	var arrived: float = Vector2(camera._current_pan.x - 40.0, camera._current_pan.z - 40.0).length()
+	_check("...and still arrives where it was sent", arrived < 1.0, "(%.2f m off)" % arrived)
 	await _wait(2.0)
 	_check("And it arrives", camera.global_position.distance_to(resting) > 20.0,
 		"(%.1f m)" % camera.global_position.distance_to(resting))
