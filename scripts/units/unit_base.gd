@@ -965,16 +965,24 @@ func _crush_what_we_drove_over() -> void:
 			victim_health.take_damage(victim_health.max_health * 10.0, self)
 
 func _on_died() -> void:
-	## Infantry fall; vehicles burn. The difference is what tells a player
-	## at a glance how much they just lost.
+	## Infantry fall; vehicles burn; ships go down. The difference is what
+	## tells a player at a glance how much they just lost.
+	##
+	## The body is handed to DeathThroe, which detaches it from this unit
+	## BEFORE the queue_free below - so a corpse can lie on the field for
+	## a minute without being a unit for even one frame of it. Nothing
+	## here delays selection, population or the match-end check.
 	if stats != null and not stats.is_infantry:
 		VFX.vehicle_wreck(self, global_position)
 		AudioDirector.play("explosion_small")
-		## Ships sink; there is no hulk to leave on the water.
-		if not is_naval():
+		if is_naval():
+			## Ships sink; there is no hulk to leave on the water.
+			DeathThroe.ship(self, global_position)
+		else:
 			Wreckage.spawn_vehicle(self, global_position)
 	else:
 		VFX.impact(self, global_position + Vector3.UP * 0.6)
+		DeathThroe.infantry(self)
 	MatchStats.record_unit_death(is_player_faction)
 	died.emit(self)
 	SelectionManager.notify_unit_removed(self)

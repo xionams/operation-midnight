@@ -351,6 +351,10 @@ func _refresh_damage_plume(stage: int) -> void:
 
 func _on_died() -> void:
 	VFX.explosion_large(self, global_position + Vector3.UP)
+	## Let it come down. Swapping the model for a ruin on a single frame
+	## is what made a destroyed building read as teleporting into a pile
+	## of rubble rather than collapsing into one.
+	DeathThroe.building(self)
 	## Leave the ruin behind. A razed base that reverts to bare grass
 	## erases the record of the match that happened on it.
 	var size: Vector3 = stats.body_size if stats else Vector3(5, 3, 5)
