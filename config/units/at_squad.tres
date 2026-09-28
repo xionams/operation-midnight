@@ -4,7 +4,7 @@
 [ext_resource type="Resource" path="res://config/weapons/at_launcher.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/at_squad.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/at_squad.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/at_squad.glb" id="10"]
 
 [resource]
 script = ExtResource("1")

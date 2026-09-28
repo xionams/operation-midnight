@@ -32,7 +32,7 @@ func _ready() -> void:
 	add_child(ground)
 
 	var specs := [
-		["res://assets/models/rifle_soldier.glb", Vector3(-1.5, 0, 0), true, ""],
+		["res://assets/models/units/rifle_soldier.glb", Vector3(-1.5, 0, 0), true, ""],
 		["res://assets/models/_experiment/soldier.glb", Vector3(-0.3, 0, 0), true, "idle"],
 		["res://assets/models/_experiment/soldier.glb", Vector3(0.9, 0, 0), true, "run"],
 		["res://assets/models/_experiment/soldier.glb", Vector3(2.1, 0, 0), false, "run"],

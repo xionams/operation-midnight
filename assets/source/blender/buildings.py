@@ -370,3 +370,232 @@ ASSETS.update({
     "gate": gate,
     "ore_field": ore_field,
 })
+
+
+# ------------------------------------------------------------------ tier 2
+
+def forward_post():
+    """Forward command post: a sandbagged field HQ - a low prefab block,
+    a comms mast and a flag - so an expansion reads as a claim, not a base."""
+    m = Model("forward_post", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 7.2, 7.2, 0.25)
+    n.box((4.2, 2.2, 3.2), (-0.6, base + 1.1, -0.6), "Body", OLIVE)
+    n.prism([(-2.3, base + 2.2), (-0.6, base + 2.7), (1.1, base + 2.2)], -2.8, 1.6, "Body", OLIVE_DARK)
+    windows_band(n, 4.2, 3.2, base + 1.5, h=0.3)
+    n.box((0.08, 1.4, 0.9), (1.55, base + 0.7, -0.6), "Body", SHADOW)
+    lamp(n, (1.6, base + 1.6, -0.6))
+    # sandbag ring, open toward +X
+    for i in range(10):
+        a = math.radians(40 + i * 28)
+        n.box((1.0, 0.45, 0.5), (math.cos(a) * 3.1, base + 0.22, math.sin(a) * 3.1), "Body", SAND_DARK,
+              rot_y=-math.degrees(a) + 90)
+    # mast with dish and flag
+    n.tube((2.0, base, 2.0), (2.0, base + 5.2, 2.0), 0.07, "Metal", STEEL_LIGHT, segments=6)
+    n.cylinder(0.45, 0.1, (2.0, base + 4.2, 2.0), "Metal", STEEL, segments=10, radius_top=0.15)
+    n.box((0.05, 0.6, 1.0), (2.0, base + 4.8, 2.55), "Faction", WHITE)
+    n.box((2.2, 0.05, 1.6), (-0.6, base + 2.52, -0.6), "Faction", WHITE, rot_x=0)
+    # crates and a jerrycan stack
+    n.box((0.8, 0.6, 0.8), (-2.6, base + 0.3, 2.4), "Body", OLIVE_DARK)
+    n.box((0.6, 0.5, 0.6), (-2.5, base + 0.85, 2.4), "Body", OLIVE)
+    return m
+
+
+def radar_center():
+    """Radar: a big rotating lattice antenna on a tower over an
+    equipment building - the tallest thing in a base after the stacks."""
+    m = Model("radar_center", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 7.4, 7.4)
+    n.box((5.0, 2.2, 3.4), (0, base + 1.1, 1.4), "Body", CONCRETE)
+    windows_band(n, 5.0, 3.4, base + 1.5, h=0.3)
+    n.box((5.2, 0.14, 3.6), (0, base + 2.27, 1.4), "Body", CONCRETE_DARK)
+    for x in (-1.6, 0.0, 1.6):
+        vent(n, (x, base + 2.45, 2.2), (0.7, 0.3, 0.7))
+    n.box((1.8, 0.05, 1.2), (0, base + 2.36, 0.4), "Faction", WHITE)
+    # the tower: four raked legs and a cabin
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            n.tube((sx * 1.2, base, -1.8 + sz * 1.2), (sx * 0.45, base + 4.6, -1.8 + sz * 0.45),
+                   0.1, "Metal", GUNMETAL, segments=6)
+    for y in (1.5, 3.1):
+        k = 1.0 - (y / 4.6) * 0.62
+        n.box((2.4 * k + 0.1, 0.1, 0.1), (0, base + y, -1.8 - 1.2 * k), "Metal", GUNMETAL)
+        n.box((2.4 * k + 0.1, 0.1, 0.1), (0, base + y, -1.8 + 1.2 * k), "Metal", GUNMETAL)
+    n.box((1.3, 0.7, 1.3), (0, base + 4.95, -1.8), "Body", CONCRETE_LIGHT)
+    n.box((1.34, 0.22, 1.34), (0, base + 5.0, -1.8), "Glass", GLASS_DARK)
+    lamp(n, (0, base + 5.4, -1.8), r=0.08)
+    r = m.node("Radar", (0, base + 5.45, -1.8))
+    r.cylinder(0.2, 0.3, (0, 0.15, 0), "Metal", STEEL, segments=8)
+    r.box((3.6, 0.9, 0.12), (0, 0.8, 0.2), "Metal", STEEL_LIGHT, rot_x=-15)
+    for x in (-1.2, 0.0, 1.2):
+        r.box((0.06, 0.95, 0.16), (x, 0.8, 0.24), "Metal", GUNMETAL, rot_x=-15)
+    return m
+
+
+def tech_center():
+    """Technology centre: a clean lab block with a glazed atrium and a
+    domed test chamber - the only rounded, bright building in the kit."""
+    m = Model("tech_center", "buildings")
+    m.bevel = 0.07
+    n = m.node("Body")
+    base = plinth(n, 8.6, 8.6)
+    n.plan(chamfer_rect(6.4, 4.6, 0.8), base, base + 2.8, "Body", CONCRETE_LIGHT)
+    windows_band(n, 6.0, 4.6, base + 1.2, h=0.5)
+    windows_band(n, 6.0, 4.6, base + 2.2, h=0.4)
+    n.box((6.6, 0.16, 4.8), (0, base + 2.88, 0), "Body", CONCRETE_DARK)
+    # the dome on the -X end
+    n.cylinder(1.6, 0.5, (-1.6, base + 3.2, 0.2), "Body", CONCRETE, segments=16)
+    n.sphere(1.5, (-1.6, base + 3.45, 0.2), "Body", STEEL_LIGHT, rings=6, segments=16, squash=0.8)
+    n.box((0.4, 1.1, 0.06), (-1.6, base + 4.1, -1.2), "Glass", GLASS_DARK, rot_x=-35)
+    # antenna pair and a cooling unit
+    for z in (-1.4, 1.6):
+        n.tube((2.0, base + 2.96, z), (2.0, base + 4.6, z), 0.04, "Metal", STEEL, segments=5)
+        n.box((0.1, 0.1, 0.1), (2.0, base + 4.65, z), "Emissive", LAMP)
+    vent(n, (1.0, base + 3.1, 0.2), (1.4, 0.4, 1.2))
+    n.box((2.4, 0.05, 1.4), (1.1, base + 2.98, -1.4), "Faction", WHITE)
+    # entrance canopy on +X
+    n.box((0.9, 0.12, 2.0), (3.6, base + 1.9, 0), "Body", CONCRETE_DARK)
+    n.box((0.06, 1.5, 1.2), (3.21, base + 0.75, 0), "Glass", GLASS_DARK)
+    for z in (-0.9, 0.9):
+        n.box((0.12, 1.8, 0.12), (3.95, base + 0.9, z), "Metal", STEEL)
+    return m
+
+
+def mg_tower():
+    """MG tower: a tall concrete stalk and a sandbagged cupola whose gun
+    turns - reads as 'watchtower' from any angle."""
+    m = Model("mg_tower", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 3.4, 3.4, 0.25)
+    n.box((1.8, 3.6, 1.8), (0, base + 1.8, 0), "Body", CONCRETE, taper=0.8)
+    for sx in (-1, 1):
+        n.box((0.08, 3.0, 0.3), (sx * 0.8, base + 1.6, 0.9), "Metal", STEEL)  # ladder rails
+    for i in range(7):
+        n.box((0.9, 0.05, 0.05), (0, base + 0.4 + i * 0.45, 0.93), "Metal", STEEL)
+    n.box((2.4, 0.25, 2.4), (0, base + 3.72, 0), "Body", CONCRETE_DARK)
+    n.box((2.2, 0.06, 0.4), (0, base + 3.6, 1.2), "Faction", WHITE)
+    t = m.node("Turret", (0, base + 3.85, 0))
+    for i in range(8):
+        a = math.tau * i / 8
+        if i == 2:
+            continue  # the firing slot faces -Z after the gun
+        t.box((0.8, 0.5, 0.4), (math.sin(a) * 0.95, 0.25, -math.cos(a) * 0.95), "Body", SAND_DARK,
+              rot_y=-math.degrees(a))
+    t.box((0.2, 0.3, 0.3), (0, 0.55, 0), "Metal", GUNMETAL)
+    t.tube((0, 0.62, 0), (0, 0.66, -1.35), 0.05, "Metal", SHADOW, segments=6)
+    t.cylinder(0.06, 0.2, (0.18, 0.55, -0.1), "Metal", STEEL, segments=6)
+    t.box((1.8, 0.08, 1.8), (0, 1.2, 0), "Metal", OLIVE_DARK)  # sun roof
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            t.box((0.07, 0.7, 0.07), (sx * 0.8, 0.85, sz * 0.8), "Metal", STEEL)
+    return m
+
+
+def at_turret():
+    """Anti-armour turret: a low casemate on a concrete ring with a long
+    twin-tube launcher - squat and heavy where the MG tower is tall."""
+    m = Model("at_turret", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 4.4, 4.4, 0.25)
+    n.cylinder(1.8, 1.0, (0, base + 0.5, 0), "Body", CONCRETE, segments=16, radius_top=1.55)
+    n.cylinder(1.6, 0.12, (0, base + 1.05, 0), "Metal", GUNMETAL, segments=16)
+    hazard_band(n, 3.0, (0, base + 0.1, 1.85), along="x", height=0.18, stripes=8)
+    t = m.node("Turret", (0, base + 1.1, 0))
+    t.box((1.8, 0.9, 1.9), (0, 0.45, 0.1), "Body", OLIVE, taper=0.75)
+    t.box((1.0, 0.36, 0.7), (0, 1.0, 0.4), "Body", OLIVE_DARK)
+    for x in (-0.32, 0.32):
+        t.tube((x, 0.6, -0.5), (x, 0.68, -2.3), 0.13, "Metal", GUNMETAL, segments=8)
+        t.cylinder(0.15, 0.1, (x, 0.68, -2.3), "Metal", SHADOW, axis="z", segments=8)
+    t.box((1.3, 0.05, 1.0), (0, 0.92, 0.4), "Faction", WHITE)
+    t.cylinder(0.12, 0.3, (0.6, 1.0, 0.6), "Glass", GLASS_DARK, segments=6)
+    return m
+
+
+def repair_depot():
+    """Repair depot: an open service bay - a roofed gantry over a pad
+    with a crane hoist, tool lockers and an amber service light."""
+    m = Model("repair_depot", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 6.6, 6.6)
+    n.box((4.6, 0.08, 4.6), (0.4, base + 0.04, 0), "Body", CONCRETE_LIGHT)
+    hazard_band(n, 4.6, (2.7, base + 0.1, 0), along="z", height=0.06, stripes=10)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            n.box((0.3, 3.2, 0.3), (0.4 + sx * 2.2, base + 1.6, sz * 2.2), "Metal", HAZARD)
+    n.box((5.0, 0.3, 5.0), (0.4, base + 3.35, 0), "Body", ROOF_TIN)
+    n.box((0.3, 0.3, 4.6), (0.4, base + 3.0, 0), "Metal", GUNMETAL)  # hoist beam
+    n.tube((0.4, base + 2.85, 0.6), (0.4, base + 1.8, 0.6), 0.03, "Metal", SHADOW, segments=4)
+    n.box((0.35, 0.3, 0.35), (0.4, base + 1.7, 0.6), "Metal", HAZARD)
+    for z in (-1.6, 1.6):
+        n.box((0.8, 1.6, 0.6), (-2.7, base + 0.8, z), "Metal", OLIVE_DARK)
+    n.box((0.8, 1.0, 1.2), (-2.7, base + 0.5, 0), "Metal", RUST)
+    lamp(n, (2.6, base + 3.2, -2.2))
+    lamp(n, (2.6, base + 3.2, 2.2))
+    n.box((2.4, 0.05, 1.4), (0.4, base + 3.52, 0), "Faction", WHITE)
+    return m
+
+
+def supply_depot():
+    """Supply depot: stacked crates and fuel under a netting frame beside
+    a small office - reads as 'stores'."""
+    m = Model("supply_depot", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 6.6, 6.6)
+    n.box((2.4, 2.0, 2.2), (-1.8, base + 1.0, -1.8), "Body", CONCRETE)
+    n.prism([(-3.0, base + 2.0), (-1.8, base + 2.4), (-0.6, base + 2.0)], -3.1, -0.5, "Body", ROOF_TIN)
+    n.box((0.06, 1.3, 0.8), (-0.57, base + 0.65, -1.8), "Body", TIMBER)
+    for (x, z, s) in ((1.0, -1.6, 0.9), (2.0, -1.6, 0.9), (1.5, -1.6, 0.8), (1.2, 0.2, 1.0),
+                      (2.3, 0.4, 0.8), (-1.6, 1.4, 0.9), (-0.6, 1.8, 0.8)):
+        h = s * 0.8
+        n.box((s, h, s), (x, base + h / 2.0, z), "Body", OLIVE if (x + z) % 2 < 1 else OLIVE_DARK)
+    n.box((0.8, 0.6, 0.8), (1.5, base + 1.0, -1.6), "Body", OLIVE)
+    for z in (1.6, 2.4):
+        for x in (1.6, 2.4):
+            n.cylinder(0.3, 0.9, (x, base + 0.45, z), "Metal", RUST, segments=8)
+    for sx in (-1, 1):
+        n.tube((1.6 + sx * 1.4, base, -0.8), (1.6 + sx * 1.4, base + 2.4, -0.8), 0.05, "Metal", STEEL, segments=5)
+    n.box((3.0, 0.05, 2.4), (1.6, base + 2.4, -0.8), "Body", FIELD_GREEN)  # camo net
+    n.box((1.8, 0.05, 1.4), (-1.8, base + 2.25, -1.8), "Faction", WHITE)
+    return m
+
+
+def comms_outpost():
+    """Comms outpost: a tall guyed lattice mast over a small equipment
+    shelter - the needle silhouette of the kit."""
+    m = Model("comms_outpost", "buildings")
+    n = m.node("Body")
+    base = plinth(n, 6.0, 6.0)
+    n.box((2.6, 1.8, 2.0), (-1.2, base + 0.9, 1.2), "Body", CONCRETE)
+    n.box((2.8, 0.12, 2.2), (-1.2, base + 1.86, 1.2), "Body", CONCRETE_DARK)
+    n.box((0.06, 1.2, 0.8), (0.12, base + 0.6, 1.2), "Metal", STEEL)
+    vent(n, (-1.6, base + 2.05, 1.2), (0.6, 0.3, 0.6))
+    n.box((1.4, 0.05, 1.0), (-1.2, base + 1.95, 0.9), "Faction", WHITE)
+    # the mast
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            n.tube((1.0 + sx * 0.4, base, -1.0 + sz * 0.4), (1.0 + sx * 0.12, base + 7.2, -1.0 + sz * 0.12),
+                   0.05, "Metal", STEEL_LIGHT, segments=4)
+    for y in (1.5, 3.0, 4.5, 6.0):
+        k = 0.4 - 0.28 * y / 7.2
+        n.box((k * 2 + 0.05, 0.05, 0.05), (1.0, base + y, -1.0 - k), "Metal", STEEL_LIGHT)
+        n.box((0.05, 0.05, k * 2 + 0.05), (1.0 - k, base + y, -1.0), "Metal", STEEL_LIGHT)
+    n.box((0.12, 0.12, 0.12), (1.0, base + 7.3, -1.0), "Emissive", LAMP)
+    for (dx, dz) in ((2.2, -2.2), (-2.2, -2.2), (2.2, 1.8)):
+        n.tube((1.0, base + 5.5, -1.0), (1.0 + dx, base + 0.05, -1.0 + dz), 0.015, "Metal", SHADOW, segments=3)
+    n.cylinder(0.5, 0.1, (1.0, base + 5.0, -1.0), "Metal", STEEL, segments=10, radius_top=0.2, rot_y=0)
+    s = m.node("Spinner", (1.0, base + 6.4, -1.0))
+    s.box((1.2, 0.08, 0.08), (0, 0, 0), "Metal", STEEL)
+    return m
+
+
+ASSETS.update({
+    "forward_post": forward_post,
+    "radar_center": radar_center,
+    "tech_center": tech_center,
+    "mg_tower": mg_tower,
+    "at_turret": at_turret,
+    "repair_depot": repair_depot,
+    "supply_depot": supply_depot,
+    "comms_outpost": comms_outpost,
+})

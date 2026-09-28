@@ -15,7 +15,7 @@ const HEAVY: int = 360
 const SECONDS: float = 6.0
 
 const SKINNED: String = "res://assets/models/_experiment/character.glb"
-const GENERATED: String = "res://assets/models/rifle_soldier.glb"
+const GENERATED: String = "res://assets/models/units/rifle_soldier.glb"
 
 func _ready() -> void:
 	## Both arms hit the 60 FPS vsync cap on the first run, which measured

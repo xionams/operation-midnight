@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/tech_center.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/tech_center.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/tech_center.glb" id="3"]
 
 [resource]
 script = ExtResource("1")

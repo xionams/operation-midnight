@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/core/building_stats.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/defense_tower.tscn" id="2"]
 [ext_resource type="Resource" path="res://config/weapons/tower_mg.tres" id="3"]
-[ext_resource type="PackedScene" path="res://assets/models/mg_tower.glb" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/buildings/mg_tower.glb" id="4"]
 
 [resource]
 script = ExtResource("1")

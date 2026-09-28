@@ -4,7 +4,7 @@
 [ext_resource type="Resource" path="res://config/weapons/rifle.tres" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/units/rifle_soldier.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://assets/models/rifle_soldier.glb" id="10"]
+[ext_resource type="PackedScene" path="res://assets/models/units/rifle_soldier.glb" id="10"]
 
 [resource]
 script = ExtResource("1")

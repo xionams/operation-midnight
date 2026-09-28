@@ -11,13 +11,15 @@ Shape language (docs/ART_DIRECTION.md 3b):
     mistaken for a combat one.
 """
 
+import math
+
 from om_kit import *  # noqa: F401,F403
 
 
 def wheel(n, x, z, r, width=0.34, y=None):
     y = r if y is None else y
-    n.cylinder(r, width, (x, y, z), "Body", RUBBER, axis="x", segments=12)
-    n.cylinder(r * 0.55, width + 0.04, (x, y, z), "Metal", STEEL, axis="x", segments=8)
+    n.cylinder(r, width, (x, y, z), "Body", RUBBER, axis="x", segments=8)
+    n.cylinder(r * 0.55, width + 0.04, (x, y, z), "Metal", STEEL, axis="x", segments=6)
 
 
 def track_unit(n, side_x, length, height, color, wheels=5, skirt=True):
@@ -30,7 +32,7 @@ def track_unit(n, side_x, length, height, color, wheels=5, skirt=True):
     n.prism(band, side_x - 0.22, side_x + 0.22, "Body", RUBBER)
     for i in range(wheels):
         z = -half + r + (length - 2 * r) * i / (wheels - 1)
-        n.cylinder(r * 0.78, 0.5, (side_x, r * 0.9, z), "Metal", STEEL, axis="x", segments=10)
+        n.cylinder(r * 0.78, 0.5, (side_x, r * 0.9, z), "Metal", STEEL, axis="x", segments=8)
     if skirt:
         n.box((0.1, height * 0.55, length * 0.92), (side_x + (0.26 if side_x > 0 else -0.26),
               height * 0.62, 0.0), "Body", color)
@@ -227,3 +229,120 @@ ASSETS = {
     "harvester": harvester,
     "artillery_vehicle": artillery_vehicle,
 }
+
+
+# ------------------------------------------------------------------ infantry
+#
+# One soldier, about 1.8 m, built with RTS proportions: head and helmet a
+# little large, weapon thick, stance wide - at gameplay zoom a soldier is a
+# dozen pixels and has to read as "a person with a gun", not a peg. The
+# helmet is the Faction slot, the only place team colour goes on a man.
+
+def soldier(n, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WHITE,
+            x=0.0, z=0.0, yaw=0.0):
+    def p(px, py, pz):
+        c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+        return (x + px * c + pz * s, py, z - px * s + pz * c)
+    # boots and legs, in a stride
+    for side, dz in ((-1, -0.12), (1, 0.12)):
+        n.box((0.16, 0.14, 0.26), p(side * 0.12, 0.07, dz - 0.04), "Body", RUBBER, rot_y=yaw)
+        n.box((0.17, 0.72, 0.19), p(side * 0.12, 0.5, dz), "Body", uniform, rot_y=yaw, taper=0.9)
+    # torso with a load vest
+    n.box((0.46, 0.56, 0.28), p(0, 1.14, 0), "Body", uniform, rot_y=yaw, taper=0.92)
+    n.box((0.5, 0.36, 0.32), p(0, 1.12, 0), "Body", gear, rot_y=yaw)
+    n.box((0.34, 0.3, 0.16), p(0, 1.14, 0.2), "Body", gear, rot_y=yaw)  # pack
+    # arms forward onto the weapon
+    for side in (-1, 1):
+        n.box((0.13, 0.46, 0.14), p(side * 0.27, 1.12, -0.12), "Body", uniform, rot_y=yaw, rot_x=-35)
+    # head and helmet
+    n.box((0.2, 0.22, 0.2), p(0, 1.56, 0), "Body", SAND, rot_y=yaw)
+    n.sphere(0.2, p(0, 1.66, 0.01), helmet, helmet_color, rings=4, segments=8, squash=0.75, smooth=False)
+    n.box((0.36, 0.04, 0.38), p(0, 1.62, 0.0), helmet, helmet_color, rot_y=yaw)  # brim
+    return p
+
+
+def _rifle(n, p, yaw):
+    n.box((0.07, 0.1, 0.9), p(0.08, 1.12, -0.36), "Metal", GUNMETAL, rot_y=yaw)
+    n.box((0.06, 0.16, 0.1), p(0.08, 1.02, -0.3), "Metal", GUNMETAL, rot_y=yaw)
+
+
+def rifle_soldier():
+    m = Model("rifle_soldier", "units")
+    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    n = m.node("Body")
+    p = soldier(n)
+    _rifle(n, p, 0.0)
+    return m
+
+
+def at_squad():
+    """Anti-tank team: a launcher on the shoulder, fat tube, spare rocket on
+    the back - the tube is what says 'this one kills tanks'."""
+    m = Model("at_squad", "units")
+    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    n = m.node("Body")
+    p = soldier(n, uniform=FIELD_GREEN)
+    n.cylinder(0.11, 1.3, p(0.2, 1.5, -0.1), "Metal", OLIVE_DARK, axis="z", segments=8)
+    n.cylinder(0.14, 0.2, p(0.2, 1.5, -0.78), "Metal", SHADOW, axis="z", segments=8)
+    n.cylinder(0.08, 0.7, p(-0.05, 1.2, 0.3), "Metal", OLIVE, axis="y", segments=6)
+    return m
+
+
+def engineer():
+    """Engineer: no rifle, a big toolbox and a hard hat stripe - the only
+    soldier carrying something square."""
+    m = Model("engineer", "units")
+    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    n = m.node("Body")
+    p = soldier(n, uniform=SAND_DARK, gear=RUST)
+    n.box((0.46, 0.28, 0.2), p(0.3, 0.7, -0.05), "Metal", HAZARD)
+    n.box((0.3, 0.06, 0.06), p(0.3, 0.88, -0.05), "Metal", SHADOW)
+    n.box((0.12, 0.5, 0.12), p(-0.3, 1.0, -0.2), "Metal", STEEL, rot_x=-25)  # wrench
+    return m
+
+
+def spy():
+    """Spy: a long coat, a soft cap instead of a helmet, a pistol - a
+    civilian silhouette among soldiers."""
+    m = Model("spy", "units")
+    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    n = m.node("Body")
+    for side in (-1, 1):
+        n.box((0.16, 0.14, 0.26), (side * 0.12, 0.07, -0.04), "Body", RUBBER)
+        n.box((0.16, 0.6, 0.18), (side * 0.12, 0.45, 0), "Body", SHADOW)
+    n.box((0.5, 0.95, 0.34), (0, 1.0, 0), "Body", STEEL, taper=0.82)  # coat
+    n.box((0.54, 0.1, 0.36), (0, 1.42, 0), "Body", STEEL)
+    for side in (-1, 1):
+        n.box((0.13, 0.5, 0.14), (side * 0.29, 1.12, 0), "Body", STEEL)
+    n.box((0.2, 0.22, 0.2), (0, 1.58, 0), "Body", SAND)
+    n.cylinder(0.16, 0.1, (0, 1.72, 0), "Faction", WHITE, segments=8)
+    n.box((0.34, 0.03, 0.34), (0, 1.68, -0.04), "Body", SHADOW)
+    n.box((0.06, 0.1, 0.24), (0.3, 0.9, -0.12), "Metal", GUNMETAL)
+    return m
+
+
+def attack_dog():
+    """Attack dog: low and long, head up, tail out, a faction collar."""
+    m = Model("attack_dog", "units")
+    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    n = m.node("Body")
+    n.box((0.3, 0.32, 0.8), (0, 0.56, 0.02), "Body", TIMBER, taper=0.92)
+    n.box((0.24, 0.26, 0.3), (0, 0.78, -0.46), "Body", TIMBER, rot_x=-20)  # neck
+    n.box((0.22, 0.22, 0.28), (0, 0.9, -0.62), "Body", TIMBER)
+    n.box((0.14, 0.12, 0.2), (0, 0.84, -0.8), "Body", SHADOW)  # muzzle
+    for side in (-1, 1):
+        n.box((0.06, 0.12, 0.06), (side * 0.08, 1.05, -0.58), "Body", SHADOW)  # ears
+        for dz in (-0.28, 0.3):
+            n.box((0.08, 0.42, 0.09), (side * 0.1, 0.21, dz), "Body", TIMBER if dz > 0 else SHADOW)
+    n.box((0.26, 0.06, 0.12), (0, 0.8, -0.38), "Faction", WHITE)  # collar
+    n.box((0.06, 0.06, 0.34), (0, 0.72, 0.52), "Body", TIMBER, rot_x=30)  # tail
+    return m
+
+
+ASSETS.update({
+    "rifle_soldier": rifle_soldier,
+    "at_squad": at_squad,
+    "engineer": engineer,
+    "spy": spy,
+    "attack_dog": attack_dog,
+})
