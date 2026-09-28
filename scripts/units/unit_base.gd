@@ -331,11 +331,15 @@ func stop_moving() -> void:
 	velocity = Vector3.ZERO
 
 func face_towards(target_position: Vector3) -> void:
+	## A turreted vehicle aims with the turret and leaves the hull where
+	## it is, which is what makes the turret worth modelling.
+	if turret_aim != null:
+		return
 	var direction: Vector3 = target_position - global_position
 	direction.y = 0.0
 	if direction.length_squared() < 0.0001:
 		return
-	var desired_rotation: float = atan2(direction.x, direction.z)
+	var desired_rotation: float = atan2(-direction.x, -direction.z)  # models face -Z
 	var turn_speed: float = stats.turn_speed if stats else 6.0
 	rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * get_physics_process_delta_time(), 0.0, 1.0))
 
@@ -729,7 +733,7 @@ func _physics_process(delta: float) -> void:
 	direction.y = 0.0
 
 	if direction.length() > 0.05:
-		var desired_rotation: float = atan2(direction.x, direction.z)
+		var desired_rotation: float = atan2(-direction.x, -direction.z)  # models face -Z
 		var turn_speed: float = stats.turn_speed if stats else 6.0
 		rotation.y = lerp_angle(rotation.y, desired_rotation, clamp(turn_speed * delta, 0.0, 1.0))
 		var speed: float = move_speed()
