@@ -141,11 +141,14 @@ func get_first_refinery(is_player: bool = true) -> Node:
 			return refinery
 	return null
 
-func get_nearest_refinery(from_position: Vector3, is_player: bool = true) -> Node:
+## `avoid` asks for the nearest refinery that is NOT the one the caller
+## is already failing to reach.
+func get_nearest_refinery(from_position: Vector3, is_player: bool = true,
+		avoid: Node = null) -> Node:
 	var nearest: Node = null
 	var nearest_dist: float = INF
 	for refinery in _refinery_list(is_player):
-		if not is_instance_valid(refinery):
+		if not is_instance_valid(refinery) or refinery == avoid:
 			continue
 		var dist: float = refinery.global_position.distance_squared_to(from_position)
 		if dist < nearest_dist:

@@ -50,6 +50,20 @@ const ACQUIRE_BONUS: float = 5.0
 const MAX_CHASE_DISTANCE: float = 12.0
 const STUCK_TIME: float = 2.5
 const STUCK_EPSILON: float = 0.4
+## Jams in a row before a unit stops trying to free itself and changes
+## its mind about where it is going instead.
+const STUCK_GIVE_UP: int = 3
+## Seconds avoidance stays off after a jam, so a knot of units can shove
+## past one another instead of all politely yielding.
+const SHOVE_TIME: float = 1.2
+## How far a single recovery step may move a unit.
+const ESCAPE_NEAR: float = 1.8
+const ESCAPE_FAR: float = 3.0
+## Points along a recovery step that must ALL be ground this unit may
+## stand on, so a step can never cross something it could not drive over.
+const ESCAPE_SAMPLES: int = 4
+## How far off the navmesh a sample may land before it counts as solid.
+const ESCAPE_CLEARANCE: float = 0.75
 
 ## Captured on the first physics tick, never in _ready: spawners add the
 ## node to the tree and set its position afterwards, so at _ready time
@@ -90,6 +104,11 @@ const TRACK_MIN_HEIGHT: float = 1.0
 var _last_track: Vector3 = Vector3.INF
 var _stuck_timer: float = 0.0
 var _stuck_reference: Vector3 = Vector3.ZERO
+var _stuck_strikes: int = 0
+var _shove_timer: float = 0.0
+## Where we last ground against something, so recovery can steer away
+## from it rather than shuffle back into the same obstacle.
+var _last_blocker: Vector3 = Vector3.INF
 
 const UNIT_COLLISION_LAYER: int = 1 << 1 # bit 2
 const GROUND_COLLISION_LAYER: int = 1 << 0 # bit 1
@@ -218,6 +237,7 @@ func move_speed() -> float:
 func _on_avoidance_velocity(safe_velocity: Vector3) -> void:
 	velocity = safe_velocity
 	move_and_slide()
+	_remember_blocker()
 	_crush_what_we_drove_over()
 
 func _build_health() -> void:
@@ -747,36 +767,157 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 
 	move_and_slide()
+	_remember_blocker()
 	_crush_what_we_drove_over()
 	_tick_combat_behavior(delta)
 	_tick_unstick(delta)
 
-## A unit that is navigating but has not actually moved for a while is
-## jammed - against terrain, a building, or another unit. Re-issuing the
-## destination makes the agent re-path from where it actually is, which
-## frees it without teleporting anything or special-casing the terrain
-## that trapped it.
+## Recovery for a unit that is navigating but has not actually moved.
+##
+## This replaced a blind random nudge, which was as likely to shove a
+## jammed unit deeper into whatever had caught it as out of it: a
+## harvester pinned in a corner could jitter there indefinitely because
+## half its attempts were into the corner, and no two runs behaved alike.
+##
+## The ladder is deterministic and escalates, cheapest first:
+##   1. re-plan from where the unit actually is - a stale path costs
+##      nothing to fix and needs no movement at all;
+##   2. release avoidance briefly and take one VALIDATED step sideways -
+##      RVO deadlock, where every agent yields to every other and the
+##      whole knot stops, is the usual cause in a crowd;
+##   3. change the plan - the unit has a routing problem no amount of
+##      further shuffling will fix.
+##
+## The original destination is restored at every rung, so a harvester
+## resumes the run it was on rather than forgetting where it was going.
 func _tick_unstick(delta: float) -> void:
+	if _shove_timer > 0.0:
+		_shove_timer -= delta
+		if _shove_timer <= 0.0 and nav_agent != null:
+			nav_agent.avoidance_enabled = true
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		_stuck_timer = 0.0
+		_stuck_strikes = 0
 		return
 	if global_position.distance_to(_stuck_reference) > STUCK_EPSILON:
 		_stuck_reference = global_position
 		_stuck_timer = 0.0
+		_stuck_strikes = 0
 		return
 	_stuck_timer += delta
 	if _stuck_timer < STUCK_TIME:
 		return
 	_stuck_timer = 0.0
+	_stuck_strikes += 1
 	var destination: Vector3 = nav_agent.target_position
-	## Nudge sideways before re-pathing, so a unit pressed flat against a
-	## wall has somewhere to go rather than immediately re-jamming.
-	## ...but never out of the unit's own domain: a nudged boat must stay
-	## afloat and a nudged tank must not end up in the sea.
-	var nudged: Vector3 = global_position + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(-1.5, 1.5))
-	if Water.is_water(nudged.x, nudged.z) == is_naval():
-		global_position = nudged
+
+	if _stuck_strikes == 1:
+		## Re-plan only. Re-setting the target makes the agent path from
+		## where it now is instead of from where the old path began.
+		nav_agent.target_position = global_position
+		nav_agent.target_position = destination
+		return
+
+	if _stuck_strikes < STUCK_GIVE_UP:
+		if nav_agent.avoidance_enabled:
+			nav_agent.avoidance_enabled = false
+			_shove_timer = SHOVE_TIME
+		var step: Vector3 = _escape_step(destination)
+		if step != Vector3.ZERO:
+			global_position += step
+		nav_agent.target_position = destination
+		return
+
+	_stuck_strikes = 0
+	if _on_repeatedly_stuck():
+		return
+	var last_step: Vector3 = _escape_step(destination)
+	if last_step != Vector3.ZERO:
+		global_position += last_step
 	nav_agent.target_position = destination
+
+## The best sideways step out of a jam, or zero if there is none.
+##
+## Candidates are a fixed, ordered set of directions - never random, so
+## the same jam always resolves the same way and a failure is
+## reproducible. Each is accepted only if the whole step is passable.
+func _escape_step(destination: Vector3) -> Vector3:
+	if nav_agent == null:
+		return Vector3.ZERO
+	var to_target: Vector3 = destination - global_position
+	to_target.y = 0.0
+	var forward: Vector3 = -global_transform.basis.z
+	if to_target.length() > 0.1:
+		forward = to_target.normalized()
+	var side := Vector3(-forward.z, 0.0, forward.x)
+	var directions: Array = [side, -side,
+		(side + forward).normalized(), (-side + forward).normalized(),
+		(side - forward).normalized(), (-side - forward).normalized()]
+
+	var best := Vector3.ZERO
+	var best_score: float = -INF
+	for reach in [ESCAPE_NEAR, ESCAPE_FAR]:
+		for direction in directions:
+			var candidate: Vector3 = global_position + direction * reach
+			if not _can_slip_to(candidate):
+				continue
+			## Prefer ground closer to where we were going...
+			var score: float = -Vector2(candidate.x - destination.x,
+				candidate.z - destination.z).length()
+			## ...and away from whatever we last ground against, so the
+			## recovery does not walk straight back into it.
+			if _last_blocker != Vector3.INF:
+				score += minf(candidate.distance_to(_last_blocker), 6.0)
+			if score > best_score:
+				best_score = score
+				best = candidate - global_position
+		if best_score > -INF:
+			break
+	best.y = 0.0
+	return best
+
+## Is every point between here and `to` ground this unit may stand on?
+##
+## Sampled along the way rather than only at the end, because a recovery
+## that moves a unit instantly is a recovery that could otherwise move it
+## THROUGH a wall, a building or a shoreline. Ground units do not collide
+## with buildings physically - the navmesh is what holds them out - so
+## the navmesh is what has to be asked.
+func _can_slip_to(to: Vector3) -> bool:
+	var map: RID = nav_agent.get_navigation_map()
+	if not map.is_valid():
+		return false
+	for i in range(1, ESCAPE_SAMPLES + 1):
+		var point: Vector3 = global_position.lerp(to, float(i) / float(ESCAPE_SAMPLES))
+		## Never out of the unit's own domain: a boat must stay afloat
+		## and a tank must not end up in the sea.
+		if is_naval():
+			if not Water.is_navigable(point.x, point.z):
+				return false
+		elif Water.is_water(point.x, point.z):
+			return false
+		var landed: Vector3 = NavigationServer3D.map_get_closest_point(map, point)
+		if Vector2(landed.x - point.x, landed.z - point.z).length() > ESCAPE_CLEARANCE:
+			return false
+	return true
+
+## Remember what we last slid against, for _escape_step to steer away
+## from. Only other units register here: ground units are not on the
+## buildings collision mask, which is exactly why _can_slip_to consults
+## the navmesh rather than the physics world.
+func _remember_blocker() -> void:
+	for i in get_slide_collision_count():
+		var hit := get_slide_collision(i)
+		if hit != null:
+			_last_blocker = hit.get_position()
+			return
+
+## Called when a unit has been jammed STUCK_GIVE_UP times running.
+## Return true if the unit changed its own destination and should not be
+## moved. A plain combat unit has nowhere else to be; a harvester has
+## other ore fields and other refineries.
+func _on_repeatedly_stuck() -> bool:
+	return false
 
 ## Armour flattens enemy infantry it drives over. Vehicles pass through
 ## the infantry layer, so contact cannot be read from slide collisions -

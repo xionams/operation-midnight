@@ -23,6 +23,11 @@ var _trip_started: float = -1.0
 
 const ARRIVE_NODE_DISTANCE: float = 4.5
 const ARRIVE_REFINERY_DISTANCE: float = 4.5
+## How close counts as arrived for a harvester that has been jammed
+## repeatedly. Generous on purpose, and only ever consulted after the
+## unit has genuinely failed to move for several seconds running, so a
+## load is never stranded three metres short of a congested dock.
+const JAMMED_ARRIVE_DISTANCE: float = 9.0
 
 ## The harvester answers the same command vocabulary as everything else;
 ## HARVEST and RETURN simply mean something to it that they do not mean
@@ -124,15 +129,51 @@ func _tick_unloading(delta: float) -> void:
 	cargo = 0.0
 	state = State.IDLE
 
-func _find_resource_node() -> Node:
+## `avoid` asks for the nearest field that is NOT the one the harvester
+## is already failing to reach.
+func _find_resource_node(avoid: Node = null) -> Node:
 	var nearest: Node = null
 	var nearest_dist: float = INF
 	var candidates: Array = get_tree().get_nodes_in_group("resource_nodes")
 	for node in candidates:
-		if not is_instance_valid(node) or node.remaining <= 0.0:
+		if not is_instance_valid(node) or node.remaining <= 0.0 or node == avoid:
 			continue
 		var dist: float = global_position.distance_squared_to(node.global_position)
 		if dist < nearest_dist:
 			nearest_dist = dist
 			nearest = node
 	return nearest
+
+## Shuffling does not free a harvester whose ROUTE is blocked - by a wall
+## the player just drew across it, by its own queue at the refinery, or
+## by another harvester in a pinch too narrow for two. Going somewhere
+## else does, and there is nearly always another field or another
+## refinery. Failing that, a harvester jammed within sight of its
+## destination is treated as having arrived, because a cargo stranded a
+## few metres short of the dock helps nobody.
+func _on_repeatedly_stuck() -> bool:
+	match state:
+		State.TO_NODE:
+			if is_instance_valid(assigned_node) and global_position.distance_to(
+				assigned_node.global_position) < JAMMED_ARRIVE_DISTANCE:
+				state = State.LOADING
+				_timer = stats.load_time if stats else 6.0
+				return true
+			var other_node := _find_resource_node(assigned_node)
+			if other_node != null:
+				assigned_node = other_node
+				move_to(other_node.global_position)
+				return true
+		State.TO_REFINERY:
+			if is_instance_valid(_refinery) and global_position.distance_to(
+				_refinery.global_position) < JAMMED_ARRIVE_DISTANCE:
+				state = State.UNLOADING
+				_timer = stats.unload_time if stats else 3.0
+				return true
+			var other_refinery = GameState.get_nearest_refinery(
+				global_position, is_player_faction, _refinery)
+			if other_refinery != null:
+				_refinery = other_refinery
+				move_to(other_refinery.global_position)
+				return true
+	return false
