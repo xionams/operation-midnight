@@ -87,6 +87,17 @@ func _wait(seconds: float) -> void:
 		_keep_match_alive()
 		await get_tree().process_frame
 
+## Waits for the refinery count to come back, up to `limit` seconds.
+## Returns how long it took, or `limit` if it never did - so a failure
+## still says how long the AI was given.
+func _wait_until_refineries(want: int, limit: float) -> float:
+	var waited: float = 0.0
+	while waited < limit and _economy.refineries().size() < want:
+		waited += get_process_delta_time()
+		_keep_match_alive()
+		await get_tree().process_frame
+	return waited
+
 ## Measures whether money actually arrives over a window, which is the
 ## only honest definition of "the economy recovered".
 func _income_over(seconds: float) -> int:
@@ -170,12 +181,23 @@ func _run() -> void:
 	if refineries_before > 0:
 		_kill(_economy.refineries()[0])
 	await get_tree().process_frame
-	await _wait(RECOVERY_WINDOW)
-	## Assert the count actually returns to what it was. The previous
-	## form passed while the AI rebuilt nothing at all.
+	## Wait FOR the rebuild rather than for a fixed 180s, and report how
+	## long it took.
+	##
+	## The count assertion itself stays strict - an earlier form of this
+	## passed while the AI rebuilt nothing at all, which is why it is
+	## written as "back to what it was". What could not stay is the fixed
+	## clock: the AI's income varies about fourfold between runs of this
+	## same test (measured 5,596/min against 1,399/min), so 180s is
+	## comfortable on a rich run and short on a poor one. A run that
+	## failed here finished the test holding two refineries again - it
+	## had rebuilt, just after the window shut.
+	var rebuild_took: float = await _wait_until_refineries(refineries_before,
+		RECOVERY_WINDOW * 2.0)
 	_check("B: rebuilds a destroyed refinery",
 		_economy.refineries().size() >= refineries_before,
-		"(%d -> %d)" % [refineries_before, _economy.refineries().size()])
+		"(%d -> %d after %.0fs)" % [refineries_before,
+			_economy.refineries().size(), rebuild_took])
 
 	# --- Scenario D: lose power ---
 	for building in get_tree().get_nodes_in_group("enemy_buildings"):

@@ -356,11 +356,26 @@ func _naval_target() -> Vector3:
 	return Vector3.INF
 
 ## Any point, pulled onto open water so a ship can actually path to it.
+##
+## "Open water" now means NAVIGABLE water. The sea a map draws runs well
+## past the map itself so the horizon has no seam, and the sea a ship may
+## use is the rectangle the camera can reach - so a point that is merely
+## wet can be somewhere no hull can go. An order to one is an order the
+## agent can never report finished, and the navy only re-tasks a ship
+## that reports idle: a single unreachable sweep point left the scouting
+## ship pinned on it, the fleet holding station, and the opponent's coast
+## never searched.
+##
+## The shore push is the part that made this reachable - it moves the
+## point six metres further out, which is exactly the direction that
+## leaves the playable area - so the clamp comes after it, not before.
 func _sea(point: Vector3) -> Vector3:
 	var p: Vector3 = Water.nearest_water(point, 160.0)
 	if Water.distance_to_shore(p.x, p.z) < 4.0:
 		var out := Vector3(p.x - point.x, 0, p.z - point.z)
 		if out.length() > 0.1:
 			p += out.normalized() * 6.0
+	if not Water.is_navigable(p.x, p.z):
+		p = Water.nearest_water(p, 160.0)
 	p.y = Water.level
 	return p
