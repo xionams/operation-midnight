@@ -77,6 +77,10 @@ var _setup_overlay: Control
 var _difficulty_buttons: Dictionary = {}
 var _chosen_difficulty: int = AIDirector.Difficulty.NORMAL
 var _debug_panel: Label
+var _perf: PerfProbe = null
+var _cameo_scroll: ScrollContainer = null
+var _sidebar_column: VBoxContainer = null
+var _sidebar_frame: PanelContainer = null
 var _ai_econ_panel: Label
 var _debug_visible: bool = false
 
@@ -92,7 +96,19 @@ var _chosen_map: Resource = null
 
 func _ready() -> void:
 	layer = 10
+	_perf = PerfProbe.new()
+	_perf.name = "PerfProbe"
+	add_child(_perf)
 	_build_sidebar()
+	_fit_sidebar()
+	## And again once layout has settled. Called from _ready the controls
+	## have not had their theme and fonts applied yet, so their reported
+	## minimums are smaller than what they end up occupying - the column
+	## measured as fitting and then grew past the bottom of the screen.
+	call_deferred("_fit_sidebar")
+	## Rotating a phone, or resizing a window, changes how much room the
+	## sidebar has, so the fit is not a one-off at startup.
+	get_viewport().size_changed.connect(_fit_sidebar)
 	_build_overlays()
 	_build_victory_overlay()
 	## A reload carrying a map choice has already been through setup.
@@ -223,6 +239,83 @@ func _style_button(button: Button) -> void:
 	button.add_theme_color_override("font_color", Color(0.86, 0.88, 0.86))
 	button.add_theme_color_override("font_disabled_color", Color(0.45, 0.46, 0.48))
 
+## Make the sidebar fit the screen it is actually on.
+##
+## Everything below the catalogue - the order buttons, Sell, Repair,
+## Rally, Unload, the control groups - is simply unreachable if the
+## column is taller than the window, and there is no scrollbar to find it
+## with. Measured at the phone base resolution with a mixed selection and
+## something in production, the column ran to 918px in a 720px window:
+## the bottom four rows were all off the edge, so on a phone the game had
+## a sell button, an unload button and control groups nobody could press.
+##
+## The layout was sized by hand once and then outgrown - posture, Unload
+## and Attack-Move were all added to it afterwards - which is why this
+## MEASURES instead. The radar and the catalogue are the two things that
+## can give ground: the radar is legible at a range of sizes and the
+## catalogue already scrolls. Everything below them is a touch target and
+## keeps its full height.
+func _fit_sidebar() -> void:
+	if _cameo_scroll == null or _sidebar_column == null or _minimap == null:
+		return
+	## Measured off the FRAME, not guessed. The panel wrapping the column
+	## adds its own stylebox margins on top of the column's minimum, so a
+	## column that fits exactly still pushes the panel past the bottom
+	## edge - by two pixels, which is invisible but is also the
+	## difference between a layout that is right and one that happens to
+	## look right.
+	var screen: float = get_viewport().get_visible_rect().size.y
+	var padding: float = 0.0
+	if _sidebar_frame != null:
+		padding = maxf(0.0, _sidebar_frame.get_combined_minimum_size().y
+			- _sidebar_column.get_combined_minimum_size().y)
+	var room: float = screen - padding - 6.0
+	var radar_full: float = Minimap.SIZE
+	var cameo_full: float = TILE_H * 1.35
+	_minimap.custom_minimum_size = Vector2(radar_full, radar_full)
+	_cameo_scroll.custom_minimum_size = Vector2(0, cameo_full)
+
+	## Count every row that can appear later as though it were up: the
+	## order rows come and go with the selection and the construction
+	## panel appears the moment anything starts building, so a sidebar
+	## that only fits in some states is the same bug again. Summed from
+	## the children's own minimums rather than asked of the column,
+	## because toggling visibility to measure needs a layout pass to
+	## settle first.
+	var gap: float = float(_sidebar_column.get_theme_constant("separation"))
+	var needed: float = 0.0
+	var rows: int = 0
+	for child in _sidebar_column.get_children():
+		if not (child is Control):
+			continue
+		needed += (child as Control).get_combined_minimum_size().y
+		rows += 1
+	needed += gap * maxf(0.0, float(rows - 1))
+
+	var overflow: float = needed - room
+	if not OS.get_environment("OM_FITDEBUG").is_empty():
+		print("FIT| screen=%.0f padding=%.0f room=%.0f needed=%.0f overflow=%.0f frame_min=%.0f col_min=%.0f rows=%d" % [
+			screen, padding, room, needed, overflow,
+			_sidebar_frame.get_combined_minimum_size().y if _sidebar_frame else -1,
+			_sidebar_column.get_combined_minimum_size().y, rows])
+	if overflow <= 0.0:
+		return
+	## Out of the catalogue first, down to a single row of cameos, then
+	## out of the radar. Losing a row of the catalogue costs a scroll;
+	## losing the buttons costs the feature.
+	## Floors low enough to actually close. The worst state - a mixed
+	## selection with something in production - needs 169px back, and
+	## the previous floors could only find 161 between them, leaving the
+	## panel eight pixels past the bottom edge with everything already
+	## squeezed. A catalogue that scrolls and a smaller radar are both
+	## survivable on a phone; an unreachable Sell button is not.
+	var from_cameos: float = minf(overflow, cameo_full - TILE_H * 0.62)
+	_cameo_scroll.custom_minimum_size = Vector2(0, cameo_full - from_cameos)
+	overflow -= from_cameos
+	if overflow > 0.0:
+		var radar: float = maxf(84.0, radar_full - overflow)
+		_minimap.custom_minimum_size = Vector2(radar, radar)
+
 func _build_sidebar() -> void:
 	var frame := PanelContainer.new()
 	frame.name = "Sidebar"
@@ -239,6 +332,8 @@ func _build_sidebar() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	frame.add_child(column)
+	_sidebar_column = column
+	_sidebar_frame = frame
 
 	# --- radar ---
 	var radar_frame := PanelContainer.new()
@@ -305,7 +400,9 @@ func _build_sidebar() -> void:
 		tab.tooltip_text = CATEGORY_NAMES.get(category, category.capitalize())
 		tab.toggle_mode = true
 		tab.button_pressed = category == _category
-		tab.custom_minimum_size = Vector2(52, TOUCH_MIN * 0.82)
+		## Full height: a category tab is a thumb target like any other,
+		## and 0.82 of the minimum is under both platforms' guidance.
+		tab.custom_minimum_size = Vector2(52, TOUCH_MIN)
 		var tab_icon := Icons.for_category(category)
 		if tab_icon != null:
 			tab.icon = tab_icon
@@ -329,6 +426,7 @@ func _build_sidebar() -> void:
 	## card grew enough to say what a unit is doing: the half-visible row
 	## still tells the player the list scrolls.
 	scroll.custom_minimum_size = Vector2(0, TILE_H * 1.35)
+	_cameo_scroll = scroll
 	scroll.add_theme_stylebox_override("panel",
 		_plate(Color(0.06, 0.07, 0.08), Color(0.2, 0.22, 0.25),
 			Color(0.03, 0.04, 0.04), 1))
@@ -356,6 +454,7 @@ func _build_sidebar() -> void:
 	_construction_bar.custom_minimum_size = Vector2(0, 12)
 	_construction_panel.add_child(_construction_bar)
 	var cancel := Button.new()
+	cancel.custom_minimum_size = Vector2(0, TOUCH_MIN)
 	cancel.text = "Cancel (75% refund)"
 	cancel.add_theme_font_size_override("font_size", 12)
 	_style_button(cancel)
@@ -369,7 +468,9 @@ func _build_sidebar() -> void:
 	## the bottom of the screen as soon as the card had anything to say.
 	_info_panel.fit_content = false
 	_info_panel.scroll_active = true
-	_info_panel.custom_minimum_size = Vector2(0, 118)
+	## 92, not 118. The readout scrolls, and on a phone the rows below it
+	## are touch targets that cannot give anything up.
+	_info_panel.custom_minimum_size = Vector2(0, 92)
 	_info_panel.add_theme_font_size_override("normal_font_size", 12)
 	_info_panel.add_theme_font_size_override("bold_font_size", 13)
 	_info_panel.add_theme_font_size_override("italics_font_size", 11)
@@ -434,13 +535,14 @@ func _build_order_controls(column: VBoxContainer) -> void:
 	unload.tooltip_text = "Unload every soldier garrisoned in the selected building"
 	_unload_button = unload
 
+	## Control groups and the debug toggle share one row; see below.
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 3)
 	column.add_child(groups)
 	for index in [1, 2, 3]:
 		var button := Button.new()
 		button.text = str(index)
-		button.custom_minimum_size = Vector2(TOUCH_MIN, TOUCH_MIN * 0.8)
+		button.custom_minimum_size = Vector2(TOUCH_MIN, TOUCH_MIN)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.add_theme_font_size_override("font_size", 13)
 		_style_button(button)
@@ -450,7 +552,8 @@ func _build_order_controls(column: VBoxContainer) -> void:
 
 	var debug_toggle := Button.new()
 	debug_toggle.text = "Debug"
-	debug_toggle.custom_minimum_size = Vector2(0, TOUCH_MIN * 0.72)
+	debug_toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	debug_toggle.custom_minimum_size = Vector2(0, TOUCH_MIN)
 	debug_toggle.add_theme_font_size_override("font_size", 12)
 	_style_button(debug_toggle)
 	debug_toggle.pressed.connect(func():
@@ -459,7 +562,11 @@ func _build_order_controls(column: VBoxContainer) -> void:
 		_ai_econ_panel.visible = _debug_visible
 		if debug_overlay != null:
 			debug_overlay.enabled = _debug_visible)
-	column.add_child(debug_toggle)
+	## Shares the control-group row. The debug toggle is a developer
+	## affordance and was costing a full row of a sidebar that has none to
+	## spare on a phone - height that came straight out of the controls a
+	## player actually needs.
+	groups.add_child(debug_toggle)
 
 func _refresh_top() -> void:
 	_credits_label.text = "%s" % _thousands(GameState.credits)
@@ -739,6 +846,12 @@ func _on_selection_changed(selected: Array) -> void:
 			has_building = true
 			break
 	_building_actions.visible = has_building
+	## The order rows appear and disappear with the selection, so the
+	## column's height changes with it - re-fit, or a layout that fits
+	## with nothing selected runs off the screen the moment a mixed
+	## selection brings both rows up. The fit recomputes from the full
+	## sizes each time, so repeating it cannot compound.
+	_fit_sidebar()
 	_refresh_posture_button(selected)
 
 	if selected.is_empty():
@@ -1369,9 +1482,12 @@ func _process(delta: float) -> void:
 			lead = "\n\n%s\n  cmd %s" % [unit.stats.display_name,
 				CommandTypes.type_name(unit.current_command)]
 	_refresh_ai_economy_panel()
-	_debug_panel.text = "FPS: %d\nUnits: %d\nCredits: %d\nPower: %d / %d\nExplored: %.1f%%%s" % [
-		Engine.get_frames_per_second(),
-		get_tree().get_nodes_in_group("units").size(),
+	## The frame cost comes from PerfProbe rather than
+	## Engine.get_frames_per_second(): that is an average, and an average
+	## hides the one thing that ruins a session on a phone, which is the
+	## occasional 90ms frame.
+	_debug_panel.text = "%s\nCredits: %d   Power: %d/%d\nExplored: %.1f%%%s" % [
+		_perf.to_text() if _perf != null else "",
 		GameState.credits, GameState.power_generated, GameState.power_consumed,
 		FogOfWar.explored_fraction() * 100.0, lead]
 
