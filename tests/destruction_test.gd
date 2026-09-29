@@ -95,6 +95,15 @@ func _ready() -> void:
 	_check("A dead tank leaves a wreck", _wrecks() > before_wrecks,
 		"%d -> %d" % [before_wrecks, _wrecks()])
 
+	## A wreck says what died there. One generic hull for a scout car and
+	## a main battle tank alike threw that information away.
+	var scout := preload("res://config/units/scout_vehicle.tres")
+	var mbt := preload("res://config/units/main_battle_tank.tres")
+	_check("A light vehicle and a heavy one leave different hulls",
+		Wreckage.is_heavy(scout) != Wreckage.is_heavy(mbt),
+		"scout heavy=%s, tank heavy=%s" % [Wreckage.is_heavy(scout), Wreckage.is_heavy(mbt)])
+	_check("...the tank being the heavy one", Wreckage.is_heavy(mbt))
+
 	# --- a ship goes down, and leaves no hulk ---
 	var sea: Vector3 = Water.nearest_water(base + Vector3(0, 0, 60), 140.0)
 	if Water.is_navigable(sea.x, sea.z):
@@ -111,8 +120,15 @@ func _ready() -> void:
 		var top: float = boat.global_position.y
 		boat.health.take_damage(99999.0)
 		await _frames(4)
-		_check("A sinking ship leaves no hulk on the water",
-			_wrecks() == wrecks_before, "%d -> %d" % [wrecks_before, _wrecks()])
+		## Debris, not a hulk: a sunk ship leaves a slick and what floated
+		## off her, which is the whole difference between losing a boat
+		## and losing a tank.
+		_check("A sinking ship leaves floating debris",
+			_wrecks() > wrecks_before, "%d -> %d" % [wrecks_before, _wrecks()])
+		var debris = get_tree().get_nodes_in_group("wreckage")[-1]
+		_check("...that rides the waterline rather than the seabed",
+			absf(debris.global_position.y - Water.level) < 0.3,
+			"y %.2f vs water %.2f" % [debris.global_position.y, Water.level])
 		await _frames(70)
 		var still_floating: bool = false
 		for n in _main.get_node("Level").get_children():

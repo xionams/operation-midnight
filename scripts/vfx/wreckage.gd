@@ -11,8 +11,15 @@ extends Node3D
 ## The model already existed and nothing spawned it, which is the kind of
 ## gap that only shows up when someone goes looking.
 
-const MODEL: PackedScene = preload("res://assets/models/destroyed_building.glb")
-const VEHICLE_MODEL: PackedScene = preload("res://assets/models/vehicle_wreck.glb")
+## One generic burnt hull used to stand in for every vehicle in the game,
+## from a scout car to a main battle tank, and a ship left nothing at
+## all. A wreck is information as much as decoration - it says what died
+## here and roughly how big it was - so there is now one per weight
+## class, picked from the unit's own armour rather than a list of names.
+const MODEL: PackedScene = preload("res://assets/models/props/building_ruin.glb")
+const LIGHT_MODEL: PackedScene = preload("res://assets/models/props/vehicle_wreck_light.glb")
+const HEAVY_MODEL: PackedScene = preload("res://assets/models/props/vehicle_wreck_heavy.glb")
+const NAVAL_MODEL: PackedScene = preload("res://assets/models/props/naval_debris.glb")
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 
 ## Rubble persists for the match rather than fading, but not without
@@ -20,11 +27,23 @@ const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 ## until they cost more than the buildings did.
 const MAX_WRECKS: int = 24
 
-## A dead vehicle leaves a hull. Same budget as a structure ruin, and
-## the same cap covers both - a battlefield strewn with a hundred wrecks
-## costs more than the units did.
-static func spawn_vehicle(context: Node, position: Vector3) -> void:
-	spawn(context, position, 0.0, VEHICLE_MODEL, 1.0)
+## A dead vehicle leaves a hull, sized to what it was. Same budget as a
+## structure ruin, and the same cap covers both - a battlefield strewn
+## with a hundred wrecks costs more than the units did.
+static func spawn_vehicle(context: Node, position: Vector3, heavy: bool = false) -> void:
+	spawn(context, position, 0.0, HEAVY_MODEL if heavy else LIGHT_MODEL, 1.0)
+
+## A sunk ship leaves a slick and floating debris, never a hulk - which
+## is the whole difference between losing a boat and losing a tank. It
+## rides the waterline rather than the ground.
+static func spawn_naval_debris(context: Node, position: Vector3) -> void:
+	spawn(context, Vector3(position.x, Water.level, position.z), 0.0, NAVAL_MODEL, 1.0)
+
+## Is this unit heavy enough to leave a tank-sized wreck? Read from its
+## armour, so a new vehicle gets the right hull without being listed
+## anywhere.
+static func is_heavy(stats) -> bool:
+	return stats != null and stats.armor_type >= Armor.Type.MEDIUM
 
 static func spawn(context: Node, position: Vector3, footprint: float,
 		model_scene: PackedScene = null, fixed_scale: float = 0.0) -> void:
@@ -43,7 +62,9 @@ static func spawn(context: Node, position: Vector3, footprint: float,
 	wreck.name = "Wreckage"
 	wreck.add_to_group("wreckage")
 	level.add_child(wreck)
-	wreck.global_position = Vector3(position.x, 0.0, position.z)
+	## Ground wrecks sit at y=0; floating debris keeps the height it was
+	## given, so a slick rides the water instead of sinking to the seabed.
+	wreck.global_position = Vector3(position.x, position.y, position.z)
 	wreck.rotation.y = randf_range(0.0, TAU)
 
 	var model := (model_scene if model_scene != null else MODEL).instantiate()

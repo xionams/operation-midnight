@@ -20,6 +20,15 @@ extends Node
 ## rifle carry the animator applies on top.
 const CARRY_PITCH: float = -0.61        # ~35 degrees
 const CARRY_PITCH_CROUCH: float = -0.87 # tucked in tighter when low
+## Weapon up and level, which is a different SHAPE from the carry rather
+## than a deeper version of it: the arms come nearly horizontal and the
+## body squares up. A soldier in contact used to stand exactly as he did
+## walking about, so there was no way to tell who was fighting.
+const AIM_PITCH: float = -1.42
+const AIM_PITCH_CROUCH: float = -1.30
+## Seconds to raise and lower the weapon. Fast enough to look like
+## reacting, slow enough not to snap.
+const AIM_BLEND: float = 7.0
 
 ## Stride. Crouching is not just slower - it is a visibly different gait:
 ## shorter paces, a lower body and a forward lean, so RUN and CROUCH read
@@ -58,6 +67,10 @@ var _fire_timer: float = 0.0
 var _hit_timer: float = 0.0
 var _last_health: float = -1.0
 var _armed: bool = false
+var _attacker: Node = null
+## 0 = weapon carried, 1 = weapon up and aimed. Blended, so a soldier
+## coming into contact raises it rather than popping into the pose.
+var _aim: float = 0.0
 
 ## Attach to a unit whose model carries a jointed rig. Returns null for
 ## anything without one, so vehicles and buildings cost nothing.
@@ -151,6 +164,20 @@ func _process(delta: float) -> void:
 	var crouched: bool = _stance != null and _stance.is_crouched()
 	var moving: bool = speed > 0.15
 
+	## Resolved here rather than at bind: the animator is attached from
+	## _build_visual, which runs BEFORE the unit adds its weapon, so
+	## looking for the attacker then always found nothing and no soldier
+	## ever raised his rifle.
+	if _attacker == null or not is_instance_valid(_attacker):
+		_attacker = _host.get_node_or_null("AttackerComponent")
+
+	## In contact, or just fired. The recent-shot term keeps the weapon up
+	## through the gap between bursts instead of dropping it every time a
+	## target dies.
+	var engaged: bool = _fire_timer > 0.0 or (_attacker != null
+		and is_instance_valid(_attacker) and is_instance_valid(_attacker.target))
+	_aim = move_toward(_aim, 1.0 if engaged else 0.0, delta * AIM_BLEND)
+
 	## The cycle advances with DISTANCE, not time, so the feet keep pace
 	## with the ground however fast or slow the unit is going.
 	if moving:
@@ -194,7 +221,9 @@ func _pose_torso(bob: float, lean: float, crouched: bool, moving: bool) -> void:
 	var drop: float = CROUCH_DROP if crouched else 0.0
 	if not moving:
 		rise = sin(_phase) * bob
-	var pitch: float = lean
+	## Squaring up to the target: an aiming soldier stands straighter
+	## than one slouching along.
+	var pitch: float = lerpf(lean, lean * 0.45, _aim)
 	## A hit throws the torso back for a moment; a shot rocks it slightly.
 	if _hit_timer > 0.0:
 		pitch -= (_hit_timer / HIT_TIME) * 0.45
@@ -206,16 +235,23 @@ func _pose_torso(bob: float, lean: float, crouched: bool, moving: bool) -> void:
 
 func _pose_arms(swing: float, crouched: bool, moving: bool) -> void:
 	var carry: float = CARRY_PITCH_CROUCH if crouched else CARRY_PITCH
+	var aimed: float = AIM_PITCH_CROUCH if crouched else AIM_PITCH
 	if not _armed:
-		## Empty hands swing freely; a carried weapon does not.
+		## Empty hands swing freely; a carried weapon does not, and an
+		## engineer has nothing to raise.
 		carry = 0.0
+		aimed = 0.0
+	carry = lerpf(carry, aimed, _aim)
 	for i in _arms.size():
 		var arm: Node3D = _arms[i]
 		if not is_instance_valid(arm):
 			continue
 		## Arms counter-swing against the legs, and only a little when
 		## they are holding something up.
-		var free: float = 0.35 if _armed else 1.0
+		## Arms that are holding a weapon on target barely swing at all -
+		## that stillness is most of what makes an aiming soldier read as
+		## aiming while he walks.
+		var free: float = (0.35 if _armed else 1.0) * (1.0 - _aim * 0.8)
 		var angle: float = carry
 		if moving:
 			angle += -sin(_phase + (PI if i == 1 else 0.0)) * swing * free

@@ -20,10 +20,13 @@ func _check(name: String, cond: bool, detail: String = "") -> void:
 	if not cond:
 		_fails.append(name)
 
-func _spawn(stats, pos: Vector3) -> Node:
+func _spawn(stats, pos: Vector3, player: bool = true) -> Node:
 	var u = stats.unit_scene.instantiate()
 	u.stats = stats
-	u.is_player_faction = true
+	## Faction BEFORE the node enters the tree: _ready reads it to pick
+	## groups and collision layers, so flipping it afterwards leaves a
+	## unit that is nominally hostile but registered as friendly.
+	u.is_player_faction = player
 	_main.get_node("Level").add_child(u)
 	u.global_position = Vector3(pos.x, Terrain.height_at(pos.x, pos.z), pos.z)
 	return u
@@ -153,6 +156,39 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check("Being hit flinches the body", torso.rotation.x < calm - 0.05,
 		"%.2f -> %.2f rad" % [calm, torso.rotation.x])
+
+	# --- a soldier in contact raises his weapon ---
+	soldier.stop_moving()
+	stance.set_mode(InfantryStance.Mode.RUN)
+	await _frames(30)
+	var arm: Node3D = anim._visual.find_child("Arm_R", true, false)
+	var carried: float = arm.rotation.x
+	_check("At rest the weapon is carried, not aimed", anim._aim < 0.1,
+		"aim %.2f" % anim._aim)
+
+	## Put an enemy in front of him and let him engage.
+	## Placed relative to where the soldier ACTUALLY is - he has walked a
+	## long way through the tests above, so a position derived from the
+	## base would be well outside his 10m rifle range.
+	var mark = _spawn(SOLDIER, soldier.global_position + Vector3(4, 0, 0), false)
+	## Aggressive, so he acquires rather than waiting to be shot at:
+	## DEFENSIVE (the default) holds its fire until something starts on
+	## it, which is not the case being tested here.
+	soldier.stance = UnitBase.Stance.AGGRESSIVE
+	for i in 70:
+		await get_tree().process_frame
+	_check("Facing an enemy he brings the weapon up", anim._aim > 0.8,
+		"aim %.2f" % anim._aim)
+	var aimed: float = arm.rotation.x
+	_check("...which is a visibly different arm pose", aimed < carried - 0.4,
+		"carry %.2f -> aim %.2f rad" % [carried, aimed])
+	_check("...and the weapon comes up towards level",
+		absf(aimed) > 1.1, "%.2f rad" % absf(aimed))
+
+	mark.health.take_damage(99999.0)
+	await _frames(70)
+	_check("With nothing to shoot he lowers it again", anim._aim < 0.2,
+		"aim %.2f" % anim._aim)
 
 	# --- the dog runs on four legs ---
 	var dog = _spawn(DOG, base + Vector3(-10, 0, 10))

@@ -24,9 +24,10 @@ import units  # noqa: E402
 import buildings  # noqa: E402
 import naval  # noqa: E402
 import civilian  # noqa: E402
+import wrecks  # noqa: E402
 
 REGISTRY = {}
-for module in (units, buildings, naval, civilian):
+for module in (units, buildings, naval, civilian, wrecks):
     for asset_id, fn in module.ASSETS.items():
         REGISTRY[asset_id] = fn
 

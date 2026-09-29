@@ -18,10 +18,26 @@ uniform sampler2D fog_tex : filter_linear;
 uniform float map_size = 220.0;
 uniform vec3 unexplored_color : source_color = vec3(0.017, 0.024, 0.014);
 uniform float unexplored_brightness = 0.07;
-uniform float explored_brightness = 0.34;
+// 0.45, where the terrain shader uses 0.34. Not a weaker fog - the same
+// fog, corrected for what it is multiplying. Water's albedo is far
+// darker than grass, so the identical multiplier that leaves explored
+// land readable takes explored sea to near-black, and a player could not
+// tell remembered ocean from unexplored void. Fog still hides units and
+// still darkens; it simply no longer hides the map.
+uniform float explored_brightness = 0.45;
 
-uniform vec3 deep_color : source_color = vec3(0.035, 0.105, 0.150);
-uniform vec3 shallow_color : source_color = vec3(0.120, 0.330, 0.340);
+// Lifted from (0.035, 0.105, 0.150) / (0.120, 0.330, 0.340). The old
+// deep colour peaked at 0.15 in its brightest channel, so open sea under
+// anything less than full visibility read as a flat void rather than as
+// water - hulls, wakes and torpedo tracks all had to carry the frame on
+// their own. Still unmistakably deep water, just no longer near-black.
+uniform vec3 deep_color : source_color = vec3(0.055, 0.150, 0.215);
+uniform vec3 shallow_color : source_color = vec3(0.155, 0.405, 0.410);
+// A sky tint at grazing angles. Two dot products and a power - the
+// cheapest thing that makes a flat plane read as a surface, which is
+// what the sea was missing more than it was missing brightness.
+uniform vec3 sky_tint : source_color = vec3(0.42, 0.58, 0.70);
+uniform float sky_strength = 0.30;
 uniform vec3 foam_color : source_color = vec3(0.86, 0.90, 0.88);
 uniform float deep_alpha = 0.86;
 uniform float shallow_alpha = 0.55;
@@ -87,6 +103,11 @@ void fragment() {
 	float grain = noise(world_position.xz * 1.4 + vec2(t * 0.35, -t * 0.2));
 	float foam = smoothstep(0.55 - 0.25 * breath, 0.95, shore) * smoothstep(0.35, 0.7, grain + shore * 0.4);
 	water = mix(water, foam_color, foam * 0.85);
+
+	// Grazing angles pick up the sky, straight-down angles do not, so the
+	// sea gains a gradient across the frame instead of being one value.
+	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
+	water = mix(water, sky_tint, fresnel * sky_strength * (1.0 - foam));
 
 	ALBEDO = mix(unexplored_color, water * brightness, known);
 	ROUGHNESS = mix(0.06, 0.4, foam);

@@ -1006,10 +1006,12 @@ func _on_died() -> void:
 		VFX.vehicle_wreck(self, global_position)
 		AudioDirector.play("explosion_small")
 		if is_naval():
-			## Ships sink; there is no hulk to leave on the water.
+			## Ships sink; there is no hulk to leave on the water, only a
+			## slick and what floated off her.
 			DeathThroe.ship(self, global_position)
+			Wreckage.spawn_naval_debris(self, global_position)
 		else:
-			Wreckage.spawn_vehicle(self, global_position)
+			Wreckage.spawn_vehicle(self, global_position, Wreckage.is_heavy(stats))
 	else:
 		VFX.impact(self, global_position + Vector3.UP * 0.6)
 		DeathThroe.infantry(self)
