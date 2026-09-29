@@ -188,6 +188,9 @@ func _readout(icon_name: String, label: Label, tooltip: String) -> Control:
 ## money along the top, catalogue on the right, orders bottom left, radar
 ## bottom right - so reading the game meant sweeping the whole screen.
 ## Collecting them into one column is most of what makes this readable.
+## Reachable from the setup screen on a debug build; see _build_setup_screen.
+const BENCHMARK_SCENE: String = "res://scenes/dev/android_benchmark.tscn"
+
 const SIDEBAR_W: float = 302.0
 const CARD_H: float = 64.0
 ## Cameo tile height only. The WIDTH is left to the grid to divide, which
@@ -1257,6 +1260,23 @@ func _build_setup_screen() -> void:
 	start.add_theme_font_size_override("font_size", 20)
 	start.pressed.connect(_begin_match)
 	column.add_child(start)
+
+	## A way to run the benchmark ON THE DEVICE, one tap from the launch
+	## screen. Environment variables are how it is driven on a desktop and
+	## there is no practical way to set one for an Android activity, so
+	## without this the benchmark simply cannot be run where its numbers
+	## actually matter. Debug builds only - a release build never shows
+	## it, and OS.is_debug_build() is what separates them.
+	if OS.is_debug_build() and ResourceLoader.exists(BENCHMARK_SCENE):
+		var bench := Button.new()
+		bench.text = "RUN BENCHMARK"
+		bench.custom_minimum_size = Vector2(280, TOUCH_MIN)
+		bench.add_theme_font_size_override("font_size", 15)
+		_style_button(bench)
+		bench.pressed.connect(func():
+			get_tree().paused = false
+			get_tree().change_scene_to_file(BENCHMARK_SCENE))
+		column.add_child(bench)
 
 	get_tree().paused = true
 
