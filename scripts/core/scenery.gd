@@ -265,14 +265,14 @@ func decorate_base(centre: Vector3, is_player: bool) -> void:
 	## Exactly 10m apart so the slabs abut and read as one apron.
 	for x in [-5.0, 5.0]:
 		for z in [-5.0, 5.0]:
-			_spawn("base_pad", centre + Vector3(x, 0, z))
+			_record("base_pad", centre + Vector3(x, 0, z))
 	var facing: float = -1.0 if is_player else 1.0
-	_spawn("mast", centre + Vector3(-13, 0, 13 * facing))
+	_record("mast", centre + Vector3(-13, 0, 13 * facing))
 	for i in range(3):
-		_spawn("barrier", centre + Vector3(-16 + i * 5.5, 0, -14 * facing), 0.0)
-	_spawn("sandbags", centre + Vector3(14, 0, -12 * facing), PI * 0.5)
-	_spawn("crates", centre + Vector3(15, 0, 8 * facing))
-	_spawn("drum", centre + Vector3(17, 0, 10 * facing))
+		_record("barrier", centre + Vector3(-16 + i * 5.5, 0, -14 * facing), 0.0)
+	_record("sandbags", centre + Vector3(14, 0, -12 * facing), PI * 0.5)
+	_record("crates", centre + Vector3(15, 0, 8 * facing))
+	_record("drum", centre + Vector3(17, 0, 10 * facing))
 
 ## A dashed road between the two bases, which is also the route most
 ## fighting happens along - it makes the battlefield legible at a glance.
@@ -283,7 +283,7 @@ func lay_road(from_point: Vector3, to_point: Vector3) -> void:
 	var angle: float = atan2(direction.x, direction.z)
 	for i in range(steps + 1):
 		var point: Vector3 = from_point + direction * (i * 8.0)
-		_spawn("road", point, angle)
+		_record("road", point, angle)
 		_exclude(point, 7.0)
 
 ## Props do not sit on an even lattice in the world, and an even scatter
@@ -343,11 +343,147 @@ func scatter(map_size: float, count: int) -> void:
 			var model: String = members[rng.randi_range(0, members.size() - 1)]
 			if model == "grass_prop":
 				model = "bush_small"
-			_spawn(model, point, rng.randf_range(0.0, TAU),
+			_record(model, point, rng.randf_range(0.0, TAU),
 				rng.randf_range(0.75, 1.35))
 			## Much tighter than the old 5m: these are meant to crowd.
 			_exclude(point, 1.6)
 			placed += 1
+	_build_prop_batches()
+
+## --- Batched props ----------------------------------------------------
+##
+## Scattered props used to be one instantiated scene each, and a measured
+## draw-call audit found 1,274 of them - more of the frame than the units,
+## the UI and the ground marks put together. They are static, they repeat,
+## and most kinds appear dozens of times, which is exactly what MultiMesh
+## is for. The ground cover below has always been drawn this way; this is
+## the same treatment for everything scattered on top of it.
+##
+## Chunked for the same reason the cover is: Godot frustum-culls a
+## MultiMesh by its whole bounding box and never per instance, so one
+## MultiMesh spanning the map would draw every tree on it whatever the
+## camera was looking at.
+## 34m produced 555 batches - a 2.3x reduction on 1,274 loose meshes and
+## not nearly enough. Chunk size trades culling against draw calls, and on
+## a mobile driver the draw call is far the more expensive of the two: a
+## batch that is off screen costs one cheap rejected call, while 500 extra
+## calls cost on every frame regardless of where the camera looks.
+const PROP_CHUNK: float = 110.0
+
+## kind -> chunk key -> Array[Transform3D]
+var _prop_batch: Dictionary = {}
+var _prop_root: Node3D = null
+
+## Remember where a prop goes instead of building it there and then.
+func _record(kind: String, position: Vector3, rotation_y: float = 0.0,
+		scale: float = 1.0, sink: float = 0.0, tilt: Vector2 = Vector2.ZERO) -> void:
+	if not MODELS.has(kind):
+		return
+	var here := Vector3(position.x,
+		Terrain.height_at(position.x, position.z) - sink, position.z)
+	var basis := Basis(Vector3.UP, rotation_y)
+	## Tipping a boulder off level is what makes it read as fallen rather
+	## than placed, so the batch has to carry it per instance.
+	if tilt != Vector2.ZERO:
+		basis = basis.rotated(Vector3.RIGHT, tilt.x).rotated(Vector3.FORWARD, tilt.y)
+	basis = basis.scaled(Vector3.ONE * scale)
+	var key: String = "%d_%d" % [int(floor(here.x / PROP_CHUNK)), int(floor(here.z / PROP_CHUNK))]
+	if not _prop_batch.has(kind):
+		_prop_batch[kind] = {}
+	if not _prop_batch[kind].has(key):
+		_prop_batch[kind][key] = []
+	_prop_batch[kind][key].append(Transform3D(basis, here))
+
+## Every mesh a prop scene contains, with the transform it sits at inside
+## that scene - a tree is a trunk and a canopy, and both have to keep
+## their offset when the scene around them goes away.
+func _mesh_parts(kind: String) -> Array:
+	var root: Node3D = MODELS[kind].instantiate()
+	var parts: Array = []
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).mesh == null:
+			continue
+		parts.append({
+			"mesh": (mi as MeshInstance3D).mesh,
+			"xform": (mi as MeshInstance3D).global_transform if mi.is_inside_tree() \
+				else _relative_to(root, mi as MeshInstance3D),
+		})
+	root.free()
+	return parts
+
+func _relative_to(root: Node3D, node: Node3D) -> Transform3D:
+	var t := node.transform
+	var parent := node.get_parent()
+	while parent != null and parent != root:
+		t = (parent as Node3D).transform * t
+		parent = parent.get_parent()
+	return t
+
+func _build_prop_batches() -> void:
+	if _prop_batch.is_empty():
+		return
+	_prop_root = Node3D.new()
+	_prop_root.name = "Props"
+	add_child(_prop_root)
+	var fog_texture: Texture2D = FogOfWar.get_texture()
+	for kind in _prop_batch:
+		var parts: Array = _mesh_parts(kind)
+		if parts.is_empty():
+			continue
+		var detailed: bool = kind in DETAILED_KINDS
+		var is_rock: bool = kind in ROCK_KINDS
+		for chunk in _prop_batch[kind]:
+			var placements: Array = _prop_batch[kind][chunk]
+			for part in parts:
+				for piece in _split_surfaces(part["mesh"], detailed, is_rock, fog_texture):
+					var multi := MultiMesh.new()
+					multi.transform_format = MultiMesh.TRANSFORM_3D
+					multi.mesh = piece["mesh"]
+					multi.instance_count = placements.size()
+					for i in placements.size():
+						multi.set_instance_transform(i, placements[i] * part["xform"])
+					var node := MultiMeshInstance3D.new()
+					node.multimesh = multi
+					## MultiMeshInstance3D has material_override only - no
+					## per-surface slots - which is why each surface gets
+					## its own batch rather than one batch per prop.
+					node.material_override = piece["material"]
+					## Props are small and numerous; their shadows cost far
+					## more than they add at an RTS camera height.
+					node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					_prop_root.add_child(node)
+	_prop_batch.clear()
+
+## One single-surface mesh per surface, each with the fog material that
+## surface's palette entry resolves to. Cached per source mesh: a hundred
+## pines share one split.
+var _splits: Dictionary = {}
+
+func _split_surfaces(mesh: Mesh, detailed: bool, is_rock: bool,
+		fog_texture: Texture2D) -> Array:
+	var key: String = "%s|%s|%s" % [mesh.get_rid(), detailed, is_rock]
+	if _splits.has(key):
+		return _splits[key]
+	var out: Array = []
+	for surface in mesh.get_surface_count():
+		var arrays: Array = mesh.surface_get_arrays(surface)
+		if arrays.is_empty():
+			continue
+		var single := ArrayMesh.new()
+		single.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var source := mesh.surface_get_material(surface) as StandardMaterial3D
+		var colour: Color = source.albedo_color if source != null else Color(0.5, 0.5, 0.5)
+		if source != null:
+			var name: String = source.resource_name
+			if is_rock and ROCK_PALETTE.has(name):
+				colour = ROCK_PALETTE[name]
+			elif NATURE_PALETTE.has(name):
+				colour = NATURE_PALETTE[name]
+		if detailed:
+			colour = colour.darkened(0.3 if colour.get_luminance() < 0.4 else 0.5)
+		out.append({"mesh": single, "material": _fog_material(colour, fog_texture, detailed)})
+	_splits[key] = out
+	return out
 
 ## --- Ground cover -----------------------------------------------------
 ##
@@ -367,7 +503,10 @@ const COVER_MODEL_ALT: PackedScene = preload("res://assets/models/nature/grass_l
 ## this chunk count the camera holds only a few at a time.
 ## 12x12 rather than 8x8: the chunk is the culling unit, so smaller
 ## chunks mean less grass drawn for ground the camera cannot see.
-const COVER_CHUNKS: int = 12
+## 12 gave a 144-cell grid and 119 live batches for grass alone. 8 keeps
+## enough granularity for the camera to reject most of the field while
+## costing barely half the calls.
+const COVER_CHUNKS: int = 8
 const COVER_PER_CHUNK: int = 78
 
 var _cover_root: Node3D
@@ -417,6 +556,10 @@ func lay_ground_cover(map_size: float) -> void:
 
 			var node := MultiMeshInstance3D.new()
 			node.multimesh = multi
+			## Grass casts no shadow. At an RTS camera height a tuft's
+			## shadow is smaller than a pixel, but every chunk of it still
+			## costs a full pass over thousands of instances.
+			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			## Grass casting shadows is thousands of extra draws into the
 			## shadow map for a shadow the size of a leaf.
 			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -479,9 +622,8 @@ func dress_blocker(position: Vector3, size: Vector3) -> void:
 			var point := position + Vector3(
 				(cx - (columns - 1) / 2.0) * 4.0, 0.0,
 				(cz - (rows - 1) / 2.0) * 4.0)
-			var core := _spawn("cliff", point, snappedf(
-				rng.randf_range(0.0, TAU), TAU / 4.0), 1.0)
-			Terrain.settle(core, 2.1)
+			_record("cliff", point, snappedf(
+				rng.randf_range(0.0, TAU), TAU / 4.0), 1.0, 2.1)
 
 	## Boulders over the top, at roughly one per 9 square metres of
 	## footprint, so a long ridge gets more rock than a small outcrop
@@ -498,13 +640,10 @@ func dress_blocker(position: Vector3, size: Vector3) -> void:
 		## the first range produced boulders up to nine metres across -
 		## bigger than a war factory, and they dominated every frame they
 		## appeared in.
-		var node := _spawn(kind, point, rng.randf_range(0.0, TAU),
-			rng.randf_range(0.6, 1.3))
-		## Varied sinking, so they sit IN the ground at different depths
-		## instead of all resting on it like dropped props.
-		Terrain.settle(node, rng.randf_range(0.2, 0.9))
-		## Tip them off level. A boulder that is perfectly upright reads
-		## as placed; one leaning reads as fallen.
-		node.rotation.x = rng.randf_range(-0.22, 0.22)
-		node.rotation.z = rng.randf_range(-0.22, 0.22)
+		## Varied sinking so they sit IN the ground at different depths
+		## rather than resting on it like dropped props, and tipped off
+		## level so they read as fallen rather than placed.
+		_record(kind, point, rng.randf_range(0.0, TAU),
+			rng.randf_range(0.6, 1.3), rng.randf_range(0.2, 0.9),
+			Vector2(rng.randf_range(-0.22, 0.22), rng.randf_range(-0.22, 0.22)))
 	_exclude(position, maxf(size.x, size.z) * 0.6)

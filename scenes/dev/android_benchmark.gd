@@ -53,6 +53,12 @@ func _ready() -> void:
 		director.enabled = false
 	FogOfWar.enabled = false
 	GameState.add_credits(90000)
+	## Nothing shoots. The scenarios below put thirty hostile units next
+	## to the player's base and damage every structure, which between them
+	## destroyed the HQ and ended the match - so scenarios D and E were
+	## being measured with a defeat card over the screen and the tree
+	## paused. A benchmark has to hold its scene still.
+	_disarm_all()
 	for i in 40:
 		await get_tree().physics_frame
 
@@ -77,6 +83,14 @@ func _ready() -> void:
 	_say("BENCH| DONE")
 	GameState.selected_map = null
 	get_tree().quit()
+
+## Switch every weapon off and keep it off, so the scene the benchmark
+## measures is the scene it built.
+func _disarm_all() -> void:
+	for u in get_tree().get_nodes_in_group("units"):
+		var gun = u.get_node_or_null("AttackerComponent")
+		if gun != null:
+			gun.set_physics_process(false)
 
 func _say(line: String) -> void:
 	print(line)
@@ -118,6 +132,7 @@ func _scenario_b_land_battle() -> void:
 		_spawn(LAND_MIX[i % LAND_MIX.size()], true, base + Vector3(-14, 0, lane))
 		_spawn(LAND_MIX[(i + 2) % LAND_MIX.size()], false, base + Vector3(14, 0, lane))
 	await _wait(3.0)
+	_disarm_all()
 	_cam().focus_on(base)
 	_cam().zoom_distance = 30.0
 	_cam().snap()
@@ -132,6 +147,7 @@ func _scenario_c_coastal() -> void:
 		_spawn(SEA_MIX[i % SEA_MIX.size()], i % 2 == 0,
 			Vector3(sea.x + offset.x, Water.level, sea.z + offset.z))
 	await _wait(3.0)
+	_disarm_all()
 	_cam().focus_on(sea)
 	_cam().zoom_distance = 30.0
 	_cam().snap()
@@ -142,12 +158,20 @@ func _scenario_c_coastal() -> void:
 ## scenario that has to be watched on a device.
 func _scenario_d_effects_storm() -> void:
 	var base: Vector3 = COAST_BASE
+	## Damaged DOWN TO a level, never by an amount: subtracting a fraction
+	## finishes off anything already hurt, and losing the HQ ends the run.
 	for b in get_tree().get_nodes_in_group("player_buildings"):
-		if is_instance_valid(b) and b.health != null:
-			b.health.take_damage(b.health.max_health * 0.75)
+		if not is_instance_valid(b) or b.health == null:
+			continue
+		var want: float = b.health.max_health * 0.25
+		if b.health.current_health > want:
+			b.health.take_damage(b.health.current_health - want)
 	for u in get_tree().get_nodes_in_group("units"):
-		if is_instance_valid(u) and u.health != null:
-			u.health.take_damage(u.health.max_health * 0.55)
+		if not is_instance_valid(u) or u.health == null:
+			continue
+		var uw: float = u.health.max_health * 0.45
+		if u.health.current_health > uw:
+			u.health.take_damage(u.health.current_health - uw)
 	await _wait(2.0)
 	_cam().focus_on(base)
 	_cam().zoom_distance = 28.0

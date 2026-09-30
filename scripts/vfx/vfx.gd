@@ -54,11 +54,31 @@ static func _material(color: Color, additive: bool) -> StandardMaterial3D:
 	return material
 
 ## A one-shot burst that frees itself. `spread` is the cone half-angle.
+## The most emitters that may be alive at once.
+##
+## Every other visual thing in the game already has a ceiling - corpses
+## at 40, wrecks at 24, ground marks per layer - but bursts had none, and
+## they are the one spawned straight off the trigger. Sixty units in
+## contact firing several times a second is the case that matters: each
+## shot wants a muzzle flash and an impact, and without a limit a big
+## engagement can put hundreds of emitters in the air at once, each one a
+## node with its own material and its own transparent overdraw.
+##
+## Dropped rather than queued when the field is full. A flash that
+## arrives late is worse than one that never came: the shot it belonged
+## to is long gone.
+const MAX_BURSTS: int = 48
+const BURST_GROUP: StringName = &"vfx_bursts"
+
+static var _live_bursts: int = 0
+
 static func _burst(parent: Node, position: Vector3, count: int, color: Color,
 		size: float, velocity: float, lifetime: float, gravity: float,
 		additive: bool = true, direction: Vector3 = Vector3.UP,
 		spread: float = 45.0) -> CPUParticles3D:
 	if parent == null or not is_instance_valid(parent) or not enabled:
+		return null
+	if _live_bursts >= MAX_BURSTS:
 		return null
 	var particles := CPUParticles3D.new()
 	particles.emitting = false
@@ -88,11 +108,14 @@ static func _burst(parent: Node, position: Vector3, count: int, color: Color,
 	particles.material_override = _material(color, additive)
 
 	parent.add_child(particles)
+	particles.add_to_group(BURST_GROUP)
 	particles.global_position = position
 	particles.emitting = true
+	_live_bursts += 1
 
 	var timer := particles.get_tree().create_timer(lifetime + 0.4)
 	timer.timeout.connect(func():
+		_live_bursts = maxi(_live_bursts - 1, 0)
 		if is_instance_valid(particles):
 			particles.queue_free())
 	return particles

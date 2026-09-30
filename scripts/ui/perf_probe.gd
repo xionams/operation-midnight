@@ -48,11 +48,17 @@ func _ready() -> void:
 	## recorded nothing at all until a match started, which on a device
 	## looks exactly like a game that is not rendering.
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	## Either an environment variable (desktop) or a command-line flag
-	## baked into the export (Android). There is no practical way to set
-	## an env var for an Android activity, so without the flag there is no
-	## way to get frame numbers off a device at all.
-	if not OS.get_environment("OM_PERFLOG").is_empty() \
+	## Debug builds log by themselves; release builds never do.
+	##
+	## This used to need `--perflog` baked into the export's command line,
+	## which meant the release candidate shipped writing a CSV every two
+	## seconds for the life of a session. Keying off the build type gets
+	## the instrumentation onto a device - where there is no practical way
+	## to set an environment variable - without it reaching a player. The
+	## flag and the env var still work, for forcing it on a release build
+	## when something has to be measured in the shipping configuration.
+	if OS.is_debug_build() \
+		or not OS.get_environment("OM_PERFLOG").is_empty() \
 		or OS.get_cmdline_args().has("--perflog") \
 		or OS.get_cmdline_user_args().has("--perflog"):
 		_open_log()

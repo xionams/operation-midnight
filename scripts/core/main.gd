@@ -412,7 +412,14 @@ func _build_environment() -> void:
 	## with margin and nothing more: the shadow map's fixed resolution is
 	## spread across this distance, so every metre beyond what the camera
 	## can actually see is resolution taken away from what it can.
-	light.directional_shadow_max_distance = 110.0
+	## 70m, not 110m. The camera shows roughly 65-70m of ground at max
+	## zoom, so everything between that and 110m was being rendered into
+	## the shadow map to cast shadows nobody could see. A measured audit
+	## put shadows at 40% of the frame's draw calls, the single largest
+	## remaining category, and this is the cheapest half of the fix - it
+	## also sharpens what remains, because the same shadow-map resolution
+	## now covers a smaller area.
+	light.directional_shadow_max_distance = 70.0
 	light.directional_shadow_blend_splits = false
 	## Greyboxes are large flat faces meeting at right angles, which is
 	## the worst case for shadow acne. Normal bias does most of the work

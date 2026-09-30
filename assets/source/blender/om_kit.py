@@ -112,7 +112,19 @@ class Node:
         self.color_layer = self.bm.loops.layers.float_color.new("Col")
         self.materials = []  # slot index -> material name
 
+    ## Glass is folded into Body rather than owning a slot of its own.
+    ## A material slot becomes a mesh surface, a surface becomes a draw
+    ## call, and that call is paid TWICE - once in the main pass and once
+    ## in the shadow pass. Glass and Emissive slots were 19% of all
+    ## surfaces across units, buildings and ships, and a vision block or
+    ## a cockpit is a few dark pixels at an RTS camera height whether it
+    ## is shiny or matte. Its colour is per-vertex, so it stays as dark
+    ## as it was. Emissive is NOT folded: a lamp that glows is a
+    ## readability cue, and there are far fewer of them.
+    MERGE = {"Glass": "Body"}
+
     def _slot(self, material):
+        material = self.MERGE.get(material, material)
         if material not in self.materials:
             self.materials.append(material)
         return self.materials.index(material)
