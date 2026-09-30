@@ -145,3 +145,83 @@ failed:
 ```
 ~/android-sdk/build-tools/34.0.0/apksigner verify --print-certs build/operation-midnight-rc.apk
 ```
+
+---
+
+# Emulator validation (2026-09-30)
+
+An AVD is now the primary Android validation environment. A physical
+device is still required for the four things at the bottom of this
+section, and nothing else.
+
+## The AVD
+
+| | |
+|---|---|
+| Profile | Pixel-class, 1080×2400, 420 dpi |
+| Android | 14 (API 34), `google_apis`, x86_64 |
+| Acceleration | KVM (CPU). **No host GPU** — the emulator refuses this Intel iGPU for hardware rendering |
+| GPU mode | `-gpu lavapipe` (Vulkan via llvmpipe, GLES via **swangle/ANGLE**) |
+| Window | `-no-window`; the emulator's Qt UI cannot start here (missing `libxcb-cursor0`) |
+
+```
+emulator -avd midnight -gpu lavapipe -no-window -no-snapshot -no-boot-anim -no-audio -no-metrics
+```
+
+## Three findings that only an Android run could produce
+
+**1. The Vulkan build does not render under software Vulkan.** Under both
+SwiftShader and lavapipe, Godot initialises `Vulkan 1.3.0 - Forward
+Mobile` and starts its main loop, then emits `Couldn't present to Vulkan
+queue (VkResult error 5)` every few seconds and produces no frames. The
+process stays alive at ~0% CPU. This is a software-Vulkan limitation,
+not proof of a fault on a real GPU — but it does mean **the shipping
+renderer cannot be exercised on this emulator**, and it is why the GL
+build exists.
+
+**2. The GL build needs ANGLE, not SwiftShader.** Under raw SwiftShader
+every scene shader failed to link:
+
+```
+SceneShaderGLES3: Program linking failed:
+Fragment shader active uniforms exceed GL_MAX_FRAGMENT_UNIFORM_VECTORS (261)
+```
+
+with the result that the game rendered a solid white screen while
+reporting 185k triangles a frame. Under `-gpu lavapipe` (which selects
+**swangle** for GLES) there are zero link failures and the game renders
+correctly. Worth remembering: a real device whose driver reports a low
+fragment-uniform limit would hit the same wall on the GL fallback.
+
+**3. Neither `adb screencap` nor `dumpsys gfxinfo` can see this game.**
+Screencap returned solid black under Vulkan and solid white under GL
+while the renderer was demonstrably working, and gfxinfo froze at 13
+frames. Godot draws to its own surface. `PerfProbe` therefore saves
+frames from inside the engine to `user://frame_N.png`, which is the only
+trustworthy picture of what the game actually drew.
+
+## Reading the numbers off a device
+
+```
+adb install -r -t build/operation-midnight-gl.apk        # emulator
+adb shell am start -n com.xionams.operationmidnight/com.godot.game.GodotAppLauncher
+adb shell run-as com.xionams.operationmidnight cat files/perf.csv
+adb exec-out run-as com.xionams.operationmidnight cat files/frame_0.png > frame.png
+```
+
+`--perflog` is baked into the export's command line, so logging starts
+on its own. **Remove it from `command_line/extra_args` before any store
+build** — it writes a CSV every two seconds for the life of the session.
+
+## Still requires physical hardware
+
+Only these. Everything else is validated above.
+
+- **Real GPU performance.** The emulator renders in software; its frame
+  rate says nothing about a phone.
+- **Thermal throttling.** Cannot be reproduced.
+- **Battery impact.** Cannot be measured.
+- **Touch ergonomics.** Whether a 44px target is comfortable in a hand
+  is not a question `adb input` can answer.
+- **The Vulkan renderer itself**, per finding 1 — the RC ships Vulkan
+  and only the GL build could be exercised here.

@@ -21,18 +21,40 @@ extends Node
 ## short enough that the readout still tracks what is on screen now.
 const WINDOW: int = 120
 const LOG_INTERVAL: float = 2.0
+## How often to save a frame to user:// while logging. On a device the
+## only trustworthy picture of what the game drew is one the game took
+## itself: `adb shell screencap` cannot see Godot's rendering surface on
+## an emulator - it returned solid black under Vulkan and solid white
+## under GL while the renderer was demonstrably submitting 185k
+## triangles a frame.
+const SHOT_INTERVAL: float = 15.0
+const SHOTS_KEPT: int = 4
 
 var _frames: PackedFloat32Array = PackedFloat32Array()
 var _cursor: int = 0
 var _filled: int = 0
 var _log: FileAccess = null
 var _log_timer: float = 0.0
+var _shot_timer: float = 0.0
+var _shot_index: int = 0
 var _worst_ever: float = 0.0
 
 func _ready() -> void:
 	_frames.resize(WINDOW)
 	process_priority = -100
-	if not OS.get_environment("OM_PERFLOG").is_empty():
+	## Measure while the tree is paused too. The skirmish setup screen
+	## pauses it, and so does every menu - those frames are part of a
+	## session and their cost is just as real. Without this the probe
+	## recorded nothing at all until a match started, which on a device
+	## looks exactly like a game that is not rendering.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	## Either an environment variable (desktop) or a command-line flag
+	## baked into the export (Android). There is no practical way to set
+	## an env var for an Android activity, so without the flag there is no
+	## way to get frame numbers off a device at all.
+	if not OS.get_environment("OM_PERFLOG").is_empty() \
+		or OS.get_cmdline_args().has("--perflog") \
+		or OS.get_cmdline_user_args().has("--perflog"):
 		_open_log()
 
 func _open_log() -> void:
@@ -40,6 +62,9 @@ func _open_log() -> void:
 	if _log == null:
 		return
 	_log.store_line("t,fps,low1,worst_ms,draws,tris,nodes,vram_mb,static_mb,units,rounds")
+	## Flushed immediately: an unflushed header is indistinguishable from
+	## a probe that never ran.
+	_log.flush()
 	print("PERF| logging to %s" % ProjectSettings.globalize_path("user://perf.csv"))
 
 func _process(delta: float) -> void:
@@ -49,6 +74,10 @@ func _process(delta: float) -> void:
 	_worst_ever = maxf(_worst_ever, delta)
 	if _log == null:
 		return
+	_shot_timer += delta
+	if _shot_timer >= SHOT_INTERVAL:
+		_shot_timer = 0.0
+		_save_frame()
 	_log_timer += delta
 	if _log_timer < LOG_INTERVAL:
 		return
@@ -59,6 +88,15 @@ func _process(delta: float) -> void:
 		s["draws"], s["tris"], s["nodes"], s["vram_mb"], s["static_mb"],
 		s["units"], s["rounds"]])
 	_log.flush()
+
+## A frame as the ENGINE saw it, not as the platform's screen grabber
+## did. Written round-robin so a long session cannot fill the device.
+func _save_frame() -> void:
+	var image: Image = get_viewport().get_texture().get_image()
+	if image == null:
+		return
+	image.save_png("user://frame_%d.png" % _shot_index)
+	_shot_index = (_shot_index + 1) % SHOTS_KEPT
 
 ## Everything worth knowing about the last two seconds.
 func summary() -> Dictionary:
