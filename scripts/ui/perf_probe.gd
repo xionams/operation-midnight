@@ -37,6 +37,15 @@ var _log: FileAccess = null
 var _log_timer: float = 0.0
 var _shot_timer: float = 0.0
 var _shot_index: int = 0
+## Frame capture is opt-in even inside a debug build.
+##
+## It reads the viewport texture back off the GPU, which stalls the
+## pipeline - and since every automated test runs as a debug build, a
+## capture every fifteen seconds was quietly slowing the whole suite and
+## shifting the timing of the long AI tests that measure how fast a
+## commander reacts. The CSV costs nothing and stays on; the readback
+## happens only when somebody asks for a picture.
+var _shots_wanted: bool = false
 var _worst_ever: float = 0.0
 
 func _ready() -> void:
@@ -57,6 +66,9 @@ func _ready() -> void:
 	## to set an environment variable - without it reaching a player. The
 	## flag and the env var still work, for forcing it on a release build
 	## when something has to be measured in the shipping configuration.
+	_shots_wanted = not OS.get_environment("OM_PERFSHOTS").is_empty() \
+		or OS.get_cmdline_args().has("--perfshots") \
+		or OS.get_cmdline_user_args().has("--perfshots")
 	if OS.is_debug_build() \
 		or not OS.get_environment("OM_PERFLOG").is_empty() \
 		or OS.get_cmdline_args().has("--perflog") \
@@ -81,7 +93,7 @@ func _process(delta: float) -> void:
 	if _log == null:
 		return
 	_shot_timer += delta
-	if _shot_timer >= SHOT_INTERVAL:
+	if _shots_wanted and _shot_timer >= SHOT_INTERVAL:
 		_shot_timer = 0.0
 		_save_frame()
 	_log_timer += delta
