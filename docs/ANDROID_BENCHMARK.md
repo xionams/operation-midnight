@@ -86,6 +86,37 @@ to reject. Worth measuring on a real phone before deciding whether the
 trade was right — a mobile driver's per-call cost is the whole reason
 it was made.
 
+## Android GL (emulator), Phase 7
+
+AVD `midnight`, Pixel-class 1080x2400, API 34, `-gpu lavapipe` (ANGLE
+over llvmpipe for GLES). Launched from the RUN BENCHMARK button.
+
+**EMULATOR PERFORMANCE - NOT REAL DEVICE PERFORMANCE.** The FPS column
+below is software rasterisation on a desktop CPU and says nothing about
+a phone. The DRAW and TRIANGLE columns are real: they are what the
+engine submits, and they do not depend on the GPU underneath.
+
+| Scenario | FPS | 1% low | Draws | Triangles | Nodes | VRAM (MB) |
+|---|---|---|---|---|---|---|
+| A idle base | 4.1 | 3.3 | 233 | 81,860 | 738 | 99.7 |
+| B land battle 60 | 4.3 | 3.3 | 1,005 | 231,486 | 1,627 | 103.7 |
+| C coastal fleet | 4.3 | 3.3 | 366 | 92,960 | 1,797 | 104.4 |
+| D effects storm | 3.9 | 3.4 | 1,330 | 374,567 | 1,814 | 104.4 |
+| E max zoom out | 3.8 | 3.4 | 1,397 | 391,183 | 1,814 | 104.4 |
+
+Scenario B on Android GL: **3,059 -> 1,319 (Phase 6) -> 1,005 (Phase 7)**.
+
+The GL backend submits roughly twice what desktop Vulkan does for the
+same scene (B: 1,005 against 519) because it batches surfaces less
+aggressively. That gap is the reason the draw-call work was worth doing.
+
+### Kill the emulator when you are finished with it
+
+An AVD left running holds six cores indefinitely and silently ruins
+every FPS measurement taken afterwards - see the note on the desktop
+baseline. `adb emu kill` is the way; `pkill -f emulator` matches its own
+shell's command line and reports a kill it did not perform.
+
 ## What to look at first on a device
 
 1. **Scenario C.** The water shader is the only full-screen transparent
