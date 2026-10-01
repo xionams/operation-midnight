@@ -22,10 +22,12 @@ func _ready() -> void:
 	FogOfWar.enabled = false
 	for i in 30: await get_tree().physics_frame
 
-	print("SCALE| %-22s %7s %7s %9s %8s %8s" % ["case", "fps", "draws", "tris", "nodes", "anim"])
+	print("SCALE| %-20s %6s %7s %7s %7s %9s %7s %6s" % [
+		"case", "fps", "draws", "inf", "shadow", "tris", "nodes", "meshes"])
 	await _case("20 infantry", 20, 0)
 	await _case("60 infantry", 60, 0)
 	await _case("120 infantry", 120, 0)
+	await _case("200 infantry", 200, 0)
 	await _case("60 inf + 30 vehicles", 60, 30)
 	print("SCALE| DONE")
 	get_tree().quit()
@@ -49,14 +51,69 @@ func _case(label: String, infantry: int, vehicles: int) -> void:
 		await get_tree().process_frame
 		t += get_process_delta_time(); frames += 1
 		draws += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
-	var animated := 0
+	var total: float = draws / float(frames)
+
+	## Infantry's own cost, main pass and shadow pass separately: every
+	## surface is drawn again into the shadow map, so a rig that is
+	## expensive to draw is expensive twice.
+	_set_infantry_shadows(false)
+	await _wait(0.6)
+	var no_shadow: float = await _sample(1.5)
+	_set_infantry(false)
+	await _wait(0.6)
+	var without: float = await _sample(1.5)
+	_set_infantry(true)
+	_set_infantry_shadows(true)
+	await _wait(0.4)
+
+	var meshes := 0
 	for u in get_tree().get_nodes_in_group("units"):
-		if is_instance_valid(u) and u.get_node_or_null("InfantryAnimator") != null:
-			animated += 1
-	print("SCALE| %-22s %7.1f %7.0f %9.0f %8d %8d" % [label, float(frames) / t,
-		draws / float(frames),
+		if is_instance_valid(u) and u.stats != null and u.stats.is_infantry:
+			meshes += _count_meshes(u)
+	print("SCALE| %-20s %6.1f %7.0f %7.0f %7.0f %9.0f %7d %6d" % [
+		label, float(frames) / t, total, total - without, total - no_shadow,
 		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
-		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), animated])
+		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), meshes])
+
+func _sample(seconds: float) -> float:
+	var t := 0.0
+	var n := 0
+	var d := 0.0
+	while t < seconds:
+		await get_tree().process_frame
+		t += get_process_delta_time(); n += 1
+		d += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	return d / maxf(float(n), 1.0)
+
+func _set_infantry(on: bool) -> void:
+	for u in get_tree().get_nodes_in_group("units"):
+		if is_instance_valid(u) and u.stats != null and u.stats.is_infantry \
+			and u.get("_model") != null:
+			(u._model as Node3D).visible = on
+
+func _set_infantry_shadows(on: bool) -> void:
+	for u in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(u) or u.stats == null or not u.stats.is_infantry:
+			continue
+		for n in _visuals(u):
+			n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on \
+				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _visuals(root: Node) -> Array:
+	var out: Array = []
+	if root is GeometryInstance3D:
+		out.append(root)
+	for c in root.get_children():
+		out.append_array(_visuals(c))
+	return out
+
+func _count_meshes(root: Node) -> int:
+	var n := 0
+	if root is MeshInstance3D:
+		n += 1
+	for c in root.get_children():
+		n += _count_meshes(c)
+	return n
 
 func _wait(s: float) -> void:
 	var t := 0.0

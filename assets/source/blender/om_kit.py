@@ -102,6 +102,20 @@ def to_blender(p):
 
 # --------------------------------------------------------------- model
 
+class Rig:
+    """An armature: bones given in GAME space as (name, head, tail, parent).
+
+    Written out in the same order it is declared, so a parent must appear
+    before its children.
+    """
+
+    def __init__(self, bones):
+        self.bones = bones
+
+    def names(self):
+        return [b[0] for b in self.bones]
+
+
 class Node:
     """One exported object: geometry relative to its own origin (pivot)."""
 
@@ -123,6 +137,11 @@ class Node:
     ## readability cue, and there are far fewer of them.
     MERGE = {"Glass": "Body"}
 
+    def bone(self, name):
+        """Weight everything built after this to `name`."""
+        self.current_bone = name
+        return self
+
     def _slot(self, material):
         material = self.MERGE.get(material, material)
         if material not in self.materials:
@@ -133,6 +152,18 @@ class Node:
     # node origin, and a (material, colour) pair.
 
     def _finish(self, verts, faces, material, color, smooth=False):
+        ## Rigid skinning: every vertex a primitive creates is weighted
+        ## wholly to whichever bone was named last. The art is blocky
+        ## boxes, one box per body part, so there is nothing to blend
+        ## between - a smooth weight falloff would only round off the
+        ## shapes the silhouette depends on.
+        if getattr(self, "current_bone", None):
+            ## index_update because a freshly created BMVert carries no
+            ## index until the sequence is renumbered, and the vertex
+            ## groups are built from these indices later.
+            self.bm.verts.index_update()
+            self.bone_verts.setdefault(self.current_bone, []).extend(
+                v.index for v in verts)
         slot = self._slot(material)
         ## sRGB on purpose: Godot's glTF importer reads COLOR_0 as sRGB
         ## (verified - linear values rendered ~5x too dark).
@@ -320,6 +351,23 @@ class Model:
         self.nodes.append(n)
         return n
 
+    def skinned(self, name, rig):
+        """One skinned node, bound to `rig`.
+
+        Everything built on it lands in a SINGLE mesh deformed by an
+        armature, rather than one scene node per body part. A soldier
+        built the old way cost fourteen draw calls - seven of them in the
+        shadow pass - because every limb was its own MeshInstance3D with
+        its own surfaces. Bones move the same silhouette for one.
+        """
+        n = Node(name)
+        n.rig = rig
+        n.current_bone = None
+        n.bone_verts = {}
+        self.rig = rig
+        self.nodes.append(n)
+        return n
+
 
 # -------------------------------------------------------------- build
 
@@ -407,14 +455,56 @@ def _bake_ao(objects, samples=24, floor=0.28, ground_z=-0.02):
         obj.data.color_attributes.render_color_index = 0
 
 
+def _build_armature(rig, name="Skeleton"):
+    """The armature, in Blender space, bones in declaration order."""
+    data = bpy.data.armatures.new(name)
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    made = {}
+    for bone_name, head, tail, parent in rig.bones:
+        bone = data.edit_bones.new(bone_name)
+        bone.head = to_blender(head)
+        bone.tail = to_blender(tail)
+        ## No connect: a disconnected child keeps its own head, which is
+        ## what lets a shoulder sit out at the arm rather than on the
+        ## spine's tip.
+        bone.use_connect = False
+        if parent:
+            bone.parent = made[parent]
+        made[bone_name] = bone
+    bpy.ops.object.mode_set(mode="OBJECT")
+    return obj
+
+
+def _skin(obj, node, armature):
+    """Vertex groups from the bone tags, then an armature modifier."""
+    for bone_name, indices in node.bone_verts.items():
+        group = obj.vertex_groups.new(name=bone_name)
+        group.add(sorted(set(indices)), 1.0, "REPLACE")
+    obj.parent = armature
+    modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
+    modifier.object = armature
+
+
 def build(model, out_path, bevel=0.06, ao=True):
     ground_z = getattr(model, "ao_ground", -0.02)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     objects = []
+    armature = None
+    rig = getattr(model, "rig", None)
+    if rig is not None:
+        armature = _build_armature(rig)
+    skinned = []
     for node in model.nodes:
         mesh = bpy.data.meshes.new(node.name)
         bmesh.ops.recalc_face_normals(node.bm, faces=node.bm.faces)
-        bmesh.ops.remove_doubles(node.bm, verts=node.bm.verts, dist=0.0005)
+        ## Welding renumbers vertices, and a skinned node's groups are
+        ## built from the indices recorded as it was assembled - so it is
+        ## skipped there. The parts do not share seams anyway.
+        if getattr(node, "rig", None) is None:
+            bmesh.ops.remove_doubles(node.bm, verts=node.bm.verts, dist=0.0005)
         node.bm.to_mesh(mesh)
         node.bm.free()
         obj = bpy.data.objects.new(node.name, mesh)
@@ -423,6 +513,11 @@ def build(model, out_path, bevel=0.06, ao=True):
             mesh.materials.append(_material(name))
         obj.location = to_blender(node.origin)
         objects.append(obj)
+        if getattr(node, "rig", None) is not None and armature is not None:
+            ## Weights before the bevel, so the geometry the bevel adds
+            ## inherits them.
+            _skin(obj, node, armature)
+            skinned.append(obj)
     if bevel > 0.0:
         for obj in objects:
             _bevel(obj, bevel)

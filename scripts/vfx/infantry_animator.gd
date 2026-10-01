@@ -1,38 +1,29 @@
 class_name InfantryAnimator
 extends Node
 
-## Procedural limb animation for infantry (docs/ART_DIRECTION.md 18.7).
+## Procedural limb animation for infantry, posed onto a Skeleton3D.
 ##
-## Soldiers used to glide: the model was a single welded "Body" mesh, so
-## there was nothing to move. They are now built jointed - every limb its
-## own node with its origin ON the joint it turns about - and posed here
-## from the unit's own state. No armature, no skinning, no AnimationPlayer
-## and no baked tracks: a dozen trig calls per soldier per frame, which is
-## what an RTS with a hundred of them on screen can afford.
+## The poses here are the ones Phase 4 introduced - idle, walk, run,
+## crouch, aim, fire, flinch - and they are still computed rather than
+## played back: a walk cycle that is a few lines of trig needs no
+## animation assets, no state machine and no retargeting, and it can take
+## its timing from the ground the unit actually covered.
 ##
-## What it reads, and nothing else: how fast the unit is moving, whether
-## it is crouched, and when it fired or was hit. That keeps the animation
-## a pure function of gameplay state, so it can never drift out of sync
-## with what the unit is actually doing.
+## What changed is what they drive. Each limb used to be its own scene
+## node with its own mesh, which cost FOURTEEN draw calls a soldier -
+## seven of them paid again in the shadow pass - and at 120 infantry that
+## was 1,680 calls for the men alone. One skinned mesh on a thirteen-bone
+## armature draws in three, whatever the pose.
+##
+## Bone poses in Godot are relative to the rest pose, so an untouched
+## bone needs no work and zero means "as modelled".
 
-## Arms come up onto the weapon. The bind pose hangs them straight down
-## so the same rig can also carry a toolbox or a launcher; this is the
-## rifle carry the animator applies on top.
-const CARRY_PITCH: float = -0.61        # ~35 degrees
-const CARRY_PITCH_CROUCH: float = -0.87 # tucked in tighter when low
-## Weapon up and level, which is a different SHAPE from the carry rather
-## than a deeper version of it: the arms come nearly horizontal and the
-## body squares up. A soldier in contact used to stand exactly as he did
-## walking about, so there was no way to tell who was fighting.
+const CARRY_PITCH: float = -0.61
+const CARRY_PITCH_CROUCH: float = -0.87
 const AIM_PITCH: float = -1.42
 const AIM_PITCH_CROUCH: float = -1.30
-## Seconds to raise and lower the weapon. Fast enough to look like
-## reacting, slow enough not to snap.
 const AIM_BLEND: float = 7.0
 
-## Stride. Crouching is not just slower - it is a visibly different gait:
-## shorter paces, a lower body and a forward lean, so RUN and CROUCH read
-## apart at a glance rather than only in the speed readout.
 const RUN_SWING: float = 0.62
 const CROUCH_SWING: float = 0.34
 const RUN_BOB: float = 0.045
@@ -40,8 +31,6 @@ const CROUCH_BOB: float = 0.015
 const CROUCH_DROP: float = 0.26
 const CROUCH_LEAN: float = 0.38
 const RUN_LEAN: float = 0.10
-## Paces per metre travelled, so the cycle matches the ground rather than
-## sliding - the thing that makes a walk cycle read as walking.
 const STRIDE_RATE: float = 1.45
 const IDLE_BREATH: float = 1.7
 
@@ -49,74 +38,105 @@ const FIRE_TIME: float = 0.18
 const HIT_TIME: float = 0.26
 const RECOIL: float = 0.09
 
+## Beyond this the small motions stop: a flinch and a muzzle kick are
+## sub-pixel at the far end of the camera's range, and skipping them
+## there costs nothing anyone can see. The gait keeps running - a frozen
+## soldier reads as a bug at any distance.
+const DETAIL_RANGE: float = 46.0
+
+## Diagnostic: OM_NO_POSE leaves every skeleton at its rest pose, which
+## is how a bind-pose fault is told apart from a posing fault. Resolved
+## once - this is read by every soldier on every frame.
+static var REST_POSE_ONLY: bool = not OS.get_environment("OM_NO_POSE").is_empty()
+
 var _host: Node3D
 var _visual: Node3D
-var _legs: Array = []          # [node, phase offset]
-var _arms: Array = []
-var _torso: Node3D
-var _head: Node3D
-var _weapon: Node3D
-var _tail: Node3D
+var _skeleton: Skeleton3D
 var _stance: InfantryStance
+var _attacker: Node = null
 
-var _rest: Dictionary = {}     # node -> bind-pose transform
+## Bone indices, resolved once. -1 means this rig has no such bone, which
+## is how the dog shares this script without having arms.
+var _b: Dictionary = {}
+## Per bone: its rest rotation, and the directions in ITS OWN space that
+## correspond to world right and world up.
+##
+## set_bone_pose_rotation replaces a bone's rotation outright rather than
+## adding to it, so handing it a bare Quaternion(RIGHT, angle) throws the
+## rest orientation away - which collapsed every soldier into a flattened
+## heap while the bind pose itself was perfectly correct. The pose has to
+## be composed ONTO the rest, and the axis has to be expressed in the
+## bone's frame, because these bones point down their own length rather
+## than along any world axis.
+var _rest_rot: Dictionary = {}
+var _axis_x: Dictionary = {}
+var _axis_y: Dictionary = {}
+var _rest_pelvis: Vector3 = Vector3.ZERO
+
 var _phase: float = 0.0
-var _last_pos: Vector3 = Vector3.INF
-var _speed: float = 0.0
 var _fire_timer: float = 0.0
 var _hit_timer: float = 0.0
 var _last_health: float = -1.0
 var _armed: bool = false
-var _attacker: Node = null
-## 0 = weapon carried, 1 = weapon up and aimed. Blended, so a soldier
-## coming into contact raises it rather than popping into the pose.
 var _aim: float = 0.0
+var _last_pos: Vector3 = Vector3.INF
+var _speed: float = 0.0
 
-## Attach to a unit whose model carries a jointed rig. Returns null for
-## anything without one, so vehicles and buildings cost nothing.
+const HUMAN_BONES := ["pelvis", "spine", "head", "upper_arm.L", "lower_arm.L",
+	"upper_arm.R", "lower_arm.R", "upper_leg.L", "lower_leg.L",
+	"upper_leg.R", "lower_leg.R", "weapon"]
+const DOG_BONES := ["spine", "neck", "head", "tail",
+	"leg.FL", "leg.FR", "leg.BL", "leg.BR"]
+
+## Attaches to anything whose model carries a skeleton. Vehicles have
+## none and get nothing.
 static func attach(host: Node3D, visual: Node) -> InfantryAnimator:
 	if visual == null or not (visual is Node3D):
 		return null
-	if visual.find_child("Torso", true, false) == null:
+	var skeleton := _find_skeleton(visual)
+	if skeleton == null:
 		return null
 	var anim := InfantryAnimator.new()
 	anim.name = "InfantryAnimator"
 	anim._host = host
 	anim._visual = visual as Node3D
+	anim._skeleton = skeleton
 	host.add_child(anim)
 	anim._bind()
 	return anim
 
+static func _find_skeleton(root: Node) -> Skeleton3D:
+	if root is Skeleton3D:
+		return root
+	for child in root.get_children():
+		var found := _find_skeleton(child)
+		if found != null:
+			return found
+	return null
+
 func _bind() -> void:
-	_torso = _visual.find_child("Torso", true, false) as Node3D
-	_head = _visual.find_child("Head", true, false) as Node3D
-	_weapon = _visual.find_child("Weapon", true, false) as Node3D
-	_tail = _visual.find_child("Tail", true, false) as Node3D
-	_armed = _weapon != null
-
-	## Two-legged and four-legged rigs differ only in which legs are in
-	## which phase: a dog's diagonal pairs move together.
-	for entry in [["Leg_L", 0.0], ["Leg_R", PI],
-			["Leg_FL", 0.0], ["Leg_BR", 0.0],
-			["Leg_FR", PI], ["Leg_BL", PI]]:
-		var leg := _visual.find_child(entry[0], true, false) as Node3D
-		if leg != null:
-			_legs.append([leg, entry[1]])
-	for name in ["Arm_L", "Arm_R"]:
-		var arm := _visual.find_child(name, true, false) as Node3D
-		if arm != null:
-			_arms.append(arm)
-
-	## Hang the upper body off the torso so a lean or a crouch carries the
-	## arms, head and weapon with it instead of leaving them behind. The
-	## exporter writes a flat list of parts, so the hierarchy is built
-	## here rather than in Blender.
-	for part in _arms + [_head, _weapon]:
-		if part != null and part.get_parent() != _torso and _torso != null:
-			part.reparent(_torso, true)
-
-	for node in _all_parts():
-		_rest[node] = node.transform
+	for name in HUMAN_BONES + DOG_BONES:
+		var index: int = _skeleton.find_bone(name)
+		_b[name] = index
+		if index < 0:
+			continue
+		## Two different rest transforms, for two different jobs.
+		##
+		## The rotation to compose onto is the LOCAL rest, because a bone
+		## pose is expressed relative to its parent. The axis to turn
+		## about has to come from the GLOBAL rest: get_bone_rest is
+		## parent-relative, so inverting it yields the parent's idea of
+		## "right", and three joints down a chain that points somewhere
+		## else entirely - it swung the arms out sideways instead of
+		## forward.
+		_rest_rot[name] = _skeleton.get_bone_rest(index).basis \
+			.orthonormalized().get_rotation_quaternion()
+		var world: Basis = _skeleton.get_bone_global_rest(index).basis.orthonormalized()
+		_axis_x[name] = (world.inverse() * Vector3.RIGHT).normalized()
+		_axis_y[name] = (world.inverse() * Vector3.UP).normalized()
+	_armed = _b.get("weapon", -1) >= 0
+	if _b.get("pelvis", -1) >= 0:
+		_rest_pelvis = _skeleton.get_bone_rest(_b["pelvis"]).origin
 	_stance = InfantryStance.of(_host)
 	if _host.get("health") != null and _host.health != null:
 		_last_health = _host.health.current_health
@@ -125,166 +145,132 @@ func _bind() -> void:
 				_hit_timer = HIT_TIME
 			_last_health = current)
 
-func _all_parts() -> Array:
-	var parts: Array = []
-	for pair in _legs:
-		parts.append(pair[0])
-	for arm in _arms:
-		parts.append(arm)
-	for node in [_torso, _head, _weapon, _tail]:
-		if node != null:
-			parts.append(node)
-	return parts
+func is_quadruped() -> bool:
+	return _b.get("leg.FL", -1) >= 0
 
 ## The weapon fired: kick it back and jolt the arms.
 func report_fired() -> void:
 	_fire_timer = FIRE_TIME
 
+func _pose_bone(bone: String, angle_x: float, angle_y: float = 0.0) -> void:
+	var index: int = _b.get(bone, -1)
+	if index < 0:
+		return
+	var turn := Quaternion(_axis_x[bone], angle_x)
+	if not is_zero_approx(angle_y):
+		turn *= Quaternion(_axis_y[bone], angle_y)
+	_skeleton.set_bone_pose_rotation(index, _rest_rot[bone] * turn)
+
 func _process(delta: float) -> void:
-	if not is_instance_valid(_host) or _torso == null:
+	if not is_instance_valid(_host) or _skeleton == null:
+		return
+	if REST_POSE_ONLY:
 		return
 	_fire_timer = maxf(0.0, _fire_timer - delta)
 	_hit_timer = maxf(0.0, _hit_timer - delta)
 
-	## Speed from GROUND ACTUALLY COVERED, not from `velocity`. The body
+	## Speed from ground actually covered, not from `velocity`: the body
 	## sets velocity inside _physics_process and through the avoidance
-	## callback, so a _process frame can read a stale or zeroed value -
-	## measured, a soldier that had just walked 3.6m reported 0.00 m/s.
-	## Displacement is also the honest input for a walk cycle: it is what
-	## decides whether the feet keep pace with the ground.
+	## callback, so a _process frame can read a stale or zeroed value.
 	var here: Vector3 = _host.global_position
 	if _last_pos == Vector3.INF:
 		_last_pos = here
 	var moved: float = Vector2(here.x - _last_pos.x, here.z - _last_pos.z).length()
 	_last_pos = here
-	## Smoothed, so a single stalled frame does not drop the unit into
-	## its idle pose and back.
 	_speed = lerpf(_speed, moved / maxf(delta, 0.0001), clampf(delta * 12.0, 0.0, 1.0))
-	var speed: float = _speed
-	var crouched: bool = _stance != null and _stance.is_crouched()
-	var moving: bool = speed > 0.15
 
-	## Resolved here rather than at bind: the animator is attached from
-	## _build_visual, which runs BEFORE the unit adds its weapon, so
-	## looking for the attacker then always found nothing and no soldier
-	## ever raised his rifle.
+	var crouched: bool = _stance != null and _stance.is_crouched()
+	var moving: bool = _speed > 0.15
+	if moving:
+		_phase += _speed * STRIDE_RATE * delta * TAU * 0.5
+	else:
+		_phase += IDLE_BREATH * delta
+
 	if _attacker == null or not is_instance_valid(_attacker):
 		_attacker = _host.get_node_or_null("AttackerComponent")
-
-	## In contact, or just fired. The recent-shot term keeps the weapon up
-	## through the gap between bursts instead of dropping it every time a
-	## target dies.
 	var engaged: bool = _fire_timer > 0.0 or (_attacker != null
 		and is_instance_valid(_attacker) and is_instance_valid(_attacker.target))
 	_aim = move_toward(_aim, 1.0 if engaged else 0.0, delta * AIM_BLEND)
 
-	## The cycle advances with DISTANCE, not time, so the feet keep pace
-	## with the ground however fast or slow the unit is going.
-	if moving:
-		_phase += speed * STRIDE_RATE * delta * TAU * 0.5
-	else:
-		_phase += IDLE_BREATH * delta
+	if is_quadruped():
+		_pose_dog(moving)
+		return
+	_pose_human(crouched, moving, _near_enough())
 
-	var swing: float = (CROUCH_SWING if crouched else RUN_SWING)
-	var bob: float = (CROUCH_BOB if crouched else RUN_BOB)
-	var lean: float = (CROUCH_LEAN if crouched else RUN_LEAN)
+## Is the camera close enough for the small motions to be worth posing?
+func _near_enough() -> bool:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return true
+	return camera.global_position.distance_squared_to(_host.global_position) \
+		< DETAIL_RANGE * DETAIL_RANGE
+
+func _pose_human(crouched: bool, moving: bool, detailed: bool) -> void:
+	var swing: float = (CROUCH_SWING if crouched else RUN_SWING) if moving else 0.0
+	var bob: float = CROUCH_BOB if crouched else RUN_BOB
+	var lean: float = CROUCH_LEAN if crouched else RUN_LEAN
 	if not moving:
-		swing = 0.0
 		bob *= 0.25
 
-	_pose_legs(swing, crouched, moving)
-	_pose_torso(bob, lean, crouched, moving)
-	_pose_arms(swing, crouched, moving)
-	_pose_head()
-	_pose_weapon()
-	_pose_tail(moving)
-
-func _pose_legs(swing: float, crouched: bool, moving: bool) -> void:
-	## Crouched legs stay bent even at rest - that bend is most of what
-	## makes a crouch read from the side.
+	## Legs. Crouched legs stay bent even at rest; that bend is most of
+	## what makes a crouch read from the side.
 	var bend: float = 0.45 if crouched else 0.0
-	for pair in _legs:
-		var leg: Node3D = pair[0]
-		if not is_instance_valid(leg):
-			continue
-		var offset: float = pair[1]
-		var angle: float = sin(_phase + offset) * swing - bend
-		if not moving:
-			angle = -bend
-		leg.transform = _rest[leg]
-		leg.rotate_x(angle)
+	_pose_bone("upper_leg.L", sin(_phase) * swing - bend)
+	_pose_bone("upper_leg.R", sin(_phase + PI) * swing - bend)
+	_pose_bone("lower_leg.L", bend * 1.3)
+	_pose_bone("lower_leg.R", bend * 1.3)
 
-func _pose_torso(bob: float, lean: float, crouched: bool, moving: bool) -> void:
-	var rest: Transform3D = _rest[_torso]
-	## Two bobs per stride: the body rises on each footfall, not each pace.
-	var rise: float = absf(sin(_phase)) * bob
-	var drop: float = CROUCH_DROP if crouched else 0.0
-	if not moving:
-		rise = sin(_phase) * bob
-	## Squaring up to the target: an aiming soldier stands straighter
-	## than one slouching along.
+	## Pelvis carries the bob and the crouch drop.
+	var rise: float = (absf(sin(_phase)) if moving else sin(_phase)) * bob
+	var pelvis: int = _b.get("pelvis", -1)
+	if pelvis >= 0:
+		_skeleton.set_bone_pose_position(pelvis,
+			_rest_pelvis + Vector3(0.0, rise - (CROUCH_DROP if crouched else 0.0), 0.0))
+
+	## Spine leans, squares up when aiming, and takes the flinch.
 	var pitch: float = lerpf(lean, lean * 0.45, _aim)
-	## A hit throws the torso back for a moment; a shot rocks it slightly.
-	if _hit_timer > 0.0:
-		pitch -= (_hit_timer / HIT_TIME) * 0.45
-	if _fire_timer > 0.0:
-		pitch -= (_fire_timer / FIRE_TIME) * 0.09
-	_torso.transform = rest
-	_torso.position += Vector3(0.0, rise - drop, 0.0)
-	_torso.rotate_x(pitch)
+	if detailed:
+		if _hit_timer > 0.0:
+			pitch -= (_hit_timer / HIT_TIME) * 0.45
+		if _fire_timer > 0.0:
+			pitch -= (_fire_timer / FIRE_TIME) * 0.09
+	_pose_bone("spine", pitch)
+	## The head stays level while the torso leans, the way a person's
+	## does - it stops a crouch looking like a bow.
+	_pose_bone("head", -pitch * 0.6)
 
-func _pose_arms(swing: float, crouched: bool, moving: bool) -> void:
+	## Arms. A carried weapon barely swings; one held on target swings
+	## less still, and that stillness is most of what reads as aiming.
 	var carry: float = CARRY_PITCH_CROUCH if crouched else CARRY_PITCH
 	var aimed: float = AIM_PITCH_CROUCH if crouched else AIM_PITCH
 	if not _armed:
-		## Empty hands swing freely; a carried weapon does not, and an
-		## engineer has nothing to raise.
 		carry = 0.0
 		aimed = 0.0
-	carry = lerpf(carry, aimed, _aim)
-	for i in _arms.size():
-		var arm: Node3D = _arms[i]
-		if not is_instance_valid(arm):
-			continue
-		## Arms counter-swing against the legs, and only a little when
-		## they are holding something up.
-		## Arms that are holding a weapon on target barely swing at all -
-		## that stillness is most of what makes an aiming soldier read as
-		## aiming while he walks.
-		var free: float = (0.35 if _armed else 1.0) * (1.0 - _aim * 0.8)
-		var angle: float = carry
-		if moving:
-			angle += -sin(_phase + (PI if i == 1 else 0.0)) * swing * free
-		if _fire_timer > 0.0:
-			angle += (_fire_timer / FIRE_TIME) * 0.22
-		arm.transform = _rest[arm]
-		arm.rotate_x(angle)
+	var base: float = lerpf(carry, aimed, _aim)
+	var free: float = (0.35 if _armed else 1.0) * (1.0 - _aim * 0.8)
+	var kick: float = (_fire_timer / FIRE_TIME) * 0.22 if (detailed and _fire_timer > 0.0) else 0.0
+	_pose_bone("upper_arm.L", base - sin(_phase) * swing * free + kick)
+	_pose_bone("upper_arm.R", base - sin(_phase + PI) * swing * free + kick)
+	## A slight elbow keeps the arms from reading as planks.
+	_pose_bone("lower_arm.L", -0.25 * (1.0 - _aim * 0.5))
+	_pose_bone("lower_arm.R", -0.25 * (1.0 - _aim * 0.5))
 
-func _pose_head() -> void:
-	if _head == null or not is_instance_valid(_head):
-		return
-	_head.transform = _rest[_head]
-	## The head stays level while the torso leans, the way a person's
-	## does - it is a small thing that stops a crouch looking like a bow.
-	var counter: float = -_torso.rotation.x * 0.6
-	if _hit_timer > 0.0:
-		counter -= (_hit_timer / HIT_TIME) * 0.3
-	_head.rotate_x(counter)
+	## Recoil runs back along the barrel and lifts the muzzle.
+	var weapon: int = _b.get("weapon", -1)
+	if weapon >= 0:
+		if detailed and _fire_timer > 0.0:
+			var t: float = _fire_timer / FIRE_TIME
+			_pose_bone("weapon", 0.35 * t)
+		else:
+			_pose_bone("weapon", 0.0)
 
-func _pose_weapon() -> void:
-	if _weapon == null or not is_instance_valid(_weapon):
-		return
-	_weapon.transform = _rest[_weapon]
-	if _fire_timer <= 0.0:
-		return
-	## Recoil runs back along the barrel (+Z is behind a -Z-forward unit)
-	## and lifts the muzzle, then settles.
-	var t: float = _fire_timer / FIRE_TIME
-	_weapon.position += Vector3(0.0, 0.0, RECOIL * t)
-	_weapon.rotate_x(0.35 * t)
-
-func _pose_tail(moving: bool) -> void:
-	if _tail == null or not is_instance_valid(_tail):
-		return
-	_tail.transform = _rest[_tail]
-	_tail.rotate_y(sin(_phase * (2.0 if moving else 1.0)) * 0.35)
+func _pose_dog(moving: bool) -> void:
+	var swing: float = 0.55 if moving else 0.0
+	## Diagonal pairs together, which is what a trot looks like.
+	_pose_bone("leg.FL", sin(_phase) * swing)
+	_pose_bone("leg.BR", sin(_phase) * swing)
+	_pose_bone("leg.FR", sin(_phase + PI) * swing)
+	_pose_bone("leg.BL", sin(_phase + PI) * swing)
+	_pose_bone("spine", sin(_phase * 2.0) * 0.04)
+	_pose_bone("head", -sin(_phase * 2.0) * 0.05 - (0.25 if _hit_timer > 0.0 else 0.0))
+	_pose_bone("tail", 0.0, sin(_phase * (2.0 if moving else 1.0)) * 0.35)
