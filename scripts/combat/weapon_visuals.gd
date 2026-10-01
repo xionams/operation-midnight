@@ -236,6 +236,10 @@ static func _attach_trail(shot: Node3D, stats: WeaponStats) -> void:
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.albedo_color = Color(0.85, 0.92, 1.0, 0.5) if wet \
 		else Color(0.75, 0.75, 0.78, 0.55)
+	## Without the mask each puff is a hard-edged rectangle at half
+	## alpha, and a few overlapping ones stack into a solid white card
+	## several metres across lying over the battlefield.
+	material.albedo_texture = VFX.soft_dot()
 	material.disable_receive_shadows = true
 	trail.material_override = material
 	shot.add_child(trail)

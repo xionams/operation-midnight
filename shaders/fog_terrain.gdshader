@@ -42,6 +42,12 @@ uniform sampler2D macro_tex : source_color, filter_linear_mipmap, repeat_enable,
 uniform sampler2D detail_tex : source_color, filter_linear_mipmap, repeat_enable, hint_default_white;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform float textured = 0.0;
+// Models built by the asset kit carry their colour in VERTEX COLOURS and
+// leave the glTF base-colour factor at its default white. Anything that
+// paints such a model from `base_color` alone therefore renders it pure
+// white - which is how persistent wrecks became white sheets lying on
+// the battlefield. Set this to 1.0 to take the colour from the mesh.
+uniform float vertex_color = 0.0;
 uniform float macro_scale = 96.0;
 uniform float detail_scale = 8.0;
 uniform float normal_strength = 0.7;
@@ -59,12 +65,14 @@ const float EXPLORED_SHADE = 0.392; // 100/255
 
 varying vec3 world_position;
 varying float coast;
+varying vec3 vertex_tint;
 
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	// Terrain bakes its coast mask into COLOR.r; props without vertex
 	// colours read white here, and only the ground sets water_level.
 	coast = COLOR.r;
+	vertex_tint = COLOR.rgb;
 }
 
 void fragment() {
@@ -83,7 +91,7 @@ void fragment() {
 	brightness = mix(brightness, 1.0,
 		smoothstep(EXPLORED_SHADE, 1.0, shade));
 
-	vec3 surface = base_color;
+	vec3 surface = base_color * mix(vec3(1.0), vertex_tint, vertex_color);
 	float grain = 0.5;
 	if (textured > 0.5) {
 		// base_color, macro and grain COMPOSE, which is what lets one

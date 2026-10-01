@@ -98,6 +98,13 @@ func _fog_paint(model: Node, tree: SceneTree) -> void:
 			material.shader = FOG_SHADER
 			material.set_shader_parameter("fog_tex", fog_texture)
 			material.set_shader_parameter("map_size", map_size)
+			## These models keep their colour in VERTEX colours and leave
+			## the glTF base-colour factor at its default white, so
+			## painting from albedo_color alone rendered every wreck as a
+			## flat white sheet several metres across. Scenery dodges this
+			## with palette lookups keyed on material name; a wreck has no
+			## such table, so take the colour from the mesh itself.
 			material.set_shader_parameter("base_color",
-				source.albedo_color if source != null else Color(0.35, 0.34, 0.31))
+				source.albedo_color if source != null else Color.WHITE)
+			material.set_shader_parameter("vertex_color", 1.0)
 			mesh_instance.set_surface_override_material(surface, material)

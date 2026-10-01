@@ -26,7 +26,11 @@ static var _dot: GradientTexture2D = null
 static var enabled: bool = OS.get_environment("OM_NO_VFX").is_empty()
 
 ## One soft radial dot shared by every effect in the game.
-static func _particle_texture() -> GradientTexture2D:
+## A soft round dot, white at the centre and fading to nothing at the
+## rim. Every particle quad needs it: without a mask a quad renders as
+## its own hard-edged rectangle, and a handful of overlapping ones stack
+## into a solid white card lying across the battlefield.
+static func soft_dot() -> GradientTexture2D:
 	if _dot != null:
 		return _dot
 	var gradient := Gradient.new()
@@ -48,7 +52,7 @@ static func _material(color: Color, additive: bool) -> StandardMaterial3D:
 	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if additive else BaseMaterial3D.BLEND_MODE_MIX
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.albedo_color = color
-	material.albedo_texture = _particle_texture()
+	material.albedo_texture = soft_dot()
 	material.vertex_color_use_as_albedo = true
 	material.disable_receive_shadows = true
 	return material
