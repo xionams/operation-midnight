@@ -114,6 +114,16 @@ func _run() -> void:
 	await get_tree().process_frame
 	_check("Enemy hides again when the watcher withdraws", FogHideable.is_hidden(enemy))
 	var attacker: AttackerComponent = watcher.get_node("AttackerComponent")
+	## The watcher stood next to the enemy a moment ago and will have
+	## acquired it on its own. Dropping a target that vanishes into fog
+	## happens in _physics_process, so give it a physics frame - awaiting
+	## a render frame leaves the stale target in place often enough to
+	## fail this assertion only when the machine is loaded. Then clear it
+	## outright, so what is measured below is set_target REFUSING a
+	## hidden enemy, not residue from the auto-acquisition.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	attacker.clear_target()
 	attacker.set_target(enemy)
 	_check("Cannot target an enemy hidden by fog", not attacker.has_target())
 
