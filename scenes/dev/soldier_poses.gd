@@ -25,19 +25,22 @@ func _ready() -> void:
 	var dog = _spawn(DOG, base + Vector3(3, 0, 0))
 	InfantryStance.of(croucher).set_mode(InfantryStance.Mode.CROUCH)
 	await _wait(0.5)
+	## They walk ACROSS the view, not away down it. Marching away from
+	## the camera hides the stride and shrinks them out of frame - the
+	## swing a walk cycle lives in only reads from the side.
 	for u in [walker, croucher, dog]:
-		u.move_to(u.global_position + Vector3(0, 0, -40))
+		u.move_to(u.global_position + Vector3(-40, 0, 0))
 
 	## A low side-on camera: the RTS rig looks down too steeply.
 	var cam := Camera3D.new()
 	main.add_child(cam)
-	cam.global_position = base + Vector3(0, 1.4, 7.0)
-	cam.look_at(base + Vector3(0, 0.9, 0), Vector3.UP)
-	cam.fov = 38.0
+	cam.global_position = base + Vector3(-2.0, 1.5, 9.5)
+	cam.look_at(base + Vector3(-2.0, 0.9, 0), Vector3.UP)
+	cam.fov = 50.0
 	cam.make_current()
 
 	for i in 4:
-		await _wait(0.42)
+		await _wait(0.3)
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(
 			"res://screenshots/poses_%d.png" % i)

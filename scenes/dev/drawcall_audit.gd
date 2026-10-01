@@ -54,9 +54,10 @@ func _ready() -> void:
 	cam.snap()
 	await _wait(4.0)
 
-	var base_draws: float = await _measure()
-	print("AUDIT| baseline                         %6.0f draws  %8.0f tris  %d units" % [
-		base_draws, _tris(), _units.size()])
+	var whole: Dictionary = await _measure()
+	print("AUDIT| %-32s %6.0f draws  %9.0f tris  %d units" % [
+		"baseline", whole["draws"], whole["tris"], _units.size()])
+	print("AUDIT| %-32s %12s %15s" % ["category", "draws", "tris"])
 
 	## --- each category, measured by its absence ---
 	await _category("UI (whole HUD)", func(t): _hud.visible = not t)
@@ -76,31 +77,38 @@ func _wait(seconds: float) -> void:
 		t += get_process_delta_time()
 		await get_tree().process_frame
 
-func _measure() -> float:
+## Draws AND triangles. Batching trades one for the other - a MultiMesh
+## is culled as a single box, so a chunk with one tree on screen submits
+## every tree it holds - and a report that only counts calls will call
+## that trade a clean win.
+func _measure() -> Dictionary:
 	await _wait(SETTLE)
-	var total: float = 0.0
+	var draws: float = 0.0
+	var tris: float = 0.0
 	var n: int = 0
 	var t: float = 0.0
 	while t < SAMPLE:
 		await get_tree().process_frame
 		t += get_process_delta_time()
-		total += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		draws += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		tris += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
 		n += 1
-	return total / maxf(float(n), 1.0)
-
-func _tris() -> float:
-	return Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+	var d: float = maxf(float(n), 1.0)
+	return {"draws": draws / d, "tris": tris / d}
 
 ## Turn a category off, measure, turn it back on. The delta is its cost.
 func _category(label: String, setter: Callable) -> void:
-	var before: float = await _measure()
+	var before: Dictionary = await _measure()
 	setter.call(true)
 	await _wait(0.4)
-	var without: float = await _measure()
+	var without: Dictionary = await _measure()
 	setter.call(false)
 	await _wait(0.4)
-	print("AUDIT| %-32s %6.0f draws  (%.0f%% of frame)" % [
-		label, before - without, (before - without) / maxf(before, 1.0) * 100.0])
+	var d: float = before["draws"] - without["draws"]
+	var tr: float = before["tris"] - without["tris"]
+	print("AUDIT| %-32s %6.0f (%2.0f%%) %9.0f (%2.0f%%)" % [
+		label, d, d / maxf(before["draws"], 1.0) * 100.0,
+		tr, tr / maxf(before["tris"], 1.0) * 100.0])
 
 func _spawn(path: String, player: bool, pos: Vector3) -> Node:
 	var stats: UnitStats = load(path)

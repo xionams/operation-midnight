@@ -65,6 +65,7 @@ func _ready() -> void:
 	_say("BENCH| device=%s renderer=%s cpu=%s" % [
 		OS.get_model_name(), RenderingServer.get_video_adapter_name(),
 		OS.get_processor_name()])
+	_say("BENCH| %s" % _machine_load())
 	_say("BENCH| %-26s %7s %7s %7s %9s %8s %8s" % [
 		"scenario", "fps", "1%low", "draws", "tris", "nodes", "vram_mb"])
 
@@ -212,3 +213,20 @@ func _measure(label: String) -> void:
 		label, float(n) / t, 1.0 / low, draws / n, prims / n,
 		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0])
+
+
+## What else the machine was doing. A whole run of FPS numbers was once
+## taken with a forgotten Android emulator eating six cores, and nothing
+## in the output said so - the draw and triangle counts were fine, so
+## the contamination was invisible until the FPS column stopped making
+## sense. Record it, and refuse to be quietly believed.
+func _machine_load() -> String:
+	var f := FileAccess.open("/proc/loadavg", FileAccess.READ)
+	if f == null:
+		return "load=unknown (no /proc/loadavg; on-device run)"
+	var one: float = f.get_as_text().split(" ")[0].to_float()
+	var cores: int = OS.get_processor_count()
+	var busy: float = one / maxf(float(cores), 1.0)
+	var verdict := "idle" if busy < 0.25 else ("BUSY - FPS IS NOT TRUSTWORTHY" \
+		if busy > 0.6 else "some load")
+	return "load=%.2f over %d cores (%s)" % [one, cores, verdict]
