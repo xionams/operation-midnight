@@ -21,6 +21,8 @@ const LIGHT_MODEL: PackedScene = preload("res://assets/models/props/vehicle_wrec
 const HEAVY_MODEL: PackedScene = preload("res://assets/models/props/vehicle_wreck_heavy.glb")
 const NAVAL_MODEL: PackedScene = preload("res://assets/models/props/naval_debris.glb")
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
+## What a burnt hull is, if a model ever arrives without vertex colours.
+const SOOT: Color = Color(0.105, 0.098, 0.094)
 
 ## Rubble persists for the match rather than fading, but not without
 ## limit: a long match on a small map would otherwise accumulate wrecks
@@ -103,8 +105,37 @@ func _fog_paint(model: Node, tree: SceneTree) -> void:
 			## painting from albedo_color alone rendered every wreck as a
 			## flat white sheet several metres across. Scenery dodges this
 			## with palette lookups keyed on material name; a wreck has no
-			## such table, so take the colour from the mesh itself.
+			## such table, so read the colour off the mesh.
+			##
+			## Read on the CPU rather than in the shader: COLOR arrives
+			## white in a spatial shader for these imported meshes even
+			## though the surface carries the array, so a shader-side
+			## vertex-colour path looks right and renders white.
 			material.set_shader_parameter("base_color",
-				source.albedo_color if source != null else Color.WHITE)
-			material.set_shader_parameter("vertex_color", 1.0)
+				_surface_colour(mesh, surface,
+					source.albedo_color if source != null else SOOT))
 			mesh_instance.set_surface_override_material(surface, material)
+
+
+## The average colour of a surface, taken from its vertex colours.
+##
+## These models are flat-shaded out of a deliberately tight palette -
+## soot, char, ash - so one colour per surface is faithful to how they
+## were authored. Sampled rather than walked: a hull has thousands of
+## vertices and this runs the moment something dies.
+static func _surface_colour(mesh: Mesh, surface: int, fallback: Color) -> Color:
+	var arrays: Array = mesh.surface_get_arrays(surface)
+	if arrays.size() <= Mesh.ARRAY_COLOR:
+		return fallback
+	var colours = arrays[Mesh.ARRAY_COLOR]
+	if colours == null or colours.size() == 0:
+		return fallback
+	var step: int = maxi(1, colours.size() / 48)
+	var total := Color(0.0, 0.0, 0.0)
+	var n: int = 0
+	var i: int = 0
+	while i < colours.size():
+		total += colours[i]
+		n += 1
+		i += step
+	return Color(total.r / n, total.g / n, total.b / n)
