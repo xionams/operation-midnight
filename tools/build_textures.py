@@ -51,11 +51,15 @@ SEED = 20260923
 
 ## Authored sRGB, because that is what a PNG albedo is and what Godot
 ## imports it as. These are the palette's terrain family, not new colours.
-GRASS_DARK = (44, 66, 36)
-GRASS = (66, 92, 50)
-DRY = (104, 102, 60)
-DIRT = (86, 71, 50)
-ROCK = (98, 98, 92)
+## These five span the whole value range the battlefield can ever show.
+## They used to sit between luminance 56 and 98, which capped the macro
+## sheet at 42 of 255 however hard the noise worked - and a ground that
+## never leaves a 42-wide band is why the game rendered as flat mud.
+GRASS_DARK = (26, 42, 22)
+GRASS = (62, 88, 44)
+DRY = (132, 128, 88)
+DIRT = (112, 88, 58)
+ROCK = (152, 150, 142)
 
 
 def tiling_noise(size, freq, rng):
@@ -151,21 +155,29 @@ def build_macro(rng):
 
     ## Dry patches where it is least wet, with a soft threshold so the
     ## boundary reads as ground drying out rather than as a painted edge.
-    dry_mask = np.clip((0.55 - wetness) * 2.6, 0.0, 1.0)
+    dry_mask = np.clip((0.58 - wetness) * 3.2, 0.0, 1.0)
     rgb = rgb + (np.array(DRY, dtype=np.float32)[None, None, :] - rgb) \
         * dry_mask[:, :, None]
 
     ## Worn dirt where traffic would be - independent of wetness, so it
     ## cuts across the grass/dry boundary instead of tracing it.
-    dirt_mask = np.clip((wear - 0.62) * 3.4, 0.0, 1.0)
+    dirt_mask = np.clip((wear - 0.52) * 3.6, 0.0, 1.0)
     rgb = rgb + (np.array(DIRT, dtype=np.float32)[None, None, :] - rgb) \
         * dirt_mask[:, :, None]
 
     ## A little exposed rock, kept rare.
-    rock_mask = np.clip((rockiness - 0.80) * 4.0, 0.0, 1.0)
+    rock_mask = np.clip((rockiness - 0.72) * 4.2, 0.0, 1.0)
     rgb = rgb + (np.array(ROCK, dtype=np.float32)[None, None, :] - rgb) \
         * rock_mask[:, :, None]
-    return rgb
+
+    ## Broad light and shade over the whole sheet, at a lower frequency
+    ## than any of the regions. Region masks alone leave most of the map
+    ## sitting on one grass value however wide the palette is, and the
+    ## ground has to carry variation at the scale the camera actually
+    ## sees - roughly a screen-width at a time.
+    sweep = fbm(size, 2, 3, rng)
+    rgb = rgb * (0.58 + 0.88 * sweep)[:, :, None]
+    return np.clip(rgb, 0.0, 255.0)
 
 
 def build_detail(rng):
@@ -177,18 +189,33 @@ def build_detail(rng):
     speckle = fbm(size, 32, 3, rng)
     height = 0.7 * grain + 0.3 * speckle
 
-    ## Compress around the midpoint: the detail layer must not swing the
-    ## macro colour far, or the ground reads as noise rather than surface.
-    value = 0.5 + (height - 0.5) * 0.55
+    ## This used to compress to 55% around the midpoint, which left the
+    ## grain sheet spanning 58 of 255 and gave the lit ground nothing to
+    ## break up. The detail layer multiplies the macro colour, so it has
+    ## to carry real contrast to be worth sampling at all.
+    value = 0.5 + (height - 0.5) * 1.75
     grey = np.clip(value * 255.0, 0, 255)
     return np.stack([grey, grey, grey], axis=-1), height
 
 
-def build_normal(height, strength=2.0):
-    """Normal map from the detail height field, wrapping at the edges."""
+def build_normal(height, slope=0.78):
+    """Normal map from the detail height field, wrapping at the edges.
+
+    The strength is CALIBRATED, not chosen. A fixed multiplier was used
+    before and a smooth noise field has gradients of order 0.01 per
+    pixel, so the map encoded to 128 +/- 5 - a flat sheet that could not
+    tip a single normal, which is why the ground caught no directional
+    light at all. Here the field is scaled so its steep slopes (95th
+    percentile) land at `slope`, giving the same relief whatever the
+    frequency content of the height field happens to be.
+    """
     ## np.roll wraps, which is exactly right for a tiling texture.
-    dx = (np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)) * strength
-    dy = (np.roll(height, -1, axis=0) - np.roll(height, 1, axis=0)) * strength
+    dx = np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)
+    dy = np.roll(height, -1, axis=0) - np.roll(height, 1, axis=0)
+    steep = float(np.percentile(np.abs(np.concatenate([dx.ravel(), dy.ravel()])), 95))
+    strength = slope / max(steep, 1e-6)
+    dx = dx * strength
+    dy = dy * strength
 
     ## Godot expects OpenGL-convention normal maps (+Y up).
     nx = -dx
@@ -274,15 +301,21 @@ def build_surface(rng):
     grime = fbm(size, 4, 5, rng)
     wear = fbm(size, 24, 3, rng)
 
-    value -= 0.18 * seam
-    value -= 0.09 * (1.0 - grime)
-    value -= 0.05 * wear
+    ## The seam is kept shallow because the whole sheet is stretched
+    ## below; at its old depth the stretch turned every panel joint into
+    ## a hard black grid that tiled visibly across a concrete pad.
+    value -= 0.13 * seam
+    value -= 0.30 * (1.0 - grime)
+    value -= 0.18 * wear
+    ## Spread what is left across the range rather than leaving concrete
+    ## sitting in a 36-wide band near white.
+    value = 0.5 + (value - float(np.mean(value))) * 1.9
     value = np.clip(value, 0.0, 1.0)
 
     grey = value * 255.0
     ## Only the seams are relief; panel shade differences are paint, not
     ## geometry, and giving them a normal would emboss every plate.
-    height_field = 1.0 - (0.85 * seam + 0.15 * wear)
+    height_field = 1.0 - (0.80 * seam + 0.20 * wear + 0.10 * (1.0 - grime))
     return np.stack([grey, grey, grey], axis=-1), height_field
 
 
@@ -415,7 +448,7 @@ def main():
     detail, height = build_detail(rng)
     normal = build_normal(height)
     surface, surface_height = build_surface(rng)
-    surface_normal = build_normal(surface_height, strength=3.0)
+    surface_normal = build_normal(surface_height, slope=0.85)
     scorch = build_scorch(rng)
     track = build_track(rng)
     pips = build_pips()

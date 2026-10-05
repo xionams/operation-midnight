@@ -23,6 +23,12 @@ const NAVAL_MODEL: PackedScene = preload("res://assets/models/props/naval_debris
 const FOG_SHADER: Shader = preload("res://shaders/fog_terrain.gdshader")
 ## What a burnt hull is, if a model ever arrives without vertex colours.
 const SOOT: Color = Color(0.105, 0.098, 0.094)
+## The floor a wreck is allowed to sit at. wrecks.py authors the palette
+## at soot 0.105, which is physically fair for charred steel and renders
+## at 0.02 luminance - against lit ground that is not a dark OBJECT, it
+## is a hole cut in the picture. Lifted to where it still reads as burnt
+## but has a surface. Hue is preserved, so rust stays rust.
+const MIN_LUMINANCE: float = 0.15
 
 ## Rubble persists for the match rather than fading, but not without
 ## limit: a long match on a small map would otherwise accumulate wrecks
@@ -111,9 +117,10 @@ func _fog_paint(model: Node, tree: SceneTree) -> void:
 			## white in a spatial shader for these imported meshes even
 			## though the surface carries the array, so a shader-side
 			## vertex-colour path looks right and renders white.
-			material.set_shader_parameter("base_color",
+			material.set_shader_parameter("base_color", _readable(
 				_surface_colour(mesh, surface,
-					source.albedo_color if source != null else SOOT))
+					source.albedo_color if source != null else SOOT)))
+
 			mesh_instance.set_surface_override_material(surface, material)
 
 
@@ -139,3 +146,13 @@ static func _surface_colour(mesh: Mesh, surface: int, fallback: Color) -> Color:
 		n += 1
 		i += step
 	return Color(total.r / n, total.g / n, total.b / n)
+
+
+## Lift a colour to MIN_LUMINANCE without changing its hue.
+static func _readable(c: Color) -> Color:
+	var lum: float = c.get_luminance()
+	if lum >= MIN_LUMINANCE or lum <= 0.0001:
+		return c
+	var gain: float = MIN_LUMINANCE / lum
+	return Color(minf(c.r * gain, 1.0), minf(c.g * gain, 1.0),
+		minf(c.b * gain, 1.0))
