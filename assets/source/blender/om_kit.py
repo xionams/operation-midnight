@@ -45,6 +45,12 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 # docs/ART_DIRECTION.md section 2, plus the Phase 3 naval and civilian
 # additions (section 3b). sRGB 0-1.
 
+## How far a primitive's own vertical gradient reaches. Set from the
+## low-poly convention of faking form with vertex colour rather than
+## with triangles.
+GRADIENT_LOW = 0.74
+GRADIENT_HIGH = 1.06
+
 GUNMETAL = (0.227, 0.247, 0.271)
 STEEL = (0.290, 0.314, 0.345)
 STEEL_LIGHT = (0.42, 0.45, 0.48)
@@ -167,7 +173,16 @@ class Node:
         slot = self._slot(material)
         ## sRGB on purpose: Godot's glTF importer reads COLOR_0 as sRGB
         ## (verified - linear values rendered ~5x too dark).
-        col = (color[0], color[1], color[2], 1.0)
+        ## A vertical gradient WITHIN each primitive, darker at its base.
+        ## Flat shading gives a box three visible faces and therefore
+        ## three values, with no gradient anywhere, which is what makes a
+        ## slab arm read as a slab. This fakes the form shading the
+        ## lighting cannot provide, costs no triangles, and is rotation
+        ## invariant - a baked directional tint would be wrong the moment
+        ## the unit turned. to_blender maps game Y onto Blender Z.
+        zs = [v.co.z for v in verts]
+        z0, z1 = min(zs), max(zs)
+        span = z1 - z0
         made = []
         for f in faces:
             try:
@@ -177,7 +192,11 @@ class Node:
             face.material_index = slot
             face.smooth = smooth
             for loop in face.loops:
-                loop[self.color_layer] = col
+                t = 0.5 if span < 1e-6 else (loop.vert.co.z - z0) / span
+                k = GRADIENT_LOW + (GRADIENT_HIGH - GRADIENT_LOW) * t
+                loop[self.color_layer] = (
+                    min(color[0] * k, 1.0), min(color[1] * k, 1.0),
+                    min(color[2] * k, 1.0), 1.0)
             made.append(face)
         return made
 
@@ -408,7 +427,7 @@ def _bevel(obj, width, segments=1):
     bpy.ops.object.modifier_apply(modifier="Bevel")
 
 
-def _bake_ao(objects, samples=24, floor=0.28, ground_z=-0.02):
+def _bake_ao(objects, samples=24, floor=0.28, ground_z=-0.02, distance=1.1):
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
@@ -419,7 +438,11 @@ def _bake_ao(objects, samples=24, floor=0.28, ground_z=-0.02):
     # Contact shadow in creases and under hulls is what AO is for here.
     if scene.world is None:
         scene.world = bpy.data.worlds.new("World")
-    scene.world.light_settings.distance = 1.1
+    ## Reach has to be set against the SUBJECT's size. 1.1m on a 1.8m
+    ## infantryman occludes the whole figure uniformly - a global dimming
+    ## rather than a crease. Infantry pass ~0.22 so the shadow lands
+    ## under the helmet brim, the pack and the chin, where it reads.
+    scene.world.light_settings.distance = distance
     ao_layers = []
     for obj in objects:
         attr = obj.data.color_attributes.new("AO", "FLOAT_COLOR", "CORNER")
@@ -522,7 +545,9 @@ def build(model, out_path, bevel=0.06, ao=True):
         for obj in objects:
             _bevel(obj, bevel)
     if ao:
-        _bake_ao(objects, ground_z=ground_z)
+        _bake_ao(objects, ground_z=ground_z,
+                 floor=getattr(model, "ao_floor", 0.28),
+                 distance=getattr(model, "ao_distance", 1.1))
     tris = 0
     for obj in objects:
         obj.data.calc_loop_triangles()

@@ -282,7 +282,26 @@ SOLDIER_RIG = Rig([
 ])
 
 
-def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WHITE):
+## Infantry values, chosen against the TERRAIN rather than against each
+## other. Measured: OLIVE (the old uniform) is luma 0.305 and the grass
+## it stands on is 0.311 - the man was the same value as the ground, so
+## nothing but his boots ever separated him from it. Terrain spans
+## 0.146 (dark grass) to 0.494 (dry), so the soldier straddles that band
+## instead of sitting inside it: a dark body with one bright cap, so
+## whichever ground he is on, one end of him contrasts.
+FATIGUE = (0.170, 0.210, 0.130)        # luma 0.19  torso and sleeves
+TROUSER = (0.138, 0.172, 0.105)        # luma 0.155
+WEBBING = (0.112, 0.138, 0.088)        # luma 0.125 the dark core
+RUCK = (0.125, 0.155, 0.098)           # luma 0.14
+BOOT = (0.095, 0.108, 0.082)           # luma 0.10
+BOOT_SOLE = (0.058, 0.063, 0.055)      # luma 0.06  darkest, anchors him
+GLOVE = (0.085, 0.097, 0.075)          # luma 0.09
+HELMET_SHELL = (0.240, 0.270, 0.230)   # luma 0.26  below grass
+WEAPON_BLACK = (0.075, 0.086, 0.078)   # luma 0.08  max contrast
+
+
+def soldier(m, uniform=FATIGUE, gear=WEBBING, helmet="Faction", helmet_color=WHITE,
+            trouser=None, pack="standard"):
     """The shared humanoid, as ONE skinned mesh on SOLDIER_RIG.
 
     Bone positions are fixed by the rig, so everything here is shaped
@@ -299,22 +318,23 @@ def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WH
     Returns the node so a variant can add its own kit, tagging each piece
     with the bone that should carry it.
     """
+    legs = trouser if trouser is not None else TROUSER
     n = m.skinned("Soldier", SOLDIER_RIG)
 
     for side, x in (("L", -HIP_X), ("R", HIP_X)):
         n.bone("upper_leg.%s" % side)
         ## Thigh into knee: the taper is what stops a leg reading as a
         ## post. Knees sit at KNEE_Y, so the break lands where it bends.
-        n.box((0.19, 0.38, 0.21), (x, 0.67, 0), "Body", uniform, taper=0.86)
+        n.box((0.19, 0.38, 0.21), (x, 0.67, 0), "Body", legs, taper=0.86)
         n.bone("lower_leg.%s" % side)
-        n.box((0.15, 0.36, 0.17), (x, 0.32, 0), "Body", uniform, taper=1.06)
+        n.box((0.15, 0.36, 0.17), (x, 0.32, 0), "Body", legs, taper=1.06)
         ## Boot: upper, then a sole that oversails it. The sole is the
         ## bit that reads - it breaks the leg's line at the ground.
-        n.box((0.16, 0.11, 0.23), (x, 0.095, -0.02), "Body", gear)
-        n.box((0.18, 0.045, 0.27), (x, 0.025, -0.03), "Body", RUBBER)
+        n.box((0.16, 0.11, 0.23), (x, 0.095, -0.02), "Body", BOOT)
+        n.box((0.18, 0.045, 0.27), (x, 0.025, -0.03), "Body", BOOT_SOLE)
 
     n.bone("pelvis")
-    n.box((0.40, 0.24, 0.25), (0, 0.97, 0), "Body", uniform, taper=1.04)
+    n.box((0.40, 0.24, 0.25), (0, 0.97, 0), "Body", legs, taper=1.04)
     ## Belt, in the darker gear colour: a value break at the waist is
     ## most of what separates legs from torso at distance.
     n.box((0.43, 0.07, 0.28), (0, 1.07, 0), "Body", gear)
@@ -328,19 +348,28 @@ def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WH
     n.box((0.40, 0.30, 0.17), (0, 1.22, 0.10), "Body", gear)
     for px in (-0.11, 0.11):
         n.box((0.11, 0.09, 0.07), (px, 1.11, 0.17), "Body", gear)
-    n.box((0.30, 0.26, 0.15), (0, 1.26, -0.17), "Body", gear)  # pack
+    ## The pack carries ROLE, so the rifleman does without one entirely -
+    ## his outline is the plain one everything else is read against.
+    if pack == "standard":
+        n.box((0.30, 0.26, 0.15), (0, 1.26, -0.17), "Body", RUCK)
+    elif pack == "tall":
+        n.box((0.34, 0.40, 0.17), (0, 1.36, -0.18), "Body", RUCK)
 
     ## Shoulders. These widen the outline at the top, which is what makes
     ## a silhouette read as a man rather than a bottle.
     for side, x in (("L", -SHOULDER_X), ("R", SHOULDER_X)):
         n.bone("spine")
         n.box((0.14, 0.12, 0.20), (x * 0.82, 1.33, 0), "Body", gear)
+        ## Faction goes HERE rather than on the helmet. Two up-facing
+        ## marks, far apart, survive partial occlusion and read as a man
+        ## wearing something; one big coloured dome reads as a toy.
+        n.box((0.145, 0.035, 0.175), (x * 0.82, 1.395, 0), helmet, helmet_color)
         n.bone("upper_arm.%s" % side)
         n.box((0.13, 0.25, 0.15), (x, 1.23, 0), "Body", uniform, taper=0.92)
         n.bone("lower_arm.%s" % side)
         n.box((0.115, 0.22, 0.13), (x, 1.01, 0), "Body", uniform, taper=1.05)
         ## A hand, so the arm stops instead of being cut off.
-        n.box((0.10, 0.11, 0.12), (x, 0.855, 0.01), "Body", gear)
+        n.box((0.10, 0.11, 0.12), (x, 0.855, 0.01), "Body", GLOVE)
 
     n.bone("spine")
     ## Neck. Its absence was why the head looked balanced on the torso.
@@ -353,9 +382,14 @@ def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WH
     ## single biggest shape on him. Lower and flatter now, sitting ON the
     ## head, with a brim and a dark liner band so the coloured part is a
     ## painted shell rather than a ball.
-    n.sphere(0.183, (0, 1.628, 0.005), helmet, helmet_color,
+    ## The shell is BODY-coloured now. It used to be the faction slot,
+    ## which put roughly 38% of the top-down silhouette in team colour
+    ## against the 8-15% this project's own art direction asks for -
+    ## that proportion is the toy tell. Only the crown band is faction.
+    n.sphere(0.183, (0, 1.628, 0.005), "Body", HELMET_SHELL,
              rings=4, segments=8, squash=0.60, smooth=False)
-    n.box((0.33, 0.032, 0.345), (0, 1.596, 0.004), helmet, helmet_color)
+    n.box((0.33, 0.032, 0.345), (0, 1.596, 0.004), "Body", HELMET_SHELL)
+    n.box((0.265, 0.030, 0.275), (0, 1.672, 0.004), helmet, helmet_color)
     n.box((0.295, 0.034, 0.305), (0, 1.568, 0.004), "Body", gear)
     return n
 
@@ -368,15 +402,17 @@ def _weapon(n):
 def rifle_soldier():
     m = Model("rifle_soldier", "units")
     m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
-    n = soldier(m)
+    m.ao_distance = 0.22  # crease under brim and pack, not a dimmed figure
+    m.ao_floor = 0.40
+    n = soldier(m, pack=None)
     _weapon(n)
     ## Receiver, barrel, magazine, stock. A rifle made of one slab reads
     ## as a plank from any angle; the magazine under the receiver is the
     ## single piece that most says "weapon" at a glance.
-    n.box((0.065, 0.09, 0.40), (0.08, 1.12, -0.18), "Metal", GUNMETAL)
-    n.box((0.035, 0.045, 0.46), (0.08, 1.135, -0.58), "Metal", GUNMETAL)
-    n.box((0.05, 0.15, 0.09), (0.08, 1.035, -0.20), "Metal", GUNMETAL)
-    n.box((0.06, 0.085, 0.26), (0.08, 1.10, 0.14), "Metal", OLIVE_DARK)
+    n.box((0.065, 0.09, 0.40), (0.08, 1.12, -0.18), "Metal", WEAPON_BLACK)
+    n.box((0.035, 0.045, 0.46), (0.08, 1.135, -0.58), "Metal", WEAPON_BLACK)
+    n.box((0.05, 0.15, 0.09), (0.08, 1.035, -0.20), "Metal", WEAPON_BLACK)
+    n.box((0.06, 0.085, 0.26), (0.08, 1.10, 0.14), "Metal", WEAPON_BLACK)
     return m
 
 
@@ -385,7 +421,9 @@ def at_squad():
     the back - the tube is what says 'this one kills tanks'."""
     m = Model("at_squad", "units")
     m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
-    n = soldier(m, uniform=FIELD_GREEN)
+    m.ao_distance = 0.22  # crease under brim and pack, not a dimmed figure
+    m.ao_floor = 0.40
+    n = soldier(m, pack="tall")
     _weapon(n)
     n.cylinder(0.11, 1.3, (0.2, 1.5, -0.1), "Metal", OLIVE_DARK, axis="z", segments=8)
     n.cylinder(0.14, 0.2, (0.2, 1.5, -0.78), "Metal", SHADOW, axis="z", segments=8)
@@ -401,6 +439,8 @@ def engineer():
     soldier carrying something square."""
     m = Model("engineer", "units")
     m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
+    m.ao_distance = 0.22  # crease under brim and pack, not a dimmed figure
+    m.ao_floor = 0.40
     n = soldier(m, uniform=SAND_DARK, gear=RUST)
     ## Toolbox in the right hand and wrench in the left, carried by the
     ## forearm bones so they swing with the arms.
@@ -418,6 +458,8 @@ def spy():
     humanoid; the coat does the work."""
     m = Model("spy", "units")
     m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
+    m.ao_distance = 0.22  # crease under brim and pack, not a dimmed figure
+    m.ao_floor = 0.40
     n = m.skinned("Soldier", SOLDIER_RIG)
 
     for side, x in (("L", -HIP_X), ("R", HIP_X)):
@@ -469,6 +511,8 @@ def attack_dog():
     One skinned mesh on its own four-legged skeleton."""
     m = Model("attack_dog", "units")
     m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
+    m.ao_distance = 0.22  # crease under brim and pack, not a dimmed figure
+    m.ao_floor = 0.40
     n = m.skinned("Dog", DOG_RIG)
 
     n.bone("spine")
