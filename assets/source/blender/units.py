@@ -285,11 +285,16 @@ SOLDIER_RIG = Rig([
 def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WHITE):
     """The shared humanoid, as ONE skinned mesh on SOLDIER_RIG.
 
-    Proportions are unchanged from the jointed version - head and helmet
-    a little large, shoulders wide, weapon thick - because those are what
-    make a man read at a dozen pixels. What changed is that the parts are
-    no longer separate scene nodes: a soldier used to cost fourteen draw
-    calls, seven of them in the shadow pass.
+    Bone positions are fixed by the rig, so everything here is shaped
+    AROUND them. What this is trying to fix is that the old figure was
+    seven bare boxes - no neck, no hands, a slab for a torso - which read
+    as a toy however well it was lit.
+
+    The additions are all silhouette or light-catching, because those are
+    the only two things that survive to the gameplay camera: a neck so
+    the head is attached to something, hands so the arms end, shoulders
+    and a tapered chest so the outline is a person's, webbing so the
+    front is not one flat plane, and boots with a sole.
 
     Returns the node so a variant can add its own kit, tagging each piece
     with the bone that should carry it.
@@ -298,29 +303,60 @@ def soldier(m, uniform=OLIVE, gear=OLIVE_DARK, helmet="Faction", helmet_color=WH
 
     for side, x in (("L", -HIP_X), ("R", HIP_X)):
         n.bone("upper_leg.%s" % side)
-        n.box((0.17, 0.38, 0.19), (x, 0.67, 0), "Body", uniform, taper=0.94)
+        ## Thigh into knee: the taper is what stops a leg reading as a
+        ## post. Knees sit at KNEE_Y, so the break lands where it bends.
+        n.box((0.19, 0.38, 0.21), (x, 0.67, 0), "Body", uniform, taper=0.86)
         n.bone("lower_leg.%s" % side)
-        n.box((0.16, 0.36, 0.18), (x, 0.32, 0), "Body", uniform, taper=0.92)
-        n.box((0.16, 0.14, 0.26), (x, 0.07, -0.04), "Body", RUBBER)
+        n.box((0.15, 0.36, 0.17), (x, 0.32, 0), "Body", uniform, taper=1.06)
+        ## Boot: upper, then a sole that oversails it. The sole is the
+        ## bit that reads - it breaks the leg's line at the ground.
+        n.box((0.16, 0.11, 0.23), (x, 0.095, -0.02), "Body", gear)
+        n.box((0.18, 0.045, 0.27), (x, 0.025, -0.03), "Body", RUBBER)
 
     n.bone("pelvis")
-    n.box((0.42, 0.26, 0.26), (0, 0.97, 0), "Body", uniform)
-    n.bone("spine")
-    n.box((0.46, 0.42, 0.28), (0, 1.21, 0), "Body", uniform, taper=0.92)
-    n.box((0.5, 0.36, 0.32), (0, 1.12, 0), "Body", gear)
-    n.box((0.34, 0.3, 0.16), (0, 1.14, 0.2), "Body", gear)  # pack
+    n.box((0.40, 0.24, 0.25), (0, 0.97, 0), "Body", uniform, taper=1.04)
+    ## Belt, in the darker gear colour: a value break at the waist is
+    ## most of what separates legs from torso at distance.
+    n.box((0.43, 0.07, 0.28), (0, 1.07, 0), "Body", gear)
 
+    n.bone("spine")
+    ## Chest widening upward into the shoulders, not a straight slab.
+    n.box((0.40, 0.34, 0.26), (0, 1.26, 0), "Body", uniform, taper=1.12)
+    ## Plate carrier, standing proud of the chest, plus pouches. Three
+    ## small boxes are worth more than any amount of surface detail:
+    ## they put real edges on the front of the man.
+    n.box((0.40, 0.30, 0.17), (0, 1.22, 0.10), "Body", gear)
+    for px in (-0.11, 0.11):
+        n.box((0.11, 0.09, 0.07), (px, 1.11, 0.17), "Body", gear)
+    n.box((0.30, 0.26, 0.15), (0, 1.26, -0.17), "Body", gear)  # pack
+
+    ## Shoulders. These widen the outline at the top, which is what makes
+    ## a silhouette read as a man rather than a bottle.
     for side, x in (("L", -SHOULDER_X), ("R", SHOULDER_X)):
+        n.bone("spine")
+        n.box((0.14, 0.12, 0.20), (x * 0.82, 1.33, 0), "Body", gear)
         n.bone("upper_arm.%s" % side)
-        n.box((0.13, 0.25, 0.14), (x, 1.23, 0), "Body", uniform)
+        n.box((0.13, 0.25, 0.15), (x, 1.23, 0), "Body", uniform, taper=0.92)
         n.bone("lower_arm.%s" % side)
-        n.box((0.12, 0.24, 0.13), (x, 1.00, 0), "Body", uniform)
+        n.box((0.115, 0.22, 0.13), (x, 1.01, 0), "Body", uniform, taper=1.05)
+        ## A hand, so the arm stops instead of being cut off.
+        n.box((0.10, 0.11, 0.12), (x, 0.855, 0.01), "Body", gear)
+
+    n.bone("spine")
+    ## Neck. Its absence was why the head looked balanced on the torso.
+    n.box((0.12, 0.09, 0.12), (0, 1.455, 0), "Body", SAND_DARK)
 
     n.bone("head")
-    n.box((0.2, 0.22, 0.2), (0, 1.56, 0), "Body", SAND)
-    n.sphere(0.2, (0, 1.66, 0.01), helmet, helmet_color,
-             rings=4, segments=8, squash=0.75, smooth=False)
-    n.box((0.36, 0.04, 0.38), (0, 1.62, 0.0), helmet, helmet_color)
+    n.box((0.19, 0.21, 0.20), (0, 1.57, 0.005), "Body", SAND, taper=0.94)
+    ## Helmet. It used to be a tall dome floating above the skull, which
+    ## is most of why the man read as a toy: the faction colour was the
+    ## single biggest shape on him. Lower and flatter now, sitting ON the
+    ## head, with a brim and a dark liner band so the coloured part is a
+    ## painted shell rather than a ball.
+    n.sphere(0.183, (0, 1.628, 0.005), helmet, helmet_color,
+             rings=4, segments=8, squash=0.60, smooth=False)
+    n.box((0.33, 0.032, 0.345), (0, 1.596, 0.004), helmet, helmet_color)
+    n.box((0.295, 0.034, 0.305), (0, 1.568, 0.004), "Body", gear)
     return n
 
 
@@ -331,11 +367,16 @@ def _weapon(n):
 
 def rifle_soldier():
     m = Model("rifle_soldier", "units")
-    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
     n = soldier(m)
     _weapon(n)
-    n.box((0.07, 0.1, 0.9), (0.08, 1.12, -0.36), "Metal", GUNMETAL)
-    n.box((0.06, 0.16, 0.1), (0.08, 1.02, -0.3), "Metal", GUNMETAL)
+    ## Receiver, barrel, magazine, stock. A rifle made of one slab reads
+    ## as a plank from any angle; the magazine under the receiver is the
+    ## single piece that most says "weapon" at a glance.
+    n.box((0.065, 0.09, 0.40), (0.08, 1.12, -0.18), "Metal", GUNMETAL)
+    n.box((0.035, 0.045, 0.46), (0.08, 1.135, -0.58), "Metal", GUNMETAL)
+    n.box((0.05, 0.15, 0.09), (0.08, 1.035, -0.20), "Metal", GUNMETAL)
+    n.box((0.06, 0.085, 0.26), (0.08, 1.10, 0.14), "Metal", OLIVE_DARK)
     return m
 
 
@@ -343,7 +384,7 @@ def at_squad():
     """Anti-tank team: a launcher on the shoulder, fat tube, spare rocket on
     the back - the tube is what says 'this one kills tanks'."""
     m = Model("at_squad", "units")
-    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
     n = soldier(m, uniform=FIELD_GREEN)
     _weapon(n)
     n.cylinder(0.11, 1.3, (0.2, 1.5, -0.1), "Metal", OLIVE_DARK, axis="z", segments=8)
@@ -359,7 +400,7 @@ def engineer():
     """Engineer: no rifle, a big toolbox and a hard hat stripe - the only
     soldier carrying something square."""
     m = Model("engineer", "units")
-    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
     n = soldier(m, uniform=SAND_DARK, gear=RUST)
     ## Toolbox in the right hand and wrench in the left, carried by the
     ## forearm bones so they swing with the arms.
@@ -376,7 +417,7 @@ def spy():
     civilian silhouette among soldiers. Same skeleton as every other
     humanoid; the coat does the work."""
     m = Model("spy", "units")
-    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
     n = m.skinned("Soldier", SOLDIER_RIG)
 
     for side, x in (("L", -HIP_X), ("R", HIP_X)):
@@ -427,7 +468,7 @@ def attack_dog():
     """Attack dog: low and long, head up, tail out, a faction collar.
     One skinned mesh on its own four-legged skeleton."""
     m = Model("attack_dog", "units")
-    m.bevel = 0.0  # sub-pixel at RTS zoom; it tripled the triangles
+    m.bevel = 0.018  # edge highlights; flat boxes are why he read as a toy
     n = m.skinned("Dog", DOG_RIG)
 
     n.bone("spine")
