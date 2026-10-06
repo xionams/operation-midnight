@@ -45,12 +45,12 @@ func _ready() -> void:
 	## One man, four sides, close enough to count the polygons.
 	var man := _spawn(RIFLE, _at)
 	await _settle(man)
-	var eye: float = 1.05
+	var eye: float = 1.15
 	for shot in [["front", 0.0], ["three_quarter", 38.0],
 			["side", 90.0], ["back", 180.0]]:
 		var a: float = deg_to_rad(float(shot[1]))
-		_look_from(_at + Vector3(sin(a) * 2.5, eye, cos(a) * 2.5),
-			_at + Vector3(0, 0.90, 0))
+		_look_from(_at + Vector3(sin(a) * 2.9, eye, cos(a) * 2.9),
+			_at + Vector3(0, 0.98, 0))
 		await _save("soldier_%s" % shot[0])
 
 	## The whole family, so the silhouettes can be compared.

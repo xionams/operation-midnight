@@ -256,22 +256,31 @@ ASSETS = {
 # stand, walk, run, crouch and fire instead of being frozen in one of
 # them.
 
-HIP_Y, HIP_X = 0.86, 0.12
-SHOULDER_Y, SHOULDER_X = 1.35, 0.27
-NECK_Y = 1.44
-KNEE_Y, ELBOW_Y = 0.50, 1.12
+## Landmarks as fractions of a 1.80m man, after Drillis & Contini (1966)
+## via Winter fig 4.1. The old skeleton put the hip at 0.86 (0.478H
+## against a real 0.530H), the shoulder at 1.35 (0.750H against 0.818H)
+## and the chin at 1.44 (0.800H against 0.870H): stubby legs, a stretched
+## torso and a head sunk into the shoulders. Those are dwarf proportions,
+## and no amount of shading or kit rescues them - a figure reads as human
+## because the joints are where a human's are, and because there is
+## daylight under the chin.
+HIP_Y, HIP_X = 0.95, 0.13
+SHOULDER_Y, SHOULDER_X = 1.47, 0.27
+NECK_Y = 1.57
+KNEE_Y, ELBOW_Y = 0.51, 1.13
+WRIST_Y = 0.87
 
 ## One skeleton for every humanoid. Roles differ by weapon, webbing,
 ## headgear and vertex colour - not by a rendering architecture each.
 SOLDIER_RIG = Rig([
     ("root",         (0, 0, 0),                   (0, 0.2, 0),                None),
-    ("pelvis",       (0, HIP_Y, 0),               (0, 1.02, 0),               "root"),
-    ("spine",        (0, 1.02, 0),                (0, 1.40, 0),               "pelvis"),
+    ("pelvis",       (0, HIP_Y, 0),               (0, 1.10, 0),               "root"),
+    ("spine",        (0, 1.10, 0),                (0, SHOULDER_Y, 0),         "pelvis"),
     ("head",         (0, NECK_Y, 0),              (0, 1.80, 0),               "spine"),
     ("upper_arm.L",  (-SHOULDER_X, SHOULDER_Y, 0), (-SHOULDER_X, ELBOW_Y, 0), "spine"),
-    ("lower_arm.L",  (-SHOULDER_X, ELBOW_Y, 0),   (-SHOULDER_X, 0.90, 0),     "upper_arm.L"),
+    ("lower_arm.L",  (-SHOULDER_X, ELBOW_Y, 0),   (-SHOULDER_X, WRIST_Y, 0),  "upper_arm.L"),
     ("upper_arm.R",  (SHOULDER_X, SHOULDER_Y, 0), (SHOULDER_X, ELBOW_Y, 0),   "spine"),
-    ("lower_arm.R",  (SHOULDER_X, ELBOW_Y, 0),    (SHOULDER_X, 0.90, 0),      "upper_arm.R"),
+    ("lower_arm.R",  (SHOULDER_X, ELBOW_Y, 0),    (SHOULDER_X, WRIST_Y, 0),   "upper_arm.R"),
     ("upper_leg.L",  (-HIP_X, HIP_Y, 0),          (-HIP_X, KNEE_Y, 0),        "pelvis"),
     ("lower_leg.L",  (-HIP_X, KNEE_Y, 0),         (-HIP_X, 0.14, 0),          "upper_leg.L"),
     ("upper_leg.R",  (HIP_X, HIP_Y, 0),           (HIP_X, KNEE_Y, 0),         "pelvis"),
@@ -280,6 +289,19 @@ SOLDIER_RIG = Rig([
     ## more: the weapon moves because its bone does.
     ("weapon",       (0.08, ELBOW_Y, 0),          (0.08, ELBOW_Y, -0.5),      "lower_arm.R"),
 ])
+
+
+## Helmet plan: an EGG, deeper than wide and narrower at the front. From
+## a 62-degree camera the helmet outline is the only facing cue infantry
+## have, and a circle gives none.
+HELM_PLAN = [(-0.102, -0.128), (0.102, -0.128), (0.126, -0.005),
+             (0.106, 0.118), (0.0, 0.162), (-0.106, 0.118), (-0.126, -0.005)]
+
+
+def _scaled(outline, k):
+    cx = sum(p[0] for p in outline) / len(outline)
+    cz = sum(p[1] for p in outline) / len(outline)
+    return [(cx + (x - cx) * k, cz + (z - cz) * k) for x, z in outline]
 
 
 ## Infantry values, chosen against the TERRAIN rather than against each
@@ -323,74 +345,64 @@ def soldier(m, uniform=FATIGUE, gear=WEBBING, helmet="Faction", helmet_color=WHI
 
     for side, x in (("L", -HIP_X), ("R", HIP_X)):
         n.bone("upper_leg.%s" % side)
-        ## Thigh into knee: the taper is what stops a leg reading as a
-        ## post. Knees sit at KNEE_Y, so the break lands where it bends.
-        n.box((0.19, 0.38, 0.21), (x, 0.67, 0), "Body", legs, taper=0.86)
+        ## Thigh 0.51-0.95, shin 0.14-0.51: a real leg is half the man.
+        ## Narrow enough that daylight shows between the legs, which is
+        ## one of the strongest "this is a person" cues at any distance.
+        n.box((0.165, 0.44, 0.19), (x, 0.73, 0), "Body", legs, taper=0.84)
         n.bone("lower_leg.%s" % side)
-        n.box((0.15, 0.36, 0.17), (x, 0.32, 0), "Body", legs, taper=1.06)
-        ## Boot: upper, then a sole that oversails it. The sole is the
-        ## bit that reads - it breaks the leg's line at the ground.
-        n.box((0.16, 0.11, 0.23), (x, 0.095, -0.02), "Body", BOOT)
-        n.box((0.18, 0.045, 0.27), (x, 0.025, -0.03), "Body", BOOT_SOLE)
+        n.box((0.135, 0.37, 0.155), (x, 0.325, 0), "Body", legs, taper=1.05)
+        n.box((0.15, 0.115, 0.22), (x, 0.1, -0.02), "Body", BOOT)
+        n.box((0.17, 0.045, 0.26), (x, 0.025, -0.03), "Body", BOOT_SOLE)
 
     n.bone("pelvis")
-    n.box((0.40, 0.24, 0.25), (0, 0.97, 0), "Body", legs, taper=1.04)
-    ## Belt, in the darker gear colour: a value break at the waist is
-    ## most of what separates legs from torso at distance.
-    n.box((0.43, 0.07, 0.28), (0, 1.07, 0), "Body", gear)
+    ## Hips: short, and narrower than the chest. The waist is the pinch
+    ## that makes a torso a torso rather than a column.
+    n.box((0.32, 0.15, 0.22), (0, 1.025, 0), "Body", legs, taper=1.05)
+    n.box((0.35, 0.055, 0.25), (0, 1.095, 0), "Body", WEBBING)  # belt
 
     n.bone("spine")
-    ## Chest widening upward into the shoulders, not a straight slab.
-    n.box((0.40, 0.34, 0.26), (0, 1.26, 0), "Body", uniform, taper=1.12)
-    ## Plate carrier, standing proud of the chest, plus pouches. Three
-    ## small boxes are worth more than any amount of surface detail:
-    ## they put real edges on the front of the man.
-    n.box((0.40, 0.30, 0.17), (0, 1.22, 0.10), "Body", gear)
-    for px in (-0.11, 0.11):
-        n.box((0.11, 0.09, 0.07), (px, 1.11, 0.17), "Body", gear)
-    ## The pack carries ROLE, so the rifleman does without one entirely -
-    ## his outline is the plain one everything else is read against.
+    ## Chest 1.10-1.47, widening into the shoulders.
+    n.box((0.33, 0.37, 0.22), (0, 1.285, 0), "Body", uniform, taper=1.18)
+    n.box((0.34, 0.28, 0.15), (0, 1.27, 0.09), "Body", gear)   # plate carrier
+    for px in (-0.09, 0.09):
+        n.box((0.095, 0.08, 0.06), (px, 1.15, 0.145), "Body", gear)
     if pack == "standard":
-        n.box((0.30, 0.26, 0.15), (0, 1.26, -0.17), "Body", RUCK)
+        n.box((0.27, 0.25, 0.14), (0, 1.30, -0.155), "Body", RUCK)
     elif pack == "tall":
-        n.box((0.34, 0.40, 0.17), (0, 1.36, -0.18), "Body", RUCK)
+        n.box((0.30, 0.38, 0.16), (0, 1.40, -0.165), "Body", RUCK)
 
-    ## Shoulders. These widen the outline at the top, which is what makes
-    ## a silhouette read as a man rather than a bottle.
     for side, x in (("L", -SHOULDER_X), ("R", SHOULDER_X)):
         n.bone("spine")
-        n.box((0.14, 0.12, 0.20), (x * 0.82, 1.33, 0), "Body", gear)
-        ## Faction goes HERE rather than on the helmet. Two up-facing
-        ## marks, far apart, survive partial occlusion and read as a man
-        ## wearing something; one big coloured dome reads as a toy.
-        n.box((0.145, 0.035, 0.175), (x * 0.82, 1.395, 0), helmet, helmet_color)
+        n.box((0.13, 0.11, 0.185), (x * 0.80, 1.45, 0), "Body", gear)
+        ## Faction mark: up-facing, two of them, far apart.
+        n.box((0.135, 0.032, 0.16), (x * 0.80, 1.505, 0), helmet, helmet_color)
         n.bone("upper_arm.%s" % side)
-        n.box((0.13, 0.25, 0.15), (x, 1.23, 0), "Body", uniform, taper=0.92)
+        n.box((0.115, 0.34, 0.125), (x, 1.30, 0), "Body", uniform, taper=0.90)
         n.bone("lower_arm.%s" % side)
-        n.box((0.115, 0.22, 0.13), (x, 1.01, 0), "Body", uniform, taper=1.05)
-        ## A hand, so the arm stops instead of being cut off.
-        n.box((0.10, 0.11, 0.12), (x, 0.855, 0.01), "Body", GLOVE)
+        n.box((0.10, 0.26, 0.11), (x, 1.00, 0), "Body", uniform, taper=1.04)
+        n.box((0.095, 0.105, 0.11), (x, 0.815, 0.01), "Body", GLOVE)
 
     n.bone("spine")
-    ## Neck. Its absence was why the head looked balanced on the torso.
-    n.box((0.12, 0.09, 0.12), (0, 1.455, 0), "Body", SAND_DARK)
+    ## Neck. Shoulders top out at 1.505 and the chin is at 1.57, so there
+    ## is finally visible daylight under the head - which is most of what
+    ## separates a man from a peg with a hat on.
+    n.box((0.105, 0.085, 0.105), (0, 1.525, 0), "Body", SAND_DARK)
 
     n.bone("head")
-    n.box((0.19, 0.21, 0.20), (0, 1.57, 0.005), "Body", SAND, taper=0.94)
-    ## Helmet. It used to be a tall dome floating above the skull, which
-    ## is most of why the man read as a toy: the faction colour was the
-    ## single biggest shape on him. Lower and flatter now, sitting ON the
-    ## head, with a brim and a dark liner band so the coloured part is a
-    ## painted shell rather than a ball.
-    ## The shell is BODY-coloured now. It used to be the faction slot,
-    ## which put roughly 38% of the top-down silhouette in team colour
-    ## against the 8-15% this project's own art direction asks for -
-    ## that proportion is the toy tell. Only the crown band is faction.
-    n.sphere(0.183, (0, 1.628, 0.005), "Body", HELMET_SHELL,
-             rings=4, segments=8, squash=0.60, smooth=False)
-    n.box((0.33, 0.032, 0.345), (0, 1.596, 0.004), "Body", HELMET_SHELL)
-    n.box((0.265, 0.030, 0.275), (0, 1.672, 0.004), helmet, helmet_color)
-    n.box((0.295, 0.034, 0.305), (0, 1.568, 0.004), "Body", gear)
+    ## Narrower than it is deep, as a head is. A cube head is the single
+    ## loudest toy signal on a figure this size.
+    n.box((0.175, 0.195, 0.205), (0, 1.665, 0.005), "Body", SAND, taper=0.93)
+    ## Helmet. One faceted dome rather than stacked rings - layering thin
+    ## plan slices to get an egg plan put a bevelled seam at every joint
+    ## and the whole thing read as a beehive. It sits low enough to cover
+    ## the skull, so only the face shows beneath it, and a brim at the
+    ## front gives the facing cue the round plan cannot.
+    n.sphere(0.136, (0, 1.712, 0.004), "Body", HELMET_SHELL,
+             rings=4, segments=10, squash=0.82, smooth=False)
+    n.box((0.225, 0.034, 0.10), (0, 1.651, -0.105), "Body", HELMET_SHELL)
+    ## Crown in faction colour: small, up-facing, on the surface an RTS
+    ## camera sees most of.
+    n.box((0.165, 0.030, 0.185), (0, 1.818, 0.012), helmet, helmet_color)
     return n
 
 
