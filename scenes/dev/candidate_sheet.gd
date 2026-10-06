@@ -1,18 +1,15 @@
 extends Node3D
 
-## Free rigged soldier candidates, side by side with ours, all scaled to
-## the same height so the comparison is about the MODEL and not about
-## whatever units each pack happened to be authored in.
+## Free rigged soldier candidates, one render each.
+##
+## Laying them out in a single row and normalising by AABB failed: some
+## packs ship a weapon or a prop far from the body, so the bounds are
+## huge, the body scales to nothing and whatever is left fills the lens.
+## One at a time, each framed on its own bounds, is immune to that.
 
-const CANDIDATES := [
-	"res://assets/models/_candidates/quat_soldier.glb",
-	"res://assets/models/_candidates/quat_swat.glb",
-	"res://assets/models/_candidates/madtroll_military.glb",
-	"res://assets/models/_candidates/jtoastie_soldier.glb",
-	"res://assets/models/_candidates/kolos_soldier.glb",
-	"res://assets/models/units/rifle_soldier.glb",
-]
 const TARGET_H: float = 1.8
+
+var _cam: Camera3D
 
 func _ready() -> void:
 	var sun := DirectionalLight3D.new()
@@ -34,58 +31,60 @@ func _ready() -> void:
 
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(40, 40)
+	plane.size = Vector2(60, 60)
 	ground.mesh = plane
 	var gm := StandardMaterial3D.new()
 	gm.albedo_color = Color(0.30, 0.33, 0.28)
 	ground.material_override = gm
 	add_child(ground)
 
-	var x: float = -3.6
-	for path in CANDIDATES:
+	_cam = Camera3D.new()
+	add_child(_cam)
+	_cam.fov = 42.0
+	_cam.current = true
+
+	var dir := DirAccess.open("res://assets/models/_candidates")
+	var files: Array = []
+	if dir:
+		for f in dir.get_files():
+			if f.ends_with(".glb"):
+				files.append("res://assets/models/_candidates/" + f)
+	files.sort()
+	files.append("res://assets/models/units/rifle_soldier.glb")
+
+	for path in files:
 		var scene: PackedScene = load(path)
 		if scene == null:
-			push_warning("missing %s" % path)
 			continue
 		var inst: Node3D = scene.instantiate()
 		add_child(inst)
-		for i in 2:
+		for i in 3:
 			await get_tree().process_frame
 		var box: AABB = _bounds(inst)
-		## A Mixamo-rigged export reports a near-zero bind AABB; skip it
-		## rather than scale it by two thousand.
 		if box.size.y < 0.2:
-			print("CAND| %-26s unusable bounds (%.3fm) - skipped" % [
-				path.get_file(), box.size.y])
+			print("CAND| %-42s unusable bounds - skipped" % path.get_file())
 			inst.queue_free()
 			continue
-		var k: float = TARGET_H / maxf(box.size.y, 0.001)
+		var k: float = TARGET_H / box.size.y
 		inst.scale = Vector3(k, k, k)
-		## Sit on the floor and centre horizontally, whatever origin the
-		## pack used.
-		inst.position = Vector3(x - box.get_center().x * k,
-			-box.position.y * k, -box.get_center().z * k)
-		print("CAND| %-26s %5.2fm raw  x%.2f" % [
-			path.get_file(), box.size.y, k])
-		x += 1.5
-
-	var cam := Camera3D.new()
-	add_child(cam)
-	cam.position = Vector3(0, 1.30, 7.4)
-	cam.look_at(Vector3(0, 0.92, 0), Vector3.UP)
-	cam.fov = 46.0
-	cam.current = true
-	for i in 20:
+		inst.position = Vector3(-box.get_center().x * k, -box.position.y * k,
+			-box.get_center().z * k)
+		_cam.position = Vector3(0, 1.0, 3.4)
+		_cam.look_at(Vector3(0, 0.92, 0), Vector3.UP)
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var tag: String = path.get_file().replace(".glb", "")
+		get_viewport().get_texture().get_image().save_png(
+			"res://screenshots/cand_%s.png" % tag)
+		print("CAND| %-42s %5.2fm raw  x%.2f" % [path.get_file(), box.size.y, k])
+		inst.queue_free()
 		await get_tree().process_frame
-	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(
-		"res://screenshots/candidates.png")
+
 	print("CAND| DONE")
 	get_tree().quit()
 
-## Bounds in the INSTANCE's own space. Using each visual's local
-## transform instead of the whole chain to the root reported half these
-## packs as six centimetres tall.
+## Bounds in the INSTANCE's own space, from the whole transform chain.
 func _bounds(root: Node3D) -> AABB:
 	var to_local: Transform3D = root.global_transform.affine_inverse()
 	var out := AABB()

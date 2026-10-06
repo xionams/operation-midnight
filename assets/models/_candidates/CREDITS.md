@@ -1,18 +1,29 @@
 # Evaluation candidates — free rigged soldiers
 
-Downloaded for comparison only. Nothing here is wired into the game yet.
+Downloaded for comparison only. Nothing here is wired into the game.
+Source: https://poly.pizza (direct glTF from static.poly.pizza).
 
-| File | Author | Licence | Tris | Surfaces | Materials | Joints |
-|---|---|---|---|---|---|---|
-| quat_swat.glb | Quaternius | **CC0** | 7,752 | 9 | 4 | 62 |
-| quat_soldier.glb | Quaternius | CC-BY 3.0 (per Poly Pizza; quaternius.com states CC0 for its packs — confirm at source before shipping) | 7,900 | 11 | 6 | 62 |
-| madtroll_military.glb | madtrollstudio | CC-BY 3.0 | 12,202 | 6 | 1 (+texture) | 64 |
-| kolos_soldier.glb | KolosStudios | CC-BY 3.0 | 1,105 | 16 | 4 | **0 — not rigged** |
-| jtoastie_soldier.glb | J-Toastie | CC-BY 3.0 | 4,757 | 15 | 15 | 40 (Mixamo) |
+| File | Author | Licence | Tris | Surfaces | Materials | Joints | Reads as |
+|---|---|---|---|---|---|---|---|
+| SWAT_Quaternius | Quaternius | **CC0** | 7,752 | 9 | 4 | 62 | police/SWAT, not army |
+| Soldier_Quaternius | Quaternius | CC-BY 3.0* | 7,900 | 11 | 6 | 62 | tactical operative, no helmet |
+| Character-Soldier_Quaternius | Quaternius | **CC0** | 20,712 | 60 | 14 | 43 | cartoon/chibi soldier |
+| Military-man_madtrollstudio | madtrollstudio | CC-BY 3.0 | 12,202 | 6 | 1 (+tex) | 64 | closest to a uniformed soldier |
+| Soldier_KolosStudios | KolosStudios | CC-BY 3.0 | 3,095 | 7 | 5 | 49 | armoured trooper |
+| Soldier_J-Toastie | J-Toastie | CC-BY 3.0 | 4,757 | 15 | 15 | 40 | Mixamo rig; bind AABB unusable |
 
-Source: https://poly.pizza — direct glTF from static.poly.pizza.
+\* quaternius.com states CC0 for its packs; Poly Pizza labels this one
+CC-BY 3.0. Confirm at source before shipping.
 
-Ours for comparison: rifle_soldier.glb, 1,488 tris, 3 surfaces, 2 draw calls.
+Ours, for scale: rifle_soldier, 1,488 tris, 3 surfaces, **2 draw calls**.
 
-**Attribution:** anything CC-BY that ships must be credited, the way
+## The problem with all of them
+
+Every one carries 4-15 materials where ours has 2. With the shadow pass
+that is 8-30 draw calls per soldier against our 2, which would undo the
+Phase 6 and 7 draw-call work outright. They are flat-colour with no
+textures (except madtroll), so the fix is baking materials down to vertex
+colours - the thing om_kit already does - but it is real work per model.
+
+Attribution: anything CC-BY that ships must be credited, as
 assets/models/nature/CREDITS.md already does. CC0 carries no obligation.
