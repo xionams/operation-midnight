@@ -367,6 +367,9 @@ class Model:
 
     def node(self, name, origin=(0.0, 0.0, 0.0)):
         n = Node(name, origin)
+        ## A model may fold extra slots of its own - see Node.MERGE.
+        if getattr(self, "merge", None):
+            n.MERGE = dict(Node.MERGE, **self.merge)
         self.nodes.append(n)
         return n
 
@@ -380,6 +383,12 @@ class Model:
         its own surfaces. Bones move the same silhouette for one.
         """
         n = Node(name)
+        ## Same per-model slot folding as node(); a skinned model is the
+        ## one that cannot be instanced, so its surface count is the one
+        ## that actually multiplies.
+        if getattr(self, "merge", None):
+            n.MERGE = dict(Node.MERGE, **self.merge)
+
         n.rig = rig
         n.current_bone = None
         n.bone_verts = {}

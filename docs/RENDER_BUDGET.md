@@ -154,6 +154,39 @@ spent in `_process` before the renderer is asked for anything. This is
 why `DETAIL_RANGE` exists and why the next infantry win is a shared
 posing pass rather than more mesh work.
 
+## Folding Metal into Body: tried, measured, reverted
+
+A material slot is a draw call paid twice, so folding `Metal` into
+`Body` the way `Glass` already is looked like free money: it takes a
+main battle tank from 9 surfaces to 6 and a rifleman from 3 to 2, and
+at gameplay zoom it is visually free - the in-game A/B differs by a
+mean of 0.50 of 255 across the frame, with 1.3% of pixels touched, all
+of it specular glint on barrels and tracks.
+
+It bought nothing. `infantry_scale` reported 757 draws at 200 infantry
+before and after, with the measured infantry cost unchanged at 2 main
+draws and 1 shadow draw per soldier. The audit moved 649 -> 630 -> 620
+across the two folds, but `unit models` went UP (149 -> 157) and shadows
+168 -> 193 in those same runs: the audit scene has live combat, so its
+composition varies, and a 29-draw delta is inside that noise.
+
+So it was reverted. Taking a visual cost for a metric that does not move
+is the mistake this document exists to prevent.
+
+Two things worth keeping from it:
+
+**Static meshes instance; skinned meshes do not.** Thirty identical
+assault vehicles cost 210 draws whether each carries 8 surfaces or 6,
+because Godot batches identical static meshes. A skinned soldier cannot
+be instanced - every one carries its own skeleton - which is why the
+Phase 7 rig work cut draws 7x and why the same change on vehicles does
+nothing. **Vehicles are the largest TRIANGLE cost in the frame (52% of
+it); they are not the largest draw-call cost.**
+
+**Per-model slot folding exists if it is ever needed.** `Model.merge`
+overrides `Node.MERGE` for one model, and is honoured by both `node()`
+and `skinned()`. Nothing uses it today.
+
 ## Where it ended up
 
 Desktop Vulkan, same 60-unit scene: **1,688 → 967 → 649** draw calls
