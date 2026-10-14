@@ -546,8 +546,48 @@ def attack_dog():
         n.box((0.08, 0.42, 0.09), (x, 0.21, z), "Body", shade)
     return m
 
+def gunship():
+    """Attack helicopter: the first thing in this game that flies.
+
+    Read from directly above, which is how an RTS camera sees it, so the
+    rotor disc is the whole silhouette - it is wider than the hull and
+    nothing else in the game has that outline. The tail boom gives it a
+    facing the disc alone cannot.
+    """
+    m = Model("gunship", "units")
+    m.bevel = 0.04
+    n = m.node("Body")
+    ## Fuselage: nose low and tapered, cabin squat.
+    n.prism([(-1.9, 0.0), (-1.2, 0.55), (0.9, 0.7), (1.6, 0.45), (1.6, 0.0)],
+            -0.62, 0.62, "Body", FIELD_GREEN)
+    n.box((1.0, 0.26, 1.1), (0.0, 0.78, 0.15), "Glass", GLASS_DARK)
+    ## Stub wings carrying the rocket pods - the bit that says "gunship"
+    ## rather than "transport".
+    for x in (-1.05, 1.05):
+        n.box((0.7, 0.14, 0.5), (x, 0.42, 0.1), "Body", OLIVE_DARK)
+        n.cylinder(0.17, 0.62, (x, 0.3, 0.1), "Metal", GUNMETAL,
+                   axis="z", segments=8)
+    ## Tail boom and fin.
+    n.box((0.26, 0.24, 1.9), (0.0, 0.52, 1.55), "Body", FIELD_GREEN, taper=0.8)
+    n.box((0.1, 0.62, 0.42), (0.0, 0.72, 2.4), "Body", OLIVE_DARK)
+    n.box((0.5, 0.06, 0.3), (0.0, 1.0, 2.42), "Faction", WHITE)
+    ## Chin gun.
+    n.box((0.3, 0.22, 0.5), (0.0, 0.3, -1.45), "Metal", GUNMETAL)
+
+    ## Rotor, on its own node so it can spin.
+    r = m.node("Rotor", (0.0, 1.02, 0.1))
+    r.cylinder(0.16, 0.2, (0.0, 0.0, 0.0), "Metal", GUNMETAL, segments=8)
+    for angle in (0, 90, 180, 270):
+        r.box((0.3, 0.05, 4.4), (0.0, 0.08, 0.0), "Metal", SHADOW, rot_y=angle)
+    ## Tail rotor.
+    t = m.node("TailRotor", (0.16, 0.78, 2.42))
+    for angle in (0, 90):
+        t.box((0.06, 1.1, 0.14), (0.0, 0.0, 0.0), "Metal", SHADOW, rot_z=angle)
+    return m
+
 
 ASSETS.update({
+    "gunship": gunship,
     "rifle_soldier": rifle_soldier,
     "at_squad": at_squad,
     "engineer": engineer,

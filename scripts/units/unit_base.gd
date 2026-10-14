@@ -190,6 +190,12 @@ func _build_collision() -> void:
 	add_child(shape)
 
 func _build_nav_agent() -> void:
+	## An aircraft flies straight and holds its own altitude. Giving it an
+	## agent on the land mesh is what aborted the engine in testing: the
+	## agent steered it along the ground while the settle pass tried to
+	## hold it up, and the two fought until something gave.
+	if is_airborne():
+		return
 	nav_agent = NavigationAgent3D.new()
 	nav_agent.radius = stats.nav_radius if stats else 1.0
 	nav_agent.path_desired_distance = 0.6
@@ -228,6 +234,26 @@ func _build_infantry_stance() -> void:
 	## RVO clamps to max_speed, so it has to follow the posture or a
 	## running squad would be held to its crouched pace (or the reverse).
 	posture.mode_changed.connect(func(_mode): if nav_agent: nav_agent.max_speed = move_speed())
+
+## Cruise height above the ground an aircraft holds.
+const CRUISE_ALTITUDE: float = 9.0
+## How close to its destination a flight counts as arrived.
+const ARRIVAL: float = 1.5
+
+## Where an aircraft is flying. Ground units carry their destination in
+## the nav agent; an aircraft has none, so it carries its own.
+var _air_destination: Vector3 = Vector3.INF
+
+func is_airborne() -> bool:
+	return stats != null and stats.movement_domain == PlacementDomain.Domain.AIR
+
+## Is this unit still travelling? Ground units ask the nav agent, which
+## aircraft do not have - so everything that used to ask the agent
+## directly asks this instead.
+func is_moving() -> bool:
+	if is_airborne():
+		return _air_destination.is_finite()
+	return nav_agent != null and not nav_agent.is_navigation_finished()
 
 func is_naval() -> bool:
 	return stats != null and stats.movement_domain == PlacementDomain.Domain.WATER
@@ -361,6 +387,9 @@ func set_selected(selected: bool) -> void:
 		health_bar.set_selected(selected)
 
 func move_to(target_position: Vector3) -> void:
+	if is_airborne():
+		_air_destination = target_position
+		return
 	if nav_agent:
 		nav_agent.target_position = target_position
 
@@ -381,6 +410,7 @@ func muzzle_position() -> Vector3:
 	return global_position + Vector3.UP
 
 func stop_moving() -> void:
+	_air_destination = Vector3.INF
 	if nav_agent:
 		nav_agent.target_position = global_position
 	velocity = Vector3.ZERO
@@ -483,8 +513,7 @@ func _tick_combat_behavior(delta: float) -> void:
 		return
 
 	## An attack-mover with nothing to shoot resumes its advance.
-	if current_command == CommandTypes.Type.ATTACK_MOVE and nav_agent != null \
-		and nav_agent.is_navigation_finished() == false:
+	if current_command == CommandTypes.Type.ATTACK_MOVE and is_moving():
 		pass
 	elif current_command == CommandTypes.Type.ATTACK_MOVE:
 		move_to(command_position)
@@ -499,8 +528,7 @@ func _tick_combat_behavior(delta: float) -> void:
 	## what made move orders feel ignored in a fight - the classic RTS
 	## answer is that MOVE means move and ATTACK-MOVE means fight on the
 	## way. It picks targets again the moment it arrives.
-	if current_command == CommandTypes.Type.MOVE and nav_agent != null \
-		and not nav_agent.is_navigation_finished():
+	if current_command == CommandTypes.Type.MOVE and is_moving():
 		return
 
 	_acquire_timer -= delta
@@ -532,7 +560,7 @@ func _should_return_home() -> bool:
 		## becomes home if it is ever told to hold.
 		_guard_origin = global_position
 		return false
-	if nav_agent != null and not nav_agent.is_navigation_finished():
+	if is_moving():
 		return false
 	var leash: float = STANCE_LEASH.get(stance, MAX_CHASE_DISTANCE)
 	if leash <= 0.0:
@@ -580,7 +608,7 @@ func _hold_of(node: Node) -> OccupantHold:
 func _tick_patrol() -> void:
 	if current_command != CommandTypes.Type.PATROL:
 		return
-	if nav_agent == null or not nav_agent.is_navigation_finished():
+	if is_moving():
 		return
 	var swap := patrol_from
 	patrol_from = patrol_to
@@ -596,8 +624,7 @@ func _tick_guard() -> void:
 		return
 	var post: Vector3 = guard_target.global_position
 	_guard_origin = post
-	if global_position.distance_to(post) > 8.0 \
-		and (nav_agent == null or nav_agent.is_navigation_finished()):
+	if global_position.distance_to(post) > 8.0 and not is_moving():
 		move_to(post)
 
 ## Acquisition considers units FIRST, then structures.
@@ -774,6 +801,10 @@ func _settle_on_ground() -> void:
 ## The height this unit belongs at. Ships ride the surface; a submerged
 ## boat sits lower in it; everything else stands on the ground.
 func _resting_height(at: Vector3) -> float:
+	if is_airborne():
+		## Above the ground rather than above sea level, so an aircraft
+		## clears a ridge instead of flying into it.
+		return Terrain.height_at(at.x, at.z) + CRUISE_ALTITUDE
 	if is_naval():
 		return Water.level - (0.6 if Stealth.is_submerged(self) else 0.0)
 	return Terrain.height_at(at.x, at.z)
@@ -785,6 +816,10 @@ func _physics_process(delta: float) -> void:
 	_refresh_damage_visual()
 	_lay_tracks()
 	_settle_on_ground()
+	if is_airborne():
+		_fly(delta)
+		_tick_combat_behavior(delta)
+		return
 	if nav_agent == null or nav_agent.is_navigation_finished():
 		velocity = Vector3.ZERO
 		move_and_slide()
@@ -811,6 +846,28 @@ func _physics_process(delta: float) -> void:
 	_crush_what_we_drove_over()
 	_tick_combat_behavior(delta)
 	_tick_unstick(delta)
+
+## Straight-line flight. No path, no avoidance, no obstacles: an aircraft
+## goes where it is pointed and the settle pass holds it at altitude, so
+## terrain and buildings pass underneath it rather than blocking it.
+func _fly(delta: float) -> void:
+	if not _air_destination.is_finite():
+		velocity = Vector3.ZERO
+		move_and_slide()
+		return
+	var to_target: Vector3 = _air_destination - global_position
+	to_target.y = 0.0
+	if to_target.length() <= ARRIVAL:
+		_air_destination = Vector3.INF
+		velocity = Vector3.ZERO
+		move_and_slide()
+		return
+	var desired_rotation: float = atan2(-to_target.x, -to_target.z)  # models face -Z
+	var turn_speed: float = stats.turn_speed if stats else 6.0
+	rotation.y = lerp_angle(rotation.y, desired_rotation,
+		clamp(turn_speed * delta, 0.0, 1.0))
+	velocity = to_target.normalized() * move_speed()
+	move_and_slide()
 
 ## Recovery for a unit that is navigating but has not actually moved.
 ##

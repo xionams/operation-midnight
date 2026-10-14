@@ -165,11 +165,8 @@ tuning a field that does not exist at runtime.
 
 - [x] A1 Domain.AIR, Armor.Type.AIR, FLAK, and `can_target_air` now gates —
       `tests/air_domain_test.tscn`
-- [ ] A2 An aircraft that flies — moves off-navmesh at altitude. **Constraint found in A1:**
-      a unit with `movement_domain = AIR` that still rides the ground mover ABORTS the engine
-      within a few frames; its NavigationAgent3D on the land layer and the settle-to-terrain
-      pass disagree about where it is. The aircraft cannot reuse UnitBase's movement.
-      `NavLayers.for_unit` also still returns land layers for AIR.
+- [x] A2 An aircraft that flies — the Gunship. No nav agent, straight-line flight, altitude
+      held by the same settle pass that keeps ships on the water. `tests/air_flight_test.tscn`
 - [ ] A3 Anti-air: a weapon and a unit that can answer it
 - [ ] A4 The commander produces and uses both
 - [ ] A5 Tests for each of the above

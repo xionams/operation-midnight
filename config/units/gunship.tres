@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://config/weapons/gunship_rockets.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/units/gunship.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://assets/models/units/gunship.glb" id="10"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Gunship"
+role = "Attack helicopter: flies over terrain and anything on it. Hits ground hard, cannot touch other aircraft, and dies to flak."
+cost = 1400
+prerequisites = PackedStringArray("Vehicle Factory", "Radar Center")
+population = 2
+category = "VEHICLES"
+produced_by = "Vehicle Factory"
+build_time = 14.0
+max_health = 240.0
+move_speed = 11.0
+turn_speed = 3.2
+nav_radius = 1.4
+vision_range = 30.0
+movement_domain = 2
+body_color = Color(0.28, 0.42, 0.26, 1)
+body_size = Vector3(2.4, 1.4, 4.2)
+weapon_stats = ExtResource("2")
+armor_type = 5
+is_infantry = false
+can_be_crushed = false
+can_crush = false
+is_harvester = false
+cargo_capacity = 0.0
+load_time = 0.0
+unload_time = 0.0
+unit_scene = ExtResource("9")
+visual_scene = ExtResource("10")

@@ -23,6 +23,11 @@ static func gate_layer_for(is_player: bool) -> int:
 
 ## The layers a unit's agent should carry.
 static func for_unit(stats: UnitStats, is_player: bool) -> int:
+	## Aircraft have no mesh of their own and are given no agent (see
+	## UnitBase._build_nav_agent). Answering with the land layers would be
+	## a lie that only shows up as an aircraft steering around a wall.
+	if stats != null and stats.movement_domain == PlacementDomain.Domain.AIR:
+		return 0
 	if stats != null and stats.movement_domain == PlacementDomain.Domain.WATER:
 		return WATER
 	return LAND | gate_layer_for(is_player)

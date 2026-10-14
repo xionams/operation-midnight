@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Rocket Pods"
+damage = 70.0
+damage_type = 1
+attack_range = 14.0
+minimum_range = 0.0
+attack_cooldown = 2.2
+is_hitscan = true
+projectile_speed = 50.0
+tracer_color = Color(1, 0.72, 0.35, 1)
+visual_class = 2
+requires_setup = false
+splash_radius = 2.0
+can_target_air = false
+target_domains = 3
