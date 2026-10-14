@@ -97,26 +97,64 @@ Done
 - [x] Placeholder audio, synthesised in code
 - [x] tests/vertical_slice_test.tscn covers the brief's acceptance sequence
 
-Known gaps
+Known gaps — verified 2026-10-14, each by its own code and tests
+- [x] ~~No garrison mechanic~~ — `scripts/buildings/garrison_component.gd`, `tests/garrison_test.tscn`
+- [x] ~~Veterancy/rank not implemented~~ — `scripts/units/veterancy_component.gd`
+- [x] ~~No separate neutral-ownership state~~ — `BuildingBase.is_neutral`, `neutral_buildings` group
+- [x] ~~AI does not use fog~~ — `scripts/ai/ai_memory.gd` observes symmetrically; it can be
+      baited and surprised, and never reads hidden player state
+- [x] ~~AI does not rebuild what it loses~~ — `tests/ai_economy_recovery_test.tscn`
 - [ ] Gate does not physically open/close; it is passable to its owner via collision layers
-- [ ] Engineer capture works on enemy buildings; no separate neutral-ownership state
-- [ ] AI does not use fog, Engineers or Spies, and does not rebuild what it loses
-- [ ] Veterancy/rank shown in the brief's mock-up is not implemented
-- [ ] No garrison mechanic
+- [ ] AI *produces* Engineers and Spies but does not use them tactically — nothing in
+      `ai_director.gd` references either
 
-## NEXT
-- Vehicle production building (factory/barracks equivalent) so units are buildable mid-match.
-- Building construction time + visual progress (field already exists on BuildingStats).
-- Manual harvester → resource node assignment (currently fully automatic).
-- Debounce/throttle navmesh rebakes when multiple buildings are placed in quick succession.
-- Fix camera panning during touch building-placement drag (currently both react to the same drag).
+## NEXT — rewritten 2026-10-14
+The previous list was almost entirely stale. These were all claimed outstanding and are not:
 
-## LATER
-- Power shortage consequences (slower production → radar shutdown → defenses disabled → strategic weapon pause, in that order per the brief).
-- Additional unit types and hard counters (anti-tank, anti-air, artillery, infantry).
-- Fog of war.
-- Veterancy, strategic weapons, tech progression.
-- Real Blender-authored models (swap in via `visual_scene` on the relevant `.tres` — no code changes needed).
-- Android export preset + on-device build/test (needs Android SDK + keystore, not set up yet).
-- Save system.
-- Multiplayer-safe state sync (deferred, but current architecture avoids local-only assumptions where practical — GameState is a single deterministic source of truth, not scattered globals).
+- [x] Vehicle production building — `config/buildings/war_factory.tres`
+- [x] Building construction time + visual progress — `scripts/buildings/construction_queue.gd`
+- [x] Manual harvester → node assignment — `Harvester.assigned_node`, and a manual move order
+      takes it off its route
+- [x] Debounced navmesh rebakes — `main.gd` batches into one debounced request
+
+Genuinely next:
+- [ ] Gate open/close as real geometry and collision, not layer filtering
+- [ ] AI tactical use of Engineers (capture) and Spies (infiltrate) — the units and the AI's
+      production categories both exist already; only the decision layer is missing
+- [ ] Verify the touch building-placement drag against camera pan. `BuildingPlacer.is_placing()`
+      exists but `rts_camera.gd` does not consult it, so the old conflict may still be live.
+      `touch_input_test` passes, which suggests it is covered — confirm or reproduce.
+
+## LATER — rewritten 2026-10-14
+Also stale. All of these shipped:
+
+- [x] Fog of war — autoload, grid, shader, `tests/fog_test.tscn`
+- [x] Save system — `SaveGame`, `tests/save_resume_test.tscn`
+- [x] Android export preset + on-device build/test — four APK variants, validated on an AVD
+- [x] Real authored models — everything is generated through `assets/source/blender/om_kit.py`
+- [x] Power shortage consequences — `GameState.is_low_power` slows construction
+      (`LOW_POWER_SPEED`), shuts down the radar centre and disables defence towers
+- [x] Strategic weapons — `scripts/buildings/strategic_structure.gd`
+- [x] Veterancy — see above
+- [x] Hard counters — armour classes and a damage-vs-armour table, tuned in `config/weapons/*.tres`
+
+Actually later:
+- [ ] **An air layer.** There are no aircraft and no anti-air: `config/units/` holds twelve
+      units, all ground or naval. This is the largest missing axis of counterplay, not a polish
+      item.
+- [ ] Multiplayer-safe state sync. Deferred deliberately; GameState is a single deterministic
+      source of truth rather than scattered globals, so the architecture does not block it.
+- [ ] Tech progression / build tree gating.
+
+## OPEN ON HARDWARE
+- [ ] Real-device validation: true GPU performance, thermal throttling, battery drain, touch
+      ergonomics. The emulator rasterises in software at ~4 FPS and cannot speak to any of them.
+      Sharpened by the art pass: infantry triangles rose 27-40% in battle scenarios while draw
+      calls stayed flat, and vertex throughput is exactly what a software rasteriser hides.
+
+## HOW TO KEEP THIS HONEST
+This file had drifted badly: fog of war, saves, the Android export, construction progress,
+strategic weapons and the power cascade were all listed as unbuilt while passing their own
+tests, and four "known gaps" were closed. A plan built on it would have been wrong.
+
+Check an item against `scripts/` and `tests/` before believing it.
