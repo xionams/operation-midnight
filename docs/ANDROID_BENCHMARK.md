@@ -106,6 +106,29 @@ engine submits, and they do not depend on the GPU underneath.
 
 Scenario B on Android GL: **3,059 -> 1,319 (Phase 6) -> 1,005 (Phase 7)**.
 
+### Re-validated after the art pass
+
+The soldier rebuild took infantry from 264 to ~1,490 triangles and every
+ground texture was replaced, so the GL path was measured again. Draw
+calls did not move; the whole cost landed in triangles.
+
+| Scenario | Draws before | Draws after | Tris before | Tris after |
+|---|---|---|---|---|
+| A idle base | 233 | 233 | 81,860 | 81,862 |
+| B land battle 60 | 1,005 | 1,001 | 231,486 | 324,013 (+40%) |
+| C coastal fleet | 366 | 367 | 92,960 | 107,309 (+15%) |
+| D effects storm | 1,330 | 1,323 | 374,567 | 478,249 (+28%) |
+| E max zoom out | 1,397 | 1,398 | 391,183 | 496,612 (+27%) |
+
+Zero shader link failures, and VRAM moved 103.7 -> 104.5 MB despite the
+new textures - they replaced existing ones at the same dimensions.
+
+**What this does NOT establish.** A 27-40% triangle rise is precisely
+the kind of cost a real mobile GPU feels and a software rasteriser does
+not. The emulator renders at 4 FPS either way, so it cannot tell the
+difference. Vertex throughput on a real device is now the open question,
+and it is the same one real-device validation was always for.
+
 The GL backend submits roughly twice what desktop Vulkan does for the
 same scene (B: 1,005 against 519) because it batches surfaces less
 aggressively. That gap is the reason the draw-call work was worth doing.
