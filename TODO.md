@@ -121,9 +121,9 @@ Genuinely next:
 - [ ] Gate open/close as real geometry and collision, not layer filtering
 - [ ] AI tactical use of Engineers (capture) and Spies (infiltrate) — the units and the AI's
       production categories both exist already; only the decision layer is missing
-- [ ] Verify the touch building-placement drag against camera pan. `BuildingPlacer.is_placing()`
-      exists but `rts_camera.gd` does not consult it, so the old conflict may still be live.
-      `touch_input_test` passes, which suggests it is covered — confirm or reproduce.
+- [x] ~~Touch building-placement drag fights camera pan~~ — it was live. Reproduced at 30m of
+      camera travel while positioning a ghost, fixed, and pinned by
+      `tests/touch_placement_test.tscn`
 
 ## LATER — rewritten 2026-10-14
 Also stale. All of these shipped:

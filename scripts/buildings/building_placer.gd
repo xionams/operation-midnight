@@ -46,6 +46,13 @@ func _get_camera() -> Camera3D:
 		_camera = get_tree().get_first_node_in_group("rts_camera") as Camera3D
 	return _camera
 
+## Found by SelectionManager through this group rather than by class, so
+## nothing in core has to know the buildings layer exists.
+const GROUP: StringName = &"building_placer"
+
+func _ready() -> void:
+	add_to_group(GROUP)
+
 func is_placing() -> bool:
 	return active_stats != null
 

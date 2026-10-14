@@ -83,8 +83,28 @@ func _get_camera() -> Camera3D:
 func _touch_is_driving() -> bool:
 	return (Time.get_ticks_msec() / 1000.0) - _last_touch_time < TOUCH_MOUSE_LOCKOUT
 
+## The camera's single guard on whether a drag may move the world.
+##
+## Placing a building is the other gesture that owns the finger. The
+## placer tracks the pointer without consuming the event, so a drag used
+## to position a ghost ALSO panned the ground under it - measured at 30m
+## of travel on a 220m map, which makes touch placement unusable, on the
+## platform this game is for.
+##
+## The placer is asked rather than mirrored into a flag here: `is_placing`
+## is already `active_stats != null` and every exit runs through
+## `cancel_placement`, so there is one source of truth and nothing to
+## keep in sync. It is reached by group, so core needs no dependency on
+## the buildings layer.
 func is_panning_allowed() -> bool:
-	return _gesture != Gesture.MARQUEE
+	return _gesture != Gesture.MARQUEE and not _is_placing_building()
+
+func _is_placing_building() -> bool:
+	if not is_instance_valid(_placer):
+		_placer = get_tree().get_first_node_in_group(&"building_placer")
+	return _placer != null and _placer.is_placing()
+
+var _placer: Node = null
 
 func is_boxing() -> bool:
 	return _gesture == Gesture.MARQUEE
