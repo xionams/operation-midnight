@@ -27,6 +27,8 @@ const SCOUT: UnitStats = preload("res://config/units/scout_vehicle.tres")
 const ASSAULT: UnitStats = preload("res://config/units/assault_vehicle.tres")
 const TANK: UnitStats = preload("res://config/units/main_battle_tank.tres")
 const ARTILLERY: UnitStats = preload("res://config/units/artillery_vehicle.tres")
+const ENGINEER: UnitStats = preload("res://config/units/engineer.tres")
+const SPY: UnitStats = preload("res://config/units/spy.tres")
 
 const REFINERY: BuildingStats = preload("res://config/buildings/refinery.tres")
 const POWER_PLANT: BuildingStats = preload("res://config/buildings/power_plant.tres")
@@ -183,6 +185,7 @@ func _process(delta: float) -> void:
 func _think() -> void:
 	_run_economy()
 	_run_construction()
+	_run_infiltration()
 	_run_production()
 	_run_scouting()
 	_run_defence()
@@ -540,6 +543,173 @@ func _construction_reserve() -> int:
 		if counts.get(candidate.display_name, 0) < order.count(candidate):
 			return candidate.cost
 	return 0
+
+# --------------------------------------------------------- infiltration
+
+## What a Spy is worth spending on, best first: a Refinery costs the
+## player income outright, a Power Plant blacks out his defences, and a
+## production building loses a queue with no refund.
+const INFILTRATE_RANK: Array[String] = [
+	"Resource Refinery", "Power Plant", "Vehicle Factory", "Barracks",
+]
+## A Spy walking to a building that was demolished two minutes ago is a
+## wasted unit, so specialists work from fresher sightings than a wave does.
+const SPECIALIST_MEMORY_AGE: float = 30.0
+## A specialist is a luxury. Buying one before the economy stands up cost
+## the commander its second refinery in ai_versus_test - and the queued
+## unit also blocked the barracks, so it lost the infantry that tick too.
+## It may only be bought out of genuine surplus, once income exists.
+## Two refineries, not one: with a single refinery the commander still
+## wants every credit, and buying a specialist there cost it naval tempo
+## in naval_ai_test - its fleet reached the player's yard outside the
+## window. A specialist is a luxury and is priced like one.
+const SPECIALIST_MIN_REFINERIES: int = 2
+const SPECIALIST_SURPLUS: int = 2500
+## And only for something within reach. "Any neutral building on the map"
+## was true from the opening whistle, which is what made this fire
+## immediately in every match.
+const SPECIALIST_REACH: float = 90.0
+## How close to a remembered position a structure has to be to count as
+## the one that was seen.
+const SPECIALIST_SITE_RADIUS: float = 12.0
+
+## Engineers and Spies: the two units the AI built and never used.
+##
+## Both ride EnterBuildingAbility, so the whole job is choosing a target
+## and calling order() - the ability walks the unit in, channels, and
+## applies itself. Targets come from AIMemory, so the commander can be
+## baited by a structure that is no longer there, exactly as it can with
+## an attack wave.
+##
+## EASY does not do this at all. It is a decision-quality difference
+## rather than a numbers one, which is how difficulty works here.
+func _run_infiltration() -> void:
+	if difficulty == Difficulty.EASY:
+		return
+	_task_specialists()
+	_produce_specialist()
+
+func _task_specialists() -> void:
+	for unit in get_tree().get_nodes_in_group(_own_units()):
+		if not is_instance_valid(unit):
+			continue
+		var ability := _enter_ability(unit)
+		## Already walking into something - leave it alone.
+		if ability == null or ability.target != null:
+			continue
+		var target := _specialist_target(unit, ability)
+		if target != null:
+			ability.order(target)
+
+## One at a time. A specialist is a gamble that pays once; two in the
+## queue is an army not being built.
+func _produce_specialist() -> void:
+	var barracks := _own("Barracks")
+	if barracks == null or barracks.queue.queue_length() > 0:
+		return
+	for unit in get_tree().get_nodes_in_group(_own_units()):
+		if is_instance_valid(unit) and _enter_ability(unit) != null:
+			return
+	## Spend on one only when there is something to spend it ON, and only
+	## out of genuine surplus - never out of the construction reserve.
+	## Economy first, always. This is the gate that was missing.
+	if _refinery_count() < SPECIALIST_MIN_REFINERIES:
+		return
+	var wanted: UnitStats = null
+	if _has_specialist_target(SPY):
+		wanted = SPY
+	elif _has_specialist_target(ENGINEER):
+		wanted = ENGINEER
+	if wanted == null or not TechTree.is_available(wanted, is_player):
+		return
+	var reserve: int = _construction_reserve()
+	if GameState.balance_of(is_player) - wanted.cost < reserve + SPECIALIST_SURPLUS:
+		return
+	## LUXURY is the honest priority for this. It reads the same as ARMY
+	## through can_afford today, but it says what the purchase is, so a
+	## future change to the priority ladder treats it correctly.
+	if not economy.can_afford(wanted.cost, AIEconomy.Priority.LUXURY):
+		return
+	barracks.produce(wanted)
+
+func _refinery_count() -> int:
+	var n: int = 0
+	for building in get_tree().get_nodes_in_group(_own_buildings()):
+		if is_instance_valid(building) and building.stats != null \
+			and building.stats.display_name == "Resource Refinery":
+			n += 1
+	return n
+
+func _enter_ability(unit: Node) -> Node:
+	for child in unit.get_children():
+		if child is EnterBuildingAbility:
+			return child
+	return null
+
+## Would a unit of this kind have anywhere to go? Asked before paying for
+## one, using the same reasoning the finished unit will use.
+func _has_specialist_target(stats: UnitStats) -> bool:
+	if stats == SPY:
+		for record in memory.fresh_economy_targets(SPECIALIST_MEMORY_AGE):
+			if INFILTRATE_RANK.has(record["kind"]) \
+				and _within_reach(record["position"]) \
+				and _structure_near(record["position"]) != null:
+				return true
+		return false
+	for building in get_tree().get_nodes_in_group("neutral_buildings"):
+		if is_instance_valid(building) and _within_reach(building.global_position):
+			return true
+	for record in memory.fresh_economy_targets(SPECIALIST_MEMORY_AGE):
+		if _within_reach(record["position"]) \
+			and _structure_near(record["position"]) != null:
+			return true
+	return false
+
+## Is this worth walking a lone unarmed specialist to, from home?
+func _within_reach(point: Vector3) -> bool:
+	return base_position.distance_to(point) <= SPECIALIST_REACH
+
+func _specialist_target(unit: Node3D, ability: Node) -> Node3D:
+	var best: Node3D = null
+	var best_score: float = -INF
+	## A neutral structure is free ground: worth taking for an Engineer,
+	## worth nothing to a Spy, who cannot hurt what nobody owns.
+	if ability is CaptureAbility:
+		for building in get_tree().get_nodes_in_group("neutral_buildings"):
+			if not is_instance_valid(building) or not ability.accepts(building):
+				continue
+			var score: float = 400.0 - unit.global_position.distance_to(
+				building.global_position)
+			if score > best_score:
+				best_score = score
+				best = building
+	for record in memory.fresh_economy_targets(SPECIALIST_MEMORY_AGE):
+		var rank: int = INFILTRATE_RANK.find(record["kind"])
+		if rank < 0:
+			continue
+		var structure := _structure_near(record["position"])
+		if structure == null or not ability.accepts(structure):
+			continue
+		## Rank dominates distance: a Refinery across the map is worth
+		## more than a Barracks next door.
+		var value: float = 300.0 - float(rank) * 60.0 \
+			- unit.global_position.distance_to(structure.global_position) * 0.4
+		if value > best_score:
+			best_score = value
+			best = structure
+	return best
+
+## The structure standing where one was remembered, if it still is. A
+## sighting that no longer matches anything simply yields no target,
+## which is what lets the commander be baited.
+func _structure_near(point: Vector3) -> Node3D:
+	for group in [_foe_buildings(), "neutral_buildings"]:
+		for building in get_tree().get_nodes_in_group(group):
+			if not is_instance_valid(building):
+				continue
+			if building.global_position.distance_to(point) <= SPECIALIST_SITE_RADIUS:
+				return building
+	return null
 
 func _run_production() -> void:
 	var composition: Dictionary = memory.estimated_composition()

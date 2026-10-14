@@ -105,8 +105,8 @@ Known gaps — verified 2026-10-14, each by its own code and tests
       baited and surprised, and never reads hidden player state
 - [x] ~~AI does not rebuild what it loses~~ — `tests/ai_economy_recovery_test.tscn`
 - [ ] Gate does not physically open/close; it is passable to its owner via collision layers
-- [ ] AI *produces* Engineers and Spies but does not use them tactically — nothing in
-      `ai_director.gd` references either
+- [x] ~~AI produces Engineers and Spies but does not use them tactically~~ — `_run_infiltration()`
+      in `ai_director.gd`, pinned by `tests/ai_specialists_test.tscn`
 
 ## NEXT — rewritten 2026-10-14
 The previous list was almost entirely stale. These were all claimed outstanding and are not:
@@ -119,8 +119,9 @@ The previous list was almost entirely stale. These were all claimed outstanding 
 
 Genuinely next:
 - [ ] Gate open/close as real geometry and collision, not layer filtering
-- [ ] AI tactical use of Engineers (capture) and Spies (infiltrate) — the units and the AI's
-      production categories both exist already; only the decision layer is missing
+- [x] ~~AI tactical use of Engineers and Spies~~ — done. Targets come from AIMemory, so the
+      commander can be baited by a structure that is no longer there; EASY abstains entirely,
+      as a decision-quality difference rather than a numbers one
 - [x] ~~Touch building-placement drag fights camera pan~~ — it was live. Reproduced at 30m of
       camera travel while positioning a ghost, fixed, and pinned by
       `tests/touch_placement_test.tscn`
