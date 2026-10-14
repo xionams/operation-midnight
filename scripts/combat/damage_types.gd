@@ -22,16 +22,25 @@ class_name DamageTypes
 
 ##   TORPEDO      submarine torpedoes: nothing on land, heavy against
 ##                hulls and anything built on the water
+##   FLAK         anti-air guns: nearly useless against the ground, which
+##                is what makes an air force worth answering deliberately
+##                rather than with whatever is nearby
 
-enum Type { SMALL_ARMS, ANTI_ARMOR, CANNON, EXPLOSIVE, TORPEDO }
+enum Type { SMALL_ARMS, ANTI_ARMOR, CANNON, EXPLOSIVE, TORPEDO, FLAK }
 
-## [INFANTRY, LIGHT, MEDIUM, HEAVY, STRUCTURE]
+## [INFANTRY, LIGHT, MEDIUM, HEAVY, STRUCTURE, AIR]
+##
+## Every row carries an AIR column even though most of them read near
+## zero, because `multiplier()` returns 1.0 for an armor index past the
+## end of its row - so a short row would have quietly let every weapon in
+## the game do FULL damage to aircraft.
 const TABLE: Dictionary = {
-	Type.SMALL_ARMS: [1.00, 0.55, 0.20, 0.10, 0.30],
-	Type.ANTI_ARMOR: [0.35, 0.90, 1.10, 1.30, 0.70],
-	Type.CANNON:     [0.40, 1.00, 1.00, 0.90, 0.85],
-	Type.EXPLOSIVE:  [1.20, 0.85, 0.75, 0.55, 1.30],
-	Type.TORPEDO:    [0.00, 1.10, 1.25, 1.30, 1.10],
+	Type.SMALL_ARMS: [1.00, 0.55, 0.20, 0.10, 0.30, 0.25],
+	Type.ANTI_ARMOR: [0.35, 0.90, 1.10, 1.30, 0.70, 0.15],
+	Type.CANNON:     [0.40, 1.00, 1.00, 0.90, 0.85, 0.20],
+	Type.EXPLOSIVE:  [1.20, 0.85, 0.75, 0.55, 1.30, 0.10],
+	Type.TORPEDO:    [0.00, 1.10, 1.25, 1.30, 1.10, 0.00],
+	Type.FLAK:       [0.25, 0.30, 0.15, 0.10, 0.15, 1.35],
 }
 
 static func type_name(damage: Type) -> String:

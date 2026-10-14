@@ -12,7 +12,9 @@ class_name PlacementDomain
 ## half on a beach or a power plant with a corner in the surf are both
 ## refused, with a reason the player can act on.
 
-enum Domain { LAND, WATER }
+## AIR is a MOVEMENT domain only: nothing is built in it, and an aircraft
+## ignores both navmeshes rather than needing a third one.
+enum Domain { LAND, WATER, AIR }
 
 ## How close to the waterline a `requires_shore` structure's footprint
 ## must come, in metres.

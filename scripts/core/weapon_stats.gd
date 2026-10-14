@@ -52,6 +52,13 @@ class_name WeaponStats
 @export_flags("Land", "Naval", "Submerged") var target_domains: int = 3
 
 func reaches(domain: int) -> bool:
+	## Air is deliberately NOT a bit in target_domains. Eleven weapon
+	## configs already author `can_target_air`, and nothing read it - the
+	## field has been live in the data and dead in the code. Honouring it
+	## here makes every one of those settings mean what it says, and the
+	## default of false means nothing becomes anti-air by accident.
+	if domain == CombatTarget.Domain.AIR:
+		return can_target_air
 	return (target_domains & domain) != 0
 
 func excludes(armor: int) -> bool:

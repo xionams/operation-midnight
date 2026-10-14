@@ -147,6 +147,33 @@ Actually later:
       source of truth rather than scattered globals, so the architecture does not block it.
 - [ ] Tech progression / build tree gating.
 
+## ACTIVE MISSION — the air layer
+Marked 2026-10-14. The largest missing axis of counterplay: twelve units,
+every one ground or naval, so there is no aircraft and no anti-air.
+
+The ground is already prepared, which is why this is the next mission and
+not a rewrite:
+- `CombatTarget.Domain` is a real mask (LAND / NAVAL / SUBMERGED) and
+  `domain_of()` is the single place that classifies a target.
+- `WeaponStats.target_domains` already gates engagement by domain.
+- `NavLayers` already runs two navmeshes off one pathfinder, so a third
+  movement domain is an extension rather than a new system.
+
+And a latent bug sits exactly here: **`WeaponStats.can_target_air` is set
+by eleven weapon configs and read by nothing.** Designers have been
+tuning a field that does not exist at runtime.
+
+- [x] A1 Domain.AIR, Armor.Type.AIR, FLAK, and `can_target_air` now gates —
+      `tests/air_domain_test.tscn`
+- [ ] A2 An aircraft that flies — moves off-navmesh at altitude. **Constraint found in A1:**
+      a unit with `movement_domain = AIR` that still rides the ground mover ABORTS the engine
+      within a few frames; its NavigationAgent3D on the land layer and the settle-to-terrain
+      pass disagree about where it is. The aircraft cannot reuse UnitBase's movement.
+      `NavLayers.for_unit` also still returns land layers for AIR.
+- [ ] A3 Anti-air: a weapon and a unit that can answer it
+- [ ] A4 The commander produces and uses both
+- [ ] A5 Tests for each of the above
+
 ## OPEN ON HARDWARE
 - [ ] Real-device validation: true GPU performance, thermal throttling, battery drain, touch
       ergonomics. The emulator rasterises in software at ~4 FPS and cannot speak to any of them.

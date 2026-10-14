@@ -23,14 +23,18 @@ static func is_structure(target: Node) -> bool:
 ##   LAND       anything on land, units and structures alike
 ##   NAVAL      ships, surfaced submarines, structures built on water
 ##   SUBMERGED  a submarine running under water
-## WeaponStats.target_domains is a mask of these bits.
-enum Domain { LAND = 1, NAVAL = 2, SUBMERGED = 4 }
+##   AIR        anything flying
+## WeaponStats.target_domains is a mask of these bits, except AIR, which
+## is gated by WeaponStats.can_target_air - see `reaches`.
+enum Domain { LAND = 1, NAVAL = 2, SUBMERGED = 4, AIR = 8 }
 
 static func domain_of(target: Node) -> int:
 	if not is_instance_valid(target):
 		return Domain.LAND
 	var stats = target.get("stats")
 	if stats is UnitStats:
+		if stats.movement_domain == PlacementDomain.Domain.AIR:
+			return Domain.AIR
 		if stats.movement_domain != PlacementDomain.Domain.WATER:
 			return Domain.LAND
 		return Domain.SUBMERGED if Stealth.is_submerged(target) else Domain.NAVAL
@@ -40,6 +44,8 @@ static func domain_of(target: Node) -> int:
 
 static func domain_name(domain: int) -> String:
 	match domain:
+		Domain.AIR:
+			return "air"
 		Domain.NAVAL:
 			return "naval"
 		Domain.SUBMERGED:
